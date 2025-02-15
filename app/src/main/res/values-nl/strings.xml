@@ -45,7 +45,7 @@
     <string name="conn_error_title">Verbindingsprobleem</string>
     <string name="conn_error_msg">Starten mislukt</string>
     <string name="conn_terminated_title">Verbinding beëindigd</string>
-    <string name="conn_terminated_msg">De verbinding is beëindigd</string>
+    <string name="conn_terminated_msg">De verbinding is beëindigd.</string>
     <!-- General strings -->
     <string name="ip_hint">IP adres van GeForce PC</string>
     <string name="searching_pc">Zoeken naar PCs met GeForce Experience actief…
@@ -84,7 +84,7 @@
     <string name="title_checkbox_disable_warnings">Verberg waarschuwingsberichten</string>
     <string name="summary_checkbox_disable_warnings">Verberg on-screen verbindingswaarschuwingen tijdens het streamen</string>
     <string name="category_audio_settings">Audio­instellingen</string>
-    <string name="title_checkbox_multi_controller"></string>
+    <string name="title_checkbox_multi_controller">Automatische detectie van gamepad-aanwezigheid</string>
     <string name="summary_checkbox_multi_controller">Deze optie uitvinken zorgt ervoor dat er altijd een gamepad beschikbaar is</string>
     <string name="title_seekbar_deadzone">Pas analoge dode zone aan</string>
     <string name="suffix_seekbar_deadzone">%</string>
@@ -217,7 +217,7 @@
     <string name="summary_enable_post_stream_toast">Toon een informatiebericht van de vertraging na de stream beëindigd is</string>
     <string name="help_loading_title">Hulpwijzer</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
-    <string name="perf_overlay_renderingfps"></string>
+    <string name="perf_overlay_renderingfps"/>
     <string name="perf_overlay_netdrops">Frames overgeslagen door uw netwerkverbinding: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Gemiddelde decodeertijd: %1$.2f ms</string>
     <string name="applist_menu_tv_channel">Toevoegen aan Kanaal</string>
@@ -249,4 +249,15 @@
     <string name="resolution_prefix_native_landscape">(landschap)</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="category_gamepad_settings">Gamepad­instellingen</string>
+    <string name="title_checkbox_absolute_mouse_mode">Muis­modus voor extern bureau­blad</string>
+    <string name="audioconf_71surround">7.1 Surround­sound</string>
+    <string name="pacing_latency">Minimale vertraging</string>
+    <string name="pacing_balanced_alt">Gebalanceerd met FPS-limiet</string>
+    <string name="analogscroll_right">Rechter analoge stick</string>
+    <string name="analogscroll_left">Linker analoge stick</string>
+    <string name="audioconf_51surround">5.1 Surround­sound</string>
+    <string name="pcview_menu_eol">Einde van NVIDIA GameStream</string>
+    <string name="title_native_fps_dialog">Inheemse FPS-waarschuwing</string>
+    <string name="title_frame_pacing">Video­frame­tempo</string>
+    <string name="summary_privacy_policy">Bekĳk het privacy­beleid van Moonlight</string>
 </resources>
