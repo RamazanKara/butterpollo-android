@@ -243,7 +243,7 @@
     <string name="analogscroll_left">Linker analoge stick</string>
     <string name="audioconf_51surround">5.1 Surround Sound</string>
     <string name="pcview_menu_eol">NVIDIA GameStream - Beëindiging van service</string>
-    <string name="title_native_fps_dialog">Inheemse FPS-waarschuwing</string>
+    <string name="title_native_fps_dialog">Oorspronkelijke FPS-waarschuwing</string>
     <string name="title_frame_pacing">Video­frame­tempo</string>
     <string name="summary_privacy_policy">Bekijk het privacybeleid van Moonlight</string>
     <string name="frame_conversion_error">De host-PC meldde een fatale videocoderingsfout.\n\nProbeer de HDR-modus uit te schakelen, de streamingresolutie te wijzigen of de schermresolutie van uw host-PC te wijzigen.</string>
