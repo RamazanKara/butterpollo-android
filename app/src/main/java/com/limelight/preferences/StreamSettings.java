@@ -1,6 +1,7 @@
 package com.limelight.preferences;
 
 import android.content.Context;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -26,18 +27,25 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.widget.Toast;
 
 import com.limelight.LimeLog;
 import com.limelight.PcView;
 import com.limelight.R;
 import com.limelight.binding.video.MediaCodecHelper;
+import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.UiHelper;
 
 import java.lang.reflect.Method;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 public class StreamSettings extends Activity {
+    private static final int EXPORT_LATENCY_REQUEST = 1;
     private PreferenceConfiguration previousPrefs;
     private int previousDisplayPixelCount;
 
@@ -65,6 +73,57 @@ public class StreamSettings extends Activity {
         setContentView(R.layout.activity_stream_settings);
 
         UiHelper.notifyNewRootView(this);
+    }
+
+    private void exportLatencyCsv() {
+        if (!new File(getFilesDir(), MediaCodecDecoderRenderer.LATENCY_CSV_NAME).isFile()) {
+            Toast.makeText(this, R.string.latency_csv_empty, Toast.LENGTH_LONG).show();
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/csv");
+        intent.putExtra(Intent.EXTRA_TITLE, MediaCodecDecoderRenderer.LATENCY_CSV_NAME);
+        try {
+            startActivityForResult(intent, EXPORT_LATENCY_REQUEST);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, R.string.latency_csv_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_LATENCY_REQUEST || resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int message = R.string.latency_csv_saved;
+                try (FileInputStream input = new FileInputStream(new File(getFilesDir(), MediaCodecDecoderRenderer.LATENCY_CSV_NAME));
+                     OutputStream output = getContentResolver().openOutputStream(data.getData(), "wt")) {
+                    if (output == null) {
+                        throw new IOException("Document provider did not open the CSV");
+                    }
+                    byte[] buffer = new byte[16384];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, count);
+                    }
+                } catch (IOException | SecurityException e) {
+                    LimeLog.warning("Unable to export latency CSV: " + e);
+                    message = R.string.latency_csv_failed;
+                }
+                final int resultMessage = message;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(StreamSettings.this, resultMessage, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }, "Latency CSV export").start();
     }
 
     @Override
@@ -276,6 +335,13 @@ public class StreamSettings extends Activity {
 
             addPreferencesFromResource(R.xml.preferences);
             PreferenceScreen screen = getPreferenceScreen();
+            findPreference("export_latency_csv").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    ((StreamSettings) getActivity()).exportLatencyCsv();
+                    return true;
+                }
+            });
 
             // hide on-screen controls category on non touch screen devices
             if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {

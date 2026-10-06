@@ -303,4 +303,18 @@
     <string name="analogscroll_none">None (both sticks move the mouse)</string>
     <string name="analogscroll_right">Right analog stick</string>
     <string name="analogscroll_left">Left analog stick</string>
+    <string name="latency_header">Latency ms: avg / p95 / p99 (window: %1$d)</string>
+    <string name="latency_receive_input">Receive → decoder input</string>
+    <string name="latency_input_output">Decoder input → output</string>
+    <string name="latency_output_render">Decoder output → render</string>
+    <string name="latency_receive_render">Receive → render</string>
+    <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>
+    <string name="latency_unavailable">N/A (no observed samples)</string>
+    <string name="title_export_latency_csv">Export latency CSV</string>
+    <string name="summary_export_latency_csv">Save per-frame timings from the last completed stream. Render timing requires Android 6 or later and codec callbacks; missing timings are left blank.</string>
+    <string name="latency_csv_empty">Complete a stream before exporting its latency CSV.</string>
+    <string name="latency_csv_no_picker">No document picker is installed to save the CSV.</string>
+    <string name="latency_csv_saved">Latency CSV saved.</string>
+    <string name="latency_csv_failed">Latency CSV unavailable: file access failed.</string>
+    <string name="latency_csv_lost">CSV rows lost to backlog: %1$d</string>
 </resources>
