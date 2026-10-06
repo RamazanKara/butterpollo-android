@@ -1,8 +1,13 @@
 package com.limelight.binding.video;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -107,6 +112,40 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private VideoStats activeWindowVideoStats;
     private VideoStats lastWindowVideoStats;
     private VideoStats globalVideoStats;
+
+    private final FrameLatencyStats frameLatencyStats = new FrameLatencyStats();
+    private HandlerThread latencyThread;
+    private Handler latencyHandler;
+    private BufferedWriter latencyCsv;
+    private volatile String latencyOverlay = "";
+    public static final String LATENCY_CSV_NAME = "butterpollo-latency.csv";
+    private final Runnable updateLatencyStats = new Runnable() {
+        @Override
+        public void run() {
+            frameLatencyStats.expire(System.nanoTime());
+            flushLatencyCsv();
+            double[][] summary = frameLatencyStats.summarize();
+            int[] labels = { R.string.latency_receive_input, R.string.latency_input_output,
+                    R.string.latency_output_render, R.string.latency_receive_render };
+            StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
+            for (int stage = 0; stage < labels.length; stage++) {
+                text.append('\n').append(context.getString(labels[stage])).append(": ");
+                if (summary[stage][0] == 0) {
+                    text.append(context.getString(R.string.latency_unavailable));
+                } else {
+                    text.append(context.getString(R.string.latency_values, summary[stage][1],
+                            summary[stage][2], summary[stage][3], (int) summary[stage][0]));
+                }
+            }
+            if (latencyCsv == null) {
+                text.append('\n').append(context.getString(R.string.latency_csv_failed));
+            } else if (frameLatencyStats.getCsvRowsLost() != 0) {
+                text.append('\n').append(context.getString(R.string.latency_csv_lost, frameLatencyStats.getCsvRowsLost()));
+            }
+            latencyOverlay = text.toString();
+            latencyHandler.postDelayed(this, 1000);
+        }
+    };
 
     private long lastTimestampUs;
     private int lastFrameNumber;
@@ -534,6 +573,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Start the decoder
         videoDecoder.start();
+        setFrameRenderedListener();
 
     }
 
@@ -657,10 +697,15 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
 
-        if (USE_FRAME_RENDER_TIME && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        return 0;
+    }
+
+    private void setFrameRenderedListener() {
+        if (latencyHandler != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             videoDecoder.setOnFrameRenderedListener(new MediaCodec.OnFrameRenderedListener() {
                 @Override
                 public void onFrameRendered(MediaCodec mediaCodec, long presentationTimeUs, long renderTimeNanos) {
+                    frameLatencyStats.onFrameRendered(presentationTimeUs, renderTimeNanos);
                     long delta = (renderTimeNanos / 1000000L) - (presentationTimeUs / 1000);
                     if (delta >= 0 && delta < 1000) {
                         if (USE_FRAME_RENDER_TIME) {
@@ -668,10 +713,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         }
                     }
                 }
-            }, null);
+            }, latencyHandler);
         }
-
-        return 0;
     }
 
     @Override
@@ -681,7 +724,55 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.videoFormat = format;
         this.refreshRate = redrawRate;
 
-        return initializeDecoder(false);
+        int result = initializeDecoder(false);
+        if (result == 0) {
+            latencyThread = new HandlerThread("Video - Latency", Process.THREAD_PRIORITY_BACKGROUND);
+            latencyThread.start();
+            latencyHandler = new Handler(latencyThread.getLooper());
+            latencyHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        latencyCsv = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(
+                                new File(context.getFilesDir(), LATENCY_CSV_NAME + ".tmp")), StandardCharsets.UTF_8));
+                        latencyCsv.write(FrameLatencyStats.CSV_HEADER);
+                    } catch (IOException e) {
+                        LimeLog.warning("Unable to open latency CSV: " + e);
+                        closeLatencyCsv();
+                    }
+                    updateLatencyStats.run();
+                }
+            });
+            setFrameRenderedListener();
+        }
+        return result;
+    }
+
+    private void flushLatencyCsv() {
+        if (latencyCsv != null) {
+            try {
+                frameLatencyStats.writeCsv(latencyCsv);
+                latencyCsv.flush();
+            } catch (IOException e) {
+                LimeLog.warning("Unable to write latency CSV: " + e);
+                closeLatencyCsv();
+            }
+        }
+    }
+
+    private boolean closeLatencyCsv() {
+        if (latencyCsv != null) {
+            try {
+                latencyCsv.close();
+            } catch (IOException e) {
+                LimeLog.warning("Unable to close latency CSV: " + e);
+                return false;
+            } finally {
+                latencyCsv = null;
+            }
+            return true;
+        }
+        return false;
     }
 
     // All threads that interact with the MediaCodec instance must call this function regularly!
@@ -708,6 +799,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 nextInputBuffer = null;
                 nextInputBufferIndex = -1;
                 outputBufferQueue.clear();
+                frameLatencyStats.discardPending("codec_reset");
 
                 // If we just need a flush, do so now with all threads quiesced.
                 if (codecRecoveryType.get() == CR_RECOVERY_TYPE_FLUSH) {
@@ -966,6 +1058,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             Integer nextOutputBuffer = outputBufferQueue.poll();
             if (nextOutputBuffer != null) {
                 try {
+                    frameLatencyStats.onOutputReleased(nextOutputBuffer, System.nanoTime(), true,
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                     videoDecoder.releaseOutputBuffer(nextOutputBuffer, frameTimeNanos);
 
                     lastRenderedFrameTimeNanos = frameTimeNanos;
@@ -1022,6 +1116,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         // Try to output a frame
                         int outIndex = videoDecoder.dequeueOutputBuffer(info, 50000);
                         if (outIndex >= 0) {
+                            frameLatencyStats.onDecoderOutput(outIndex, info.presentationTimeUs, System.nanoTime());
                             long presentationTimeUs = info.presentationTimeUs;
                             int lastIndex = outIndex;
 
@@ -1031,6 +1126,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
                                 // Get the last output buffer in the queue
                                 while ((outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
+                                    frameLatencyStats.onDecoderOutput(outIndex, info.presentationTimeUs, System.nanoTime());
+                                    frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), false,
+                                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                     videoDecoder.releaseOutputBuffer(lastIndex, false);
 
                                     numFramesOut++;
@@ -1039,6 +1137,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     presentationTimeUs = info.presentationTimeUs;
                                 }
 
+                                frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), true,
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                 if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS ||
                                         prefs.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS) {
                                     // In max smoothness or cap FPS mode, we want to never drop frames
@@ -1064,7 +1164,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 // refresh rate).
                                 if (outputBufferQueue.size() == OUTPUT_BUFFER_QUEUE_LIMIT) {
                                     try {
-                                        videoDecoder.releaseOutputBuffer(outputBufferQueue.take(), false);
+                                        int droppedIndex = outputBufferQueue.take();
+                                        frameLatencyStats.onOutputReleased(droppedIndex, System.nanoTime(), false,
+                                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+                                        videoDecoder.releaseOutputBuffer(droppedIndex, false);
                                     } catch (InterruptedException e) {
                                         // We're shutting down, so we can just drop this buffer on the floor
                                         // and it will be reclaimed when the codec is released.
@@ -1248,6 +1351,26 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public void cleanup() {
         videoDecoder.release();
+        if (latencyHandler != null) {
+            latencyHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    latencyHandler.removeCallbacks(updateLatencyStats);
+                    frameLatencyStats.discardPending("stream_ended");
+                    flushLatencyCsv();
+                    if (closeLatencyCsv() && !new File(context.getFilesDir(), LATENCY_CSV_NAME + ".tmp")
+                            .renameTo(new File(context.getFilesDir(), LATENCY_CSV_NAME))) {
+                        LimeLog.warning("Unable to save completed latency CSV");
+                    }
+                    latencyThread.quitSafely();
+                }
+            });
+            try {
+                latencyThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override
@@ -1280,10 +1403,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
-    private boolean queueNextInputBuffer(long timestampUs, int codecFlags) {
+    private boolean queueNextInputBuffer(long timestampUs, int codecFlags, int frameNumber, long receiveTimeNs) {
         boolean codecRecovered;
 
         try {
+            if ((codecFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
+                frameLatencyStats.onDecoderInput(frameNumber, timestampUs, receiveTimeNs, System.nanoTime());
+            }
             videoDecoder.queueInputBuffer(nextInputBufferIndex,
                     0, nextInputBuffer.position(),
                     timestampUs, codecFlags);
@@ -1292,6 +1418,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             nextInputBufferIndex = -1;
             nextInputBuffer = null;
         } catch (IllegalStateException e) {
+            frameLatencyStats.discard(timestampUs, "input_failed");
             if (handleDecoderException(e)) {
                 // We encountered a transient error. In this case, just hold onto the buffer
                 // (to avoid leaking it), clear it, and keep it for the next frame. We'll return
@@ -1345,7 +1472,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
-                                long receiveTimeUs, long enqueueTimeUs) {
+                                long receiveTimeUs, long enqueueTimeUs, long receiveTimeNs) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -1407,6 +1534,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
                 }
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
+                sb.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(sb.toString());
             }
 
@@ -1602,7 +1730,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         nextInputBuffer.put(ppsBuffer);
                     }
 
-                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG)) {
+                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0)) {
                         return MoonBridge.DR_NEED_IDR;
                     }
 
@@ -1698,7 +1826,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Copy data from our buffer list into the input buffer
         nextInputBuffer.put(decodeUnitData, 0, decodeUnitLength);
 
-        if (!queueNextInputBuffer(timestampUs, codecFlags)) {
+        if (!queueNextInputBuffer(timestampUs, codecFlags, frameNumber, receiveTimeNs)) {
             return MoonBridge.DR_NEED_IDR;
         }
 
@@ -1728,7 +1856,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         savedSps = null;
 
         // Queue the new SPS
-        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG);
+        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0);
     }
 
     @Override
