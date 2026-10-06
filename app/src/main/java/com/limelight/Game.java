@@ -51,6 +51,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Point;
+import android.graphics.SurfaceTexture;
 import android.graphics.Rect;
 import android.hardware.input.InputManager;
 import android.media.AudioManager;
@@ -68,6 +69,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.TextureView;
 import android.view.View;
 import android.view.View.OnGenericMotionListener;
 import android.view.View.OnSystemUiVisibilityChangeListener;
@@ -88,7 +90,7 @@ import java.security.cert.X509Certificate;
 import java.util.Locale;
 
 
-public class Game extends Activity implements SurfaceHolder.Callback,
+public class Game extends Activity implements SurfaceHolder.Callback, TextureView.SurfaceTextureListener,
         OnGenericMotionListener, OnTouchListener, NvConnectionListener, EvdevListener,
         OnSystemUiVisibilityChangeListener, GameGestures, StreamView.InputCallbacks,
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
@@ -137,6 +139,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean waitingForAllModifiersUp = false;
     private int specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private StreamView streamView;
+    private Surface videoSurface;
     private long lastAbsTouchUpTime = 0;
     private long lastAbsTouchDownTime = 0;
     private float lastAbsTouchUpX, lastAbsTouchUpY;
@@ -237,6 +240,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Listen for non-touch events on the game surface
         streamView = findViewById(R.id.surfaceView);
+        streamView.initializeSurface(prefConfig.useTextureView);
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
@@ -532,7 +536,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         // The connection will be started when the surface gets created
-        streamView.getHolder().addCallback(this);
+        if (prefConfig.useTextureView) {
+            streamView.getTextureView().setSurfaceTextureListener(this);
+        } else {
+            streamView.getHolder().addCallback(this);
+        }
     }
 
     private void setPreferredOrientationForCurrentDisplay() {
@@ -784,7 +792,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean mayReduceRefreshRate() {
         return prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS ||
                 prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS ||
-                (prefConfig.framePacing == PreferenceConfiguration.FRAME_PACING_BALANCED && prefConfig.reduceRefreshRate);
+                prefConfig.reduceRefreshRate;
     }
 
     private float prepareDisplayForRendering() {
@@ -887,7 +895,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // If we only changed refresh rate and we're on an OS that supports Surface.setFrameRate()
                 // use that instead of using preferredDisplayModeId to avoid the possibility of triggering
                 // bugs that can cause the system to switch from 4K60 to 4K24 on Chromecast 4K.
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                if (prefConfig.useTextureView || Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
                         display.getMode().getPhysicalWidth() != bestMode.getPhysicalWidth() ||
                         display.getMode().getPhysicalHeight() != bestMode.getPhysicalHeight()) {
                     // Apply the display mode change
@@ -950,11 +958,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        if (prefConfig.stretchVideo || aspectRatioMatch) {
+        if (prefConfig.useTextureView) {
+            // A SurfaceTexture is composed into the window, so Surface.setFrameRate() cannot vote for it.
+            windowLayoutParams.preferredRefreshRate = displayRefreshRate;
+            getWindow().setAttributes(windowLayoutParams);
+        }
+
+        if ((prefConfig.stretchVideo || aspectRatioMatch) && !prefConfig.useTextureView) {
             // Set the surface to the size of the video
             streamView.getHolder().setFixedSize(prefConfig.width, prefConfig.height);
         }
-        else {
+        else if (!prefConfig.stretchVideo) {
             // Set the surface to scale based on the aspect ratio of the stream
             streamView.setDesiredAspectRatio((double)prefConfig.width / (double)prefConfig.height);
         }
@@ -2267,7 +2281,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     LimeLog.severe(stage + " failed: " + errorCode);
 
                     // If video initialization failed and the surface is still valid, display extra information for the user
-                    if (stage.contains("video") && streamView.getHolder().getSurface().isValid()) {
+                    if (stage.contains("video") && videoSurface != null && videoSurface.isValid()) {
                         Toast.makeText(Game.this, getResources().getText(R.string.video_decoder_init_failed), Toast.LENGTH_LONG).show();
                     }
 
@@ -2504,6 +2518,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        startConnectionOnSurface();
+    }
+
+    private void startConnectionOnSurface() {
         if (!surfaceCreated) {
             throw new IllegalStateException("Surface changed before creation!");
         }
@@ -2514,7 +2532,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
-            decoderRenderer.setRenderTarget(holder);
+            decoderRenderer.setRenderTarget(videoSurface);
             conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
                     decoderRenderer, Game.this);
         }
@@ -2522,9 +2540,20 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        configureVideoSurface(holder.getSurface());
+    }
+
+    private void configureVideoSurface(Surface surface) {
         float desiredFrameRate;
 
+        videoSurface = surface;
         surfaceCreated = true;
+        LimeLog.info("Video surface: " + (prefConfig.useTextureView ? "TextureView" : "SurfaceView") +
+                ", pacing: " + prefConfig.framePacing + ", newest frame: " + prefConfig.dropLateFrames);
+
+        if (prefConfig.useTextureView) {
+            return;
+        }
 
         // Android will pick the lowest matching refresh rate for a given frame rate value, so we want
         // to report the true FPS value if refresh rate reduction is enabled. We also report the true
@@ -2546,23 +2575,27 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // We want to change frame rate even if it's not seamless, since prepareDisplayForRendering()
             // will not set the display mode on S+ if it only differs by the refresh rate. It depends
             // on us to trigger the frame rate switch here.
-            holder.getSurface().setFrameRate(desiredFrameRate,
+            surface.setFrameRate(desiredFrameRate,
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
                     Surface.CHANGE_FRAME_RATE_ALWAYS);
         }
         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            holder.getSurface().setFrameRate(desiredFrameRate,
+            surface.setFrameRate(desiredFrameRate,
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
         }
 
         // Disable producer throttling on the underlying surface for reduced latency
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
-            holder.getSurface().setProducerThrottlingEnabled(false);
+            surface.setProducerThrottlingEnabled(false);
         }
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
+        destroyVideoSurface();
+    }
+
+    private void destroyVideoSurface() {
         if (!surfaceCreated) {
             throw new IllegalStateException("Surface destroyed before creation!");
         }
@@ -2571,10 +2604,34 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // Let the decoder know immediately that the surface is gone
             decoderRenderer.prepareForStop();
 
-            if (connected) {
-                stopConnection();
-            }
+            stopConnection();
         }
+        surfaceCreated = false;
+        videoSurface = null;
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
+        texture.setDefaultBufferSize(prefConfig.width, prefConfig.height);
+        configureVideoSurface(new Surface(texture));
+        startConnectionOnSurface();
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
+        texture.setDefaultBufferSize(prefConfig.width, prefConfig.height);
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+        Surface surface = videoSurface;
+        destroyVideoSurface();
+        surface.release();
+        return true;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture texture) {
     }
 
     @Override

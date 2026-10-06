@@ -227,6 +227,41 @@
     <PreferenceCategory android:title="@string/category_advanced_settings"
         android:key="category_advanced_settings">
         <CheckBoxPreference
+            android:key="checkbox_codec_low_latency"
+            android:title="@string/title_codec_low_latency"
+            android:summary="@string/summary_codec_low_latency"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_vendor_low_latency"
+            android:title="@string/title_vendor_low_latency"
+            android:summary="@string/summary_vendor_low_latency"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_codec_performance"
+            android:title="@string/title_codec_performance"
+            android:summary="@string/summary_codec_performance"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_drop_late_frames"
+            android:title="@string/title_drop_late_frames"
+            android:summary="@string/summary_drop_late_frames"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_texture_view"
+            android:title="@string/title_texture_view"
+            android:summary="@string/summary_texture_view"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_unbatched_input"
+            android:title="@string/title_unbatched_input"
+            android:summary="@string/summary_unbatched_input"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_network_priority"
+            android:title="@string/title_network_priority"
+            android:summary="@string/summary_network_priority"
+            android:defaultValue="false" />
+        <CheckBoxPreference
             android:key="checkbox_unlock_fps"
             android:title="@string/title_unlock_fps"
             android:summary="@string/summary_unlock_fps"

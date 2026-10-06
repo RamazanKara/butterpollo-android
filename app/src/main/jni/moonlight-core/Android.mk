@@ -14,7 +14,8 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/ConnectionTester.c \
                    moonlight-common-c/src/ControlStream.c \
                    moonlight-common-c/src/FakeCallbacks.c \
-                   moonlight-common-c/src/InputStream.c \
+                   android_input.c \
+                   latency.c \
                    moonlight-common-c/src/LinkedBlockingQueue.c \
                    moonlight-common-c/src/Misc.c \
                    moonlight-common-c/src/Platform.c \
@@ -60,6 +61,7 @@ LOCAL_LDLIBS := -llog
 
 LOCAL_STATIC_LIBRARIES := libopus libcrypto cpufeatures
 LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
+LOCAL_LDFLAGS += -Wl,--wrap=socket -Wl,--wrap=pthread_setname_np
 
 LOCAL_BRANCH_PROTECTION := standard
 
