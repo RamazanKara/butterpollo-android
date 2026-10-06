@@ -40,7 +40,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.util.Range;
 import android.view.Choreographer;
-import android.view.SurfaceHolder;
+import android.view.Surface;
 
 public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements Choreographer.FrameCallback {
 
@@ -72,7 +72,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private boolean refFrameInvalidationActive;
     private int initialWidth, initialHeight;
     private int videoFormat;
-    private SurfaceHolder renderTarget;
+    private Surface renderTarget;
     private volatile boolean stopping;
     private CrashListener crashListener;
     private boolean reportedCrash;
@@ -308,7 +308,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return decoderInfo;
     }
 
-    public void setRenderTarget(SurfaceHolder renderTarget) {
+    public void setRenderTarget(Surface renderTarget) {
         this.renderTarget = renderTarget;
     }
 
@@ -555,7 +555,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         LimeLog.info("Configuring with format: "+format);
 
-        videoDecoder.configure(format, renderTarget.getSurface(), null, 0);
+        videoDecoder.configure(format, renderTarget, null, 0);
 
         configuredFormat = format;
 
@@ -683,7 +683,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             MediaFormat mediaFormat = createBaseMediaFormat(mimeType);
 
             // This will try low latency options until we find one that works (or we give up).
-            boolean newFormat = MediaCodecHelper.setDecoderLowLatencyOptions(mediaFormat, selectedDecoderInfo, tryNumber);
+            boolean newFormat = MediaCodecHelper.setDecoderLowLatencyOptions(mediaFormat, selectedDecoderInfo, tryNumber,
+                    prefs.codecLowLatency, prefs.vendorLowLatency, prefs.codecPerformance);
 
             // Throw the underlying codec exception on the last attempt if the caller requested it
             if (tryConfigureDecoder(selectedDecoderInfo, mediaFormat, !newFormat && throwOnCodecError)) {
@@ -1052,9 +1053,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (actualFrameTimeDeltaNs >= expectedFrameTimeDeltaNs) {
             // Render up to one frame when in frame pacing mode.
             //
-            // NB: Since the queue limit is 2, we won't starve the decoder of output buffers
-            // by holding onto them for too long. This also ensures we will have that 1 extra
-            // frame of buffer to smooth over network/rendering jitter.
+            // The queue holds at most two buffers to avoid starving the decoder. Keeping
+            // only the newest frame trades the extra jitter buffer for lower latency.
             Integer nextOutputBuffer = outputBufferQueue.poll();
             if (nextOutputBuffer != null) {
                 try {
@@ -1162,16 +1162,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 // NB: We have to do this on the producer side because the consumer may not
                                 // run for a while (if there is a huge mismatch between stream FPS and display
                                 // refresh rate).
-                                if (outputBufferQueue.size() == OUTPUT_BUFFER_QUEUE_LIMIT) {
-                                    try {
-                                        int droppedIndex = outputBufferQueue.take();
+                                int queueLimit = prefs.dropLateFrames ? 1 : OUTPUT_BUFFER_QUEUE_LIMIT;
+                                if (outputBufferQueue.size() >= queueLimit) {
+                                    Integer droppedIndex = outputBufferQueue.poll();
+                                    if (droppedIndex != null) {
                                         frameLatencyStats.onOutputReleased(droppedIndex, System.nanoTime(), false,
                                                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                         videoDecoder.releaseOutputBuffer(droppedIndex, false);
-                                    } catch (InterruptedException e) {
-                                        // We're shutting down, so we can just drop this buffer on the floor
-                                        // and it will be reclaimed when the codec is released.
-                                        return;
                                     }
                                 }
 

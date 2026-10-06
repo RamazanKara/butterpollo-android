@@ -492,25 +492,27 @@ public class MediaCodecHelper {
                 !isAdreno620;
     }
 
-    public static boolean setDecoderLowLatencyOptions(MediaFormat videoFormat, MediaCodecInfo decoderInfo, int tryNumber) {
+    public static boolean setDecoderLowLatencyOptions(MediaFormat videoFormat, MediaCodecInfo decoderInfo, int tryNumber,
+                                                      boolean lowLatency, boolean vendorLowLatency, boolean performanceHints) {
         // Options here should be tried in the order of most to least risky. The decoder will use
         // the first MediaFormat that doesn't fail in configure().
 
         boolean setNewOption = false;
 
-        if (tryNumber < 1) {
+        boolean useVendorOptions = vendorLowLatency;
+        if (lowLatency && tryNumber < 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Official Android 11+ low latency option (KEY_LOW_LATENCY).
-            videoFormat.setInteger("low-latency", 1);
+            videoFormat.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
             setNewOption = true;
 
-            // If this decoder officially supports FEATURE_LowLatency, we will just use that alone
-            // for try 0. Otherwise, we'll include it as best effort with other options.
+            // Prefer advertised standard support to vendor keys on the first attempt.
+            // Performance hints remain independently controlled.
             if (decoderSupportsAndroidRLowLatency(decoderInfo, videoFormat.getString(MediaFormat.KEY_MIME))) {
-                return true;
+                useVendorOptions = false;
             }
         }
 
-        if (tryNumber < 2 &&
+        if (useVendorOptions && tryNumber < 2 &&
                 (!Build.MANUFACTURER.equalsIgnoreCase("xiaomi") || Build.VERSION.SDK_INT > Build.VERSION_CODES.M)) {
             // MediaTek decoders don't use vendor-defined keys for low latency mode. Instead, they have a modified
             // version of AOSP's ACodec.cpp which supports the "vdec-lowlatency" option. This option is passed down
@@ -529,7 +531,7 @@ public class MediaCodecHelper {
             setNewOption = true;
         }
 
-        if (tryNumber < 3) {
+        if (performanceHints && tryNumber < 3) {
             if (MediaCodecHelper.decoderSupportsMaxOperatingRate(decoderInfo.getName())) {
                 videoFormat.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE);
                 setNewOption = true;
@@ -546,7 +548,7 @@ public class MediaCodecHelper {
         //
         // MediaCodec vendor extension support was introduced in Android 8.0:
         // https://cs.android.com/android/_/android/platform/frameworks/av/+/01c10f8cdcd58d1e7025f426a72e6e75ba5d7fc2
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (useVendorOptions && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Try vendor-specific low latency options
             //
             // NOTE: Update knownVendorLowLatencyOptions if you modify this code!

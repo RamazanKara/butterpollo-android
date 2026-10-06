@@ -6,6 +6,7 @@
 
 #include <Limelight.h>
 #include <Platform.h>
+#include "latency.h"
 
 #include <opus_multistream.h>
 #include <android/log.h>
@@ -474,7 +475,12 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint clientRefreshRateX100,
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
                                                            jint videoCapabilities,
-                                                           jint colorSpace, jint colorRange) {
+                                                           jint colorSpace, jint colorRange,
+                                                           jboolean unbatchedInput, jboolean networkPriority) {
+    atomic_store(&AndroidUnbatchedInput, unbatchedInput);
+    atomic_store(&AndroidNetworkPriority, networkPriority);
+    __android_log_print(ANDROID_LOG_INFO, "moonlight-core", "Latency options: unbatched input=%d, network priority=%d",
+                        unbatchedInput, networkPriority);
     SERVER_INFORMATION serverInfo = {
             .address = (*env)->GetStringUTFChars(env, address, 0),
             .serverInfoAppVersion = (*env)->GetStringUTFChars(env, appVersion, 0),

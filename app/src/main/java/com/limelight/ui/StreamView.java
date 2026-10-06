@@ -1,14 +1,36 @@
 package com.limelight.ui;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.SurfaceView;
+import android.view.SurfaceHolder;
+import android.view.TextureView;
+import android.widget.FrameLayout;
 
-public class StreamView extends SurfaceView {
+public class StreamView extends FrameLayout {
     private double desiredAspectRatio;
     private InputCallbacks inputCallbacks;
+    private SurfaceView surfaceView;
+    private TextureView textureView;
+
+    public void initializeSurface(boolean useTextureView) {
+        if (useTextureView) {
+            textureView = new TextureView(getContext());
+            addView(textureView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        } else {
+            surfaceView = new SurfaceView(getContext());
+            addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }
+    }
+
+    public SurfaceHolder getHolder() {
+        return surfaceView.getHolder();
+    }
+
+    public TextureView getTextureView() {
+        return textureView;
+    }
 
     public void setDesiredAspectRatio(double aspectRatio) {
         this.desiredAspectRatio = aspectRatio;
@@ -55,7 +77,8 @@ public class StreamView extends SurfaceView {
             measuredHeight = (int)(measuredWidth / desiredAspectRatio);
         }
 
-        setMeasuredDimension(measuredWidth, measuredHeight);
+        super.onMeasure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY));
     }
 
     @Override

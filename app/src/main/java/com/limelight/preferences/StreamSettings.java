@@ -335,6 +335,8 @@ public class StreamSettings extends Activity {
 
             addPreferencesFromResource(R.xml.preferences);
             PreferenceScreen screen = getPreferenceScreen();
+            findPreference("checkbox_codec_low_latency").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+            findPreference("checkbox_codec_performance").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
             findPreference("export_latency_csv").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {

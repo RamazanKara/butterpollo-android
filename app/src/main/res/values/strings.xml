@@ -317,4 +317,18 @@
     <string name="latency_csv_saved">Latency CSV saved.</string>
     <string name="latency_csv_failed">Latency CSV unavailable: file access failed.</string>
     <string name="latency_csv_lost">CSV rows lost to backlog: %1$d</string>
+    <string name="title_codec_low_latency">Android low-latency decoding</string>
+    <string name="summary_codec_low_latency">Reduce decoder buffering on Android 11 and later. Disable if decoding becomes unstable. Applies to the next stream.</string>
+    <string name="title_vendor_low_latency">Device-specific low-latency decoding</string>
+    <string name="summary_vendor_low_latency">Use decoder optimizations for Qualcomm, Exynos, MediaTek, and other supported devices. Disable if video freezes or corrupts. Applies to the next stream.</string>
+    <string name="title_codec_performance">Decoder performance hints</string>
+    <string name="summary_codec_performance">Request faster decoding on Android 6 and later. May increase power use or heat. Applies to the next stream.</string>
+    <string name="title_drop_late_frames">Keep newest frame in balanced mode</string>
+    <string name="summary_drop_late_frames">Reduce the balanced frame-pacing buffer from two frames to one. May stutter more on unstable networks. Lowest-latency mode already discards older frames.</string>
+    <string name="title_texture_view">Use TextureView</string>
+    <string name="summary_texture_view">Alternative for devices with SurfaceView display problems. May add composition delay and power use. HDR always uses SurfaceView. Applies to the next stream.</string>
+    <string name="title_unbatched_input">Send mouse and pen input immediately</string>
+    <string name="summary_unbatched_input">Skip the 1 ms motion batching wait. High polling rates may increase network queues and latency. Button ordering and motion coalescing are preserved. Applies to the next stream.</string>
+    <string name="title_network_priority">Prioritize streaming network work</string>
+    <string name="summary_network_priority">Request higher socket and network-thread priority. May increase power use or compete with other work; some devices ignore the request. Applies to the next stream.</string>
 </resources>
