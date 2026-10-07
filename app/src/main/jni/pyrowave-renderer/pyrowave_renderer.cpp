@@ -174,7 +174,8 @@ namespace {
             VK_GLOBAL_FUNCTIONS(X)
 #undef X
             // vkEnumerateInstanceVersion is missing on Vulkan 1.0 loaders, which is fine: 1.0 is not enough.
-            return CreateInstance != nullptr && EnumerateInstanceVersion != nullptr;
+            return CreateInstance != nullptr && EnumerateInstanceVersion != nullptr &&
+                   EnumerateInstanceExtensionProperties != nullptr;
         }
 
         bool loadInstance(VkInstance instance) {
@@ -334,7 +335,7 @@ namespace {
                 return false;
             }
             uint32_t loaderVersion = 0;
-            vk.EnumerateInstanceVersion(&loaderVersion);
+            if (!check(vk.EnumerateInstanceVersion(&loaderVersion), "Vulkan loader version")) return false;
             if (loaderVersion < VK_API_VERSION_1_3) {
                 LOGE("Vulkan loader %u.%u is older than 1.3", VK_API_VERSION_MAJOR(loaderVersion), VK_API_VERSION_MINOR(loaderVersion));
                 return false;
@@ -342,14 +343,15 @@ namespace {
 
             // These create infos stay alive for the device's lifetime: PyroWave reads them.
             appInfo = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
-            appInfo.pApplicationName = "Moonlight";
+            appInfo.pApplicationName = "Butterpollo";
             appInfo.apiVersion = VK_API_VERSION_1_3;
             instanceInfo = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
             instanceInfo.pApplicationInfo = &appInfo;
             uint32_t extensionCount = 0;
-            vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+            if (!check(vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr), "instance extension count")) return false;
             std::vector<VkExtensionProperties> extensions(extensionCount);
-            vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+            if (!check(vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data()), "instance extensions")) return false;
+            extensions.resize(extensionCount);
             instanceExtensions.assign(std::begin(INSTANCE_EXTENSIONS), std::end(INSTANCE_EXTENSIONS));
             bool colorspace = false;
             for (const auto &ext : extensions) {
@@ -380,9 +382,10 @@ namespace {
 
         bool createDevice() {
             uint32_t count = 0;
-            vk.EnumeratePhysicalDevices(instance, &count, nullptr);
+            if (!check(vk.EnumeratePhysicalDevices(instance, &count, nullptr), "physical device count") || count == 0) return false;
             std::vector<VkPhysicalDevice> devices(count);
-            vk.EnumeratePhysicalDevices(instance, &count, devices.data());
+            if (!check(vk.EnumeratePhysicalDevices(instance, &count, devices.data()), "physical devices")) return false;
+            devices.resize(count);
 
             FeatureProbe chosenProbe;
             for (auto device : devices) {
@@ -447,9 +450,10 @@ namespace {
             deviceExtensions.assign(std::begin(DEVICE_EXTENSIONS), std::end(DEVICE_EXTENSIONS));
             if (tenBit) {
                 uint32_t count = 0;
-                vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, nullptr);
+                if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, nullptr), "device extension count")) return false;
                 std::vector<VkExtensionProperties> extensions(count);
-                vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, extensions.data());
+                if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, extensions.data()), "device extensions")) return false;
+                extensions.resize(count);
                 bool metadata = false;
                 for (const auto &ext : extensions) {
                     if (!strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
@@ -633,9 +637,10 @@ namespace {
 
             if (swapchainFormat == VK_FORMAT_UNDEFINED) {
                 uint32_t formatCount = 0;
-                vk.GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+                if (!check(vk.GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr), "surface format count")) return false;
                 std::vector<VkSurfaceFormatKHR> formats(formatCount);
-                vk.GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats.data());
+                if (!check(vk.GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats.data()), "surface formats")) return false;
+                formats.resize(formatCount);
                 if (formats.empty()) {
                     LOGE("Surface reports no formats");
                     return false;
@@ -661,9 +666,10 @@ namespace {
                 if (swapchainFormat == VK_FORMAT_UNDEFINED) return false;
 
                 uint32_t modeCount = 0;
-                vk.GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &modeCount, nullptr);
+                if (!check(vk.GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &modeCount, nullptr), "present mode count")) return false;
                 std::vector<VkPresentModeKHR> modes(modeCount);
-                vk.GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &modeCount, modes.data());
+                if (!check(vk.GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &modeCount, modes.data()), "present modes")) return false;
+                modes.resize(modeCount);
                 // MAILBOX shows the newest frame without tearing where available.
                 presentMode = std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end() ?
                     VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
@@ -711,9 +717,10 @@ namespace {
             applyHdrMetadata();
 
             uint32_t count = 0;
-            vk.GetSwapchainImagesKHR(device, swapchain, &count, nullptr);
+            if (!check(vk.GetSwapchainImagesKHR(device, swapchain, &count, nullptr), "swapchain image count") || count == 0) return false;
             swapchainImages.resize(count);
-            vk.GetSwapchainImagesKHR(device, swapchain, &count, swapchainImages.data());
+            if (!check(vk.GetSwapchainImagesKHR(device, swapchain, &count, swapchainImages.data()), "swapchain images")) return false;
+            swapchainImages.resize(count);
             return renderPass == VK_NULL_HANDLE || createSwapchainResources();
         }
 
@@ -786,8 +793,7 @@ namespace {
         }
 
         bool recreateSwapchain() {
-            vk.DeviceWaitIdle(device);
-            return createSwapchain();
+            return check(vk.DeviceWaitIdle(device), "wait before recreating swapchain") && createSwapchain();
         }
 
         VkShaderModule createShader(const uint32_t *code, size_t size) {
@@ -1037,10 +1043,10 @@ namespace {
 
             // Decode first, without waiting for the display, so the GPU starts on the
             // frame immediately. The draw below is ordered after it on the same queue.
-            vk.ResetCommandBuffer(decodeCommandBuffer, 0);
+            if (!check(vk.ResetCommandBuffer(decodeCommandBuffer, 0), "reset decode command buffer")) return false;
             VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            vk.BeginCommandBuffer(decodeCommandBuffer, &beginInfo);
+            if (!check(vk.BeginCommandBuffer(decodeCommandBuffer, &beginInfo), "begin decode command buffer")) return false;
             if (queryPool != VK_NULL_HANDLE) {
                 vk.CmdResetQueryPool(decodeCommandBuffer, queryPool, 0, QUERY_COUNT);
                 vk.CmdWriteTimestamp(decodeCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool, 0);
@@ -1078,7 +1084,7 @@ namespace {
             VkSubmitInfo decodeSubmit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
             decodeSubmit.commandBufferCount = 1;
             decodeSubmit.pCommandBuffers = &decodeCommandBuffer;
-            vk.ResetFences(device, 1, &decodeFence);
+            if (!check(vk.ResetFences(device, 1, &decodeFence), "reset decode fence")) return false;
             if (!check(vk.QueueSubmit(queue, 1, &decodeSubmit, decodeFence), "vkQueueSubmit(decode)")) {
                 return false;
             }
@@ -1107,8 +1113,8 @@ namespace {
                 return check(acquired, "vkAcquireNextImageKHR");
             }
 
-            vk.ResetCommandBuffer(commandBuffer, 0);
-            vk.BeginCommandBuffer(commandBuffer, &beginInfo);
+            if (!check(vk.ResetCommandBuffer(commandBuffer, 0), "reset render command buffer") ||
+                !check(vk.BeginCommandBuffer(commandBuffer, &beginInfo), "begin render command buffer")) return false;
             // Barriers order against all earlier work on the queue, which covers the
             // decode submitted above.
             planeBarrier(commandBuffer, decodeWriteStage(), decodeWriteAccess(),
@@ -1156,7 +1162,7 @@ namespace {
             submitInfo.pCommandBuffers = &commandBuffer;
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &renderDone[imageIndex];
-            vk.ResetFences(device, 1, &frameFence);
+            if (!check(vk.ResetFences(device, 1, &frameFence), "reset frame fence")) return false;
             if (!check(vk.QueueSubmit(queue, 1, &submitInfo, frameFence), "vkQueueSubmit")) {
                 return false;
             }
@@ -1400,8 +1406,7 @@ namespace {
             return false;
         }
         uint32_t loaderVersion = 0;
-        vk.EnumerateInstanceVersion(&loaderVersion);
-        if (loaderVersion < VK_API_VERSION_1_3) {
+        if (vk.EnumerateInstanceVersion(&loaderVersion) != VK_SUCCESS || loaderVersion < VK_API_VERSION_1_3) {
             LOGI("Vulkan loader is older than 1.3; PyroWave unavailable");
             return false;
         }
@@ -1426,16 +1431,25 @@ namespace {
         vk.DestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(
             vk.GetInstanceProcAddr(instance, "vkDestroyInstance"));
 
+        if (!vk.EnumeratePhysicalDevices || !vk.GetPhysicalDeviceProperties ||
+            !vk.GetPhysicalDeviceProperties2 || !vk.GetPhysicalDeviceFeatures2 || !vk.DestroyInstance) {
+            if (vk.DestroyInstance) vk.DestroyInstance(instance, nullptr);
+            return false;
+        }
+
         bool capable = false;
         uint32_t count = 0;
-        vk.EnumeratePhysicalDevices(instance, &count, nullptr);
-        std::vector<VkPhysicalDevice> devices(count);
-        vk.EnumeratePhysicalDevices(instance, &count, devices.data());
-        for (auto device : devices) {
-            auto probe = probeFeatures(vk, device);
-            LOGI("%s (Vulkan %u.%u) PyroWave-capable: %d", probe.name, VK_API_VERSION_MAJOR(probe.apiVersion),
-                 VK_API_VERSION_MINOR(probe.apiVersion), probe.ok);
-            capable = capable || probe.ok;
+        if (vk.EnumeratePhysicalDevices(instance, &count, nullptr) == VK_SUCCESS && count > 0) {
+            std::vector<VkPhysicalDevice> devices(count);
+            if (vk.EnumeratePhysicalDevices(instance, &count, devices.data()) == VK_SUCCESS) {
+                devices.resize(count);
+                for (auto device : devices) {
+                    auto probe = probeFeatures(vk, device);
+                    LOGI("%s (Vulkan %u.%u) PyroWave-capable: %d", probe.name, VK_API_VERSION_MAJOR(probe.apiVersion),
+                         VK_API_VERSION_MINOR(probe.apiVersion), probe.ok);
+                    capable = capable || probe.ok;
+                }
+            }
         }
         vk.DestroyInstance(instance, nullptr);
         return capable;
@@ -1504,7 +1518,10 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSetHdrMode(JNIEnv
                                                                        jboolean enabled, jbyteArray metadata) {
     uint8_t bytes[24];
     bool valid = metadata && env->GetArrayLength(metadata) >= 24;
-    if (valid) env->GetByteArrayRegion(metadata, 0, 24, reinterpret_cast<jbyte *>(bytes));
+    if (valid) {
+        env->GetByteArrayRegion(metadata, 0, 24, reinterpret_cast<jbyte *>(bytes));
+        if (env->ExceptionCheck()) return;
+    }
     reinterpret_cast<Renderer *>(handle)->setHdrMode(enabled, valid ? bytes : nullptr);
 }
 
