@@ -107,15 +107,7 @@ public class SeekBarPreference extends DialogPreference
                     return;
                 }
 
-                String t;
-                if (divisor != 1) {
-                    float floatValue = roundedValue / (float)divisor;
-                    t = String.format((Locale)null, "%.1f", floatValue);
-                }
-                else {
-                    t = String.valueOf(value);
-                }
-                valueText.setText(suffix == null ? t : t.concat(suffix.length() > 1 ? " "+suffix : suffix));
+                valueText.setText(formatValue(roundedValue));
             }
 
             @Override
@@ -160,6 +152,23 @@ public class SeekBarPreference extends DialogPreference
         else {
             currentValue = (Integer) defaultValue;
         }
+    }
+
+    private String formatValue(int value) {
+        String t;
+        if (divisor != 1) {
+            float floatValue = value / (float)divisor;
+            t = String.format((Locale)null, "%.1f", floatValue);
+        }
+        else {
+            t = String.valueOf(value);
+        }
+        return suffix == null ? t : t.concat(suffix.length() > 1 ? " "+suffix : suffix);
+    }
+
+    // Reads the persisted value so values written directly to SharedPreferences are shown too
+    public String getValueText() {
+        return formatValue(shouldPersist() ? getPersistedInt(defaultValue) : currentValue);
     }
 
     public void setProgress(int progress) {

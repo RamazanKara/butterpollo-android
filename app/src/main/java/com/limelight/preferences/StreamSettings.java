@@ -17,6 +17,7 @@ import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceCategory;
 import android.preference.PreferenceFragment;
+import android.preference.PreferenceGroup;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.util.DisplayMetrics;
@@ -29,6 +30,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Toast;
 
+import com.limelight.BuildConfig;
 import com.limelight.LimeLog;
 import com.limelight.PcView;
 import com.limelight.R;
@@ -43,6 +45,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class StreamSettings extends Activity {
     private static final int EXPORT_LATENCY_REQUEST = 1;
@@ -183,6 +187,69 @@ public class StreamSettings extends Activity {
     public static class SettingsFragment extends PreferenceFragment {
         private int nativeResolutionStartIndex = Integer.MAX_VALUE;
         private boolean nativeFramerateShown = false;
+        private final Map<String, CharSequence> descriptions = new HashMap<>();
+        private final SharedPreferences.OnSharedPreferenceChangeListener summaryUpdater =
+                (prefs, key) -> updateValueSummaries(getPreferenceScreen());
+
+        // Show the current value of list and slider settings above their description.
+        // Resolution, frame rate and bitrate are self-explanatory, so they show only the value.
+        private void updateValueSummaries(PreferenceGroup group) {
+            for (int i = 0; i < group.getPreferenceCount(); i++) {
+                Preference pref = group.getPreference(i);
+                if (pref instanceof PreferenceGroup) {
+                    updateValueSummaries((PreferenceGroup) pref);
+                    continue;
+                }
+
+                String key = pref.getKey();
+                CharSequence value;
+                if (pref instanceof ListPreference) {
+                    value = ((ListPreference) pref).getEntry();
+                }
+                else if (pref instanceof SeekBarPreference) {
+                    value = ((SeekBarPreference) pref).getValueText();
+                }
+                else {
+                    continue;
+                }
+                if (key == null || value == null) {
+                    continue;
+                }
+
+                if (!descriptions.containsKey(key)) {
+                    descriptions.put(key, pref.getSummary());
+                }
+                CharSequence description = descriptions.get(key);
+                String summary = value.toString();
+                if (description != null &&
+                        !key.equals(PreferenceConfiguration.RESOLUTION_PREF_STRING) &&
+                        !key.equals(PreferenceConfiguration.FPS_PREF_STRING) &&
+                        !key.equals(PreferenceConfiguration.BITRATE_PREF_STRING)) {
+                    summary += "\n" + description;
+                }
+
+                // ListPreference formats its summary with String.format()
+                pref.setSummary(pref instanceof ListPreference ? summary.replace("%", "%%") : summary);
+            }
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(summaryUpdater);
+            updateValueSummaries(getPreferenceScreen());
+            // The fragment is replaced after the window got its insets, so ask for them again
+            // to keep the last settings clear of the navigation bar.
+            if (getView() != null) {
+                getView().requestApplyInsets();
+            }
+        }
+
+        @Override
+        public void onPause() {
+            getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(summaryUpdater);
+            super.onPause();
+        }
 
         private void setValue(String preferenceKey, String value) {
             ListPreference pref = (ListPreference) findPreference(preferenceKey);
@@ -355,6 +422,7 @@ public class StreamSettings extends Activity {
                 texture.setEnabled(!(Boolean) value && !"forcepyrowave".equals(codec.getValue()));
                 return true;
             });
+            findPreference("about_app").setSummary(getString(R.string.summary_about, BuildConfig.VERSION_NAME));
             findPreference("export_latency_csv").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
