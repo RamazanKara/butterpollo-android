@@ -141,8 +141,9 @@ public class ShortcutHelper {
         createAppViewShortcut(details, false, false);
     }
 
-    private String getShortcutIdForGame(ComputerDetails computer, NvApp app) {
-        return computer.uuid + app.getAppId();
+    static String getShortcutIdForGame(ComputerDetails computer, NvApp app) {
+        return app.getAppUuid().isEmpty() ? computer.uuid + app.getAppId() :
+                computer.uuid + ":app:" + app.getAppUuid();
     }
 
     @TargetApi(Build.VERSION_CODES.O)
