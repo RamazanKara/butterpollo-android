@@ -417,6 +417,17 @@ public class NvHTTPParityTest {
     }
 
     @Test
+    public void customFractionalRateOverridesPanelMatchingOnlyOnButterpollo() throws Exception {
+        for (String host : new String[] {"butterpollo-serverinfo.xml", "apollo-serverinfo.xml", "sunshine-serverinfo.xml"}) {
+            ConnectionContext context = context(host);
+            context.streamConfig = new StreamConfiguration.Builder().setLaunchRefreshRate(60)
+                    .setLaunchRefreshRateX100(5994).setClientRefreshRateX100(12000).build();
+            assertEquals(host.startsWith("butterpollo") ? "1968x2184x59.94" : "1968x2184x60",
+                    query(context, false).queryParameter("mode"));
+        }
+    }
+
+    @Test
     public void sunshineDoesNotReceiveApolloDisplayExtensions() throws Exception {
         HttpUrl query = query(context("sunshine-serverinfo.xml"), false);
         assertEquals("1968x2184x120", query.queryParameter("mode"));

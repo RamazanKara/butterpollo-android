@@ -887,7 +887,10 @@ public class NvHTTP {
                 0 : context.streamConfig.getLaunchRefreshRate();
         String launchRate = Integer.toString(fps);
         int refreshX100 = context.streamConfig.getClientRefreshRateX100();
-        if (context.serverSupportsFractionalRefreshRate && refreshX100 > 0 &&
+        if (context.serverSupportsFractionalRefreshRate && context.streamConfig.getLaunchRefreshRateX100() > 0) {
+            launchRate = String.format(java.util.Locale.ROOT, "%.2f",
+                    context.streamConfig.getLaunchRefreshRateX100() / 100.0);
+        } else if (context.serverSupportsFractionalRefreshRate && refreshX100 > 0 &&
                 (refreshX100 + 50) / 100 == fps) {
             launchRate = String.format(java.util.Locale.ROOT, "%.2f", refreshX100 / 100.0);
         }

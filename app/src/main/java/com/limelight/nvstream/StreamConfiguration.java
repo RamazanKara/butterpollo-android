@@ -14,6 +14,7 @@ public class StreamConfiguration {
     private int width, height;
     private int refreshRate;
     private int launchRefreshRate;
+    private int launchRefreshRateX100;
     private int clientRefreshRateX100;
     private boolean virtualDisplay;
     private int virtualDisplayScale = 100;
@@ -57,6 +58,11 @@ public class StreamConfiguration {
 
         public StreamConfiguration.Builder setLaunchRefreshRate(int refreshRate) {
             config.launchRefreshRate = refreshRate;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setLaunchRefreshRateX100(int refreshRateX100) {
+            config.launchRefreshRateX100 = refreshRateX100;
             return this;
         }
         
@@ -172,6 +178,10 @@ public class StreamConfiguration {
 
     public int getLaunchRefreshRate() {
         return launchRefreshRate;
+    }
+
+    public int getLaunchRefreshRateX100() {
+        return launchRefreshRateX100;
     }
     
     public int getBitrate() {
