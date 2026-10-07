@@ -241,7 +241,7 @@
     <string name="title_disable_frame_drop">Never drop frames</string>
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Video codec</string>
-    <string name="summary_video_format">Automatic picks the best codec. PyroWave (experimental) needs a Butterpollo host and a wired LAN.</string>
+    <string name="summary_video_format">Picks the best codec. PyroWave (experimental) needs a Butterpollo host and a wired LAN.</string>
     <string name="title_enable_hdr">HDR (experimental)</string>
     <string name="summary_enable_hdr">Needs an HDR10 screen and an HDR-capable host and decoder (HEVC or AV1 Main10, or PyroWave). Falls back to SDR otherwise.</string>
     <string name="title_full_range">Force full-range video</string>

@@ -191,7 +191,7 @@
     <string name="summary_checkbox_disable_warnings">On-Screen Warnmeldungen während des Streaming deaktivieren</string>
     <string name="summary_disable_frame_drop">Kann das Mikro-Ruckeln auf einigen Geräten reduzieren, allerdings erhöht dies gleichzeitig die Latenz</string>
     <string name="title_video_format">Codec-Einstellungen ändern</string>
-    <string name="summary_video_format">Automatisch wählt den besten Codec. PyroWave (experimentell) braucht einen Butterpollo-Host und kabelgebundenes LAN.</string>
+    <string name="summary_video_format">Wählt den besten Codec. PyroWave (experimentell) braucht einen Butterpollo-Host und kabelgebundenes LAN.</string>
     <string name="title_enable_hdr">HDR aktivieren (experimentell)</string>
     <string name="summary_enable_hdr">Streame HDR, wenn das Spiel und die PC-GPU dies unterstützen. HDR erfordert eine GPU mit HEVC Main 10-Codierungsunterstützung.</string>
     <string name="title_enable_perf_overlay">Performance Overlay aktivieren</string>

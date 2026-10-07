@@ -42,6 +42,7 @@ public class ControllerMappingActivity extends Activity {
         TextView heading = new TextView(this);
         heading.setText(R.string.controller_mapping_title);
         heading.setTextSize(22);
+        heading.setTextColor(primaryTextColor());
         heading.setPadding(0, 0, 0, padding / 2);
         root.addView(heading);
 
@@ -132,6 +133,7 @@ public class ControllerMappingActivity extends Activity {
         row.setPadding(0, padding, 0, padding);
         TextView titleView = new TextView(this);
         titleView.setTextSize(18);
+        titleView.setTextColor(primaryTextColor());
         titleView.setText(title);
         row.addView(titleView);
         if (summary != null) {
@@ -152,6 +154,13 @@ public class ControllerMappingActivity extends Activity {
         wrapper.addView(divider, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                 Math.max(1, Math.round(density))));
         return wrapper;
+    }
+
+    private int primaryTextColor() {
+        TypedArray attrs = obtainStyledAttributes(new int[] {android.R.attr.textColorPrimary});
+        int color = attrs.getColor(0, 0xFFFFFFFF);
+        attrs.recycle();
+        return color;
     }
 
     private int accentColor() {
