@@ -556,13 +556,13 @@ public class NvHTTP {
                 respString = resp.string();
             }
 
-            if (verbose && !path.equals("serverinfo")) {
+            if (verbose && !path.equals("serverinfo") && !path.equals("pair")) {
                 LimeLog.info(getCompleteUrl(baseUrl, path, query)+" -> "+respString);
             }
 
             return respString;
         } catch (IOException e) {
-            if (verbose && !path.equals("serverinfo")) {
+            if (verbose && !path.equals("serverinfo") && !path.equals("pair")) {
                 LimeLog.warning(getCompleteUrl(baseUrl, path, query)+" -> "+e.getMessage());
                 e.printStackTrace();
             }
