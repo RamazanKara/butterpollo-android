@@ -13,6 +13,10 @@ public class ComputerDetails {
     public static final int PERMISSION_LIST = 1 << 24;
     public static final int PERMISSION_VIEW = 1 << 25;
     public static final int PERMISSION_LAUNCH = 1 << 26;
+    // Masks in the order of the host_permission_names string array
+    public static final int[] PERMISSION_DISPLAY_MASKS = {1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12,
+            PERMISSION_CLIPBOARD_SET, PERMISSION_CLIPBOARD_READ, PERMISSION_SERVER_COMMAND, PERMISSION_LIST,
+            PERMISSION_VIEW | PERMISSION_LAUNCH, PERMISSION_LAUNCH};
 
     public enum State {
         ONLINE, OFFLINE, UNKNOWN
