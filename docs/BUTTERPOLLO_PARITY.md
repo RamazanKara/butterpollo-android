@@ -23,7 +23,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Display/HDR metadata | Control type `0x010e`: enabled plus little-endian RGB/white primaries, mastering luminance, MaxCLL/MaxFALL, optional full-frame luminance | Converts to Android's 25-byte `KEY_HDR_STATIC_INFO`, preserves units, omits unsupported trailing full-frame field. Explicit BT.2020/PQ hints, HDR/SDR transitions including absent metadata, SurfaceView output; malformed short metadata ignored. |
 | Ten-bit SDR | Host `prefer_sdr_10bit` changes an HDR-capable stream to SDR and sends HDR-off | Existing ten-bit decoding plus corrected HDR-off handling. No separately advertised client ten-bit-SDR request; host policy supplies it. |
 | Standard YUV 4:4:4 | Sunshine codec bits `0x40000`–`0x400000`, SDP `x-ss-video[0].chromaSamplingType`; encoder dependent | New opt-in AVC High 4:4:4 8-bit / HEVC Main444 8-bit (API 37 profile) on decoders advertising those profiles and supporting the requested size/rate. Raw AVC 4:4:4 SPS preserved. Negotiation falls back to 4:2:0 with a notice and actual chroma in the overlay. HDR takes priority. |
-| HEVC/AV1 ten-bit 4:4:4, AV1 eight-bit 4:4:4 | Encoder-dependent standard flags; Radeon principally offers HDR 4:4:4 through PyroWave | No standard Android profile identifiers for these combinations in SDK 37; never inferred from Main10 or output color formats. Uses supported 4:2:0 instead. PyroWave disabled; see milestone 4 findings below. |
+| HEVC/AV1 ten-bit 4:4:4, AV1 eight-bit 4:4:4 | Encoder-dependent standard flags; Radeon principally offers HDR 4:4:4 through PyroWave | No standard Android profile identifiers for these combinations in SDK 37; never inferred from Main10 or output color formats. Uses supported 4:2:0 instead. PyroWave can supply these combinations on qualified Vulkan devices; see milestone 4b below. |
 | Host frame timing | Video short header carries unsigned processing duration in 100 µs units; zero means unavailable | Now beside client latency as avg/p95/p99 over 600 observed frames, also `host_processing_ms` in per-frame CSV. Host claim-to-packet duration is not encode-only or end-to-end latency. No clock subtraction. |
 | Capture/encode/frame-age breakdown | Detailed timing in host diagnostics/web API; not separately carried in standard video packets | Not fabricated from processing duration; admin telemetry UI deferred. |
 | Audio | Opus stereo, 5.1, 7.1, quality/channel-map negotiation, local playback, encryption | Existing audio negotiation/playback. Endpoint selection remains host configured. |
@@ -34,7 +34,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Butterpollo stream-menu adjustment uses kbps and displays the applied host cap; current-session only, with refreshed view/launch permission. Other hosts retain startup bitrate selection. Client automatic bitrate control is not implemented. |
 | Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Tiles can be listed by existing app parser; role-specific lifecycle/confirmation UI deferred. Not claimed as full remote-session support. |
 | Clipboard and server commands | Permission-scoped text `/actions/clipboard`, advertised `ServerCommand` names | Explicit foreground text send/receive over paired HTTPS with direction permissions, UTF-8, 1 MiB limit and no content logging. Commands use reliable encrypted control type `0x3000`, original 8-bit index and host-specific payload size; confirmation, permission refresh and one-second spacing. Host enforces app restrictions; no execution acknowledgment exists. |
-| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Disabled. Negotiation explicitly excludes unimplemented codec families and retains HEVC/AV1/H.264. No Vulkan decoder or PyroWave HDR presentation is shipped. Milestone 4 is incomplete; mobile infeasibility has **not** been established. |
+| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Vulkan decoder/presentation port, including ten-bit HDR and 4:4:4. Auto codec + SurfaceView only, runtime feature/surface checks and a completed warm-up before advertising. Exact `186f0393` bitstream and ordinary packet-container transport; HEVC/AV1/H.264 fallback retained. Adaptive records, bandwidth probing and real-device certification remain unimplemented/unverified. See milestone 4b. |
 | Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Standard version/codec checks retained; Rust version gates decimal launch rates. Local diagnostics ignored safely. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
 
@@ -111,7 +111,220 @@ Milestone 5 real-device checks, in addition to the earlier streaming checklist b
 - Disconnect and resume the same running game, including background/foreground and rotation.
   Verify the game stays running and no unintended `/cancel` occurs.
 
-## Milestone 4: PyroWave feasibility and disabled status
+## Milestone 4b: Vulkan decoder port
+
+The second attempt ports the Android renderer from
+[joemossjr16/artemis-android-pyrowave `387d3a5c`](https://github.com/joemossjr16/artemis-android-pyrowave/tree/387d3a5ce1e3df8d4a4d29eec5b81a7b904926a5).
+Its [LICENSE.txt](https://github.com/joemossjr16/artemis-android-pyrowave/blob/387d3a5ce1e3df8d4a4d29eec5b81a7b904926a5/LICENSE.txt)
+is GPL-3.0, compatible with this GPL-3.0 Moonlight-derived client. Attribution remains in source,
+the application license, and packaged `assets/pyrowave_notices.txt`. PyroWave, Granite and volk's
+full MIT notices are included there. The necessary new runtime dependency is `libpyrowave-shared.so`.
+Both ARM64 and x86-64 libraries were rebuilt with Windows NDK 29, rather than copied from the fork.
+32-bit APKs retain the ordinary decoders and tolerate the absent Vulkan library.
+
+Pinned dependency sources: PyroWave `186f0393b77f7755953b5ecde994bb1cec2e4155`, Granite
+`b6cffd5ce81f540f0855e6778428483e14763d9b`, volk `47cddf7ed97b94118a08aacb548a411188e016cc`,
+Vulkan-Headers `6802bb4733b63ed5efd3adb308a6c885ef180ea1`. The decoder short-block patch from
+Butterpollo `6772d401` is retained in `jni/pyrowave-renderer/patches/`. Sources/headers are MIT;
+the small Android renderer and common-c integration remain GPL-3.0.
+
+### Negotiation and output
+
+- No new preference: **Auto** offers PyroWave when using **SurfaceView**. Existing HDR and 4:4:4
+  preferences control its profile bits; explicit H.264/HEVC/AV1 and TextureView retain MediaCodec.
+  This is the call made without an operator available. The ordinary codec offers remain available.
+- Android API 29+, a 64-bit library and Vulkan **1.3** are necessary. Runtime checks include
+  subgroup basic/vote/ballot/arithmetic/shuffle/shuffle-relative operations, compute stage and size
+  control (4–128), full subgroups, shaderInt16, storageBuffer8BitAccess, storageBuffer16BitAccess,
+  timelineSemaphore, synchronization2 and shaderStorageImageWriteWithoutFormat. Float16 arithmetic
+  is optional. Checks also cover graphics+compute+present queue support, scratch image formats,
+  dimensions, layers and workgroup limits. These are conservative requirements of this port.
+- After server capability intersection, the client creates the decoder, swapchain and colour pipeline
+  on the **actual stream Surface**, then executes a zero-coefficient grey frame into the decode planes.
+  This warm-up is not presented or included in stream statistics. A failed profile tries the next
+  compatible profile; failure of all PyroWave profiles leaves conventional codec negotiation intact.
+  The prepared renderer is reused by video setup and released when RTSP selects a conventional codec.
+- Native RTSP requires `PYROWAVE/90000` and the exact `x-ss-pyrowave.bitstream:186f0393` attribute.
+  Missing/different IDs select AV1/HEVC/H.264. SDP sends `bitStreamFormat=3`, the selected chroma and
+  HDR flags. It deliberately omits **both** `pyrowaveAdaptiveFec` and `pyrowaveFeatures`; even a zero
+  adaptive-FEC attribute selects a different framing protocol on Butterpollo.
+- The ordinary core FEC/depacketizer supplies complete opaque frames with its eight-byte short
+  header and trailing FEC padding removed. The renderer accepts little-endian packet count/lengths,
+  validates exact boundaries and block sizes, then feeds the packets to the pinned decoder. It does
+  not accept the fork's older `PYRW` container or partially recovered record-mode frames. Corrupt
+  frames are discarded, and the next complete intra frame recovers. The core submodule remains pinned;
+  `android_rtsp.c` and `android_sdp.c` are attributed copies of its two modified translation units.
+- Eight-bit output uses R8_UNORM planes; ten-bit output uses **R16_UNORM** throughout the decoded
+  planes, including full-size chroma for 4:4:4. The shader matches Butterpollo's code/1023 encoding,
+  64–940 luma, midpoint 512/scale 896 chroma, optional full range, centred 4:2:0, and BT.709 SDR or
+  BT.2020 non-constant-luminance HDR. HDR RGB remains PQ encoded, with no sRGB framebuffer conversion.
+- HDR requires an A2B10G10R10 or A2R10G10B10 UNORM + `HDR10_ST2084_EXT` surface pair,
+  `VK_EXT_swapchain_colorspace`, and `VK_EXT_hdr_metadata`. The same ten-bit format must also support
+  SDR presentation, preserving ten-bit SDR when the host turns HDR off. Mode changes recreate the
+  swapchain. Mastering primaries/white point, luminance and MaxCLL/MaxFALL are passed with Vulkan units;
+  absent/short metadata clears old values to unknown. The unsupported trailing full-frame field is
+  omitted. [Vulkan metadata units](https://docs.vulkan.org/refpages/latest/refpages/source/VkHdrMetadataEXT.html)
+  and [colour-space definitions](https://docs.vulkan.org/refpages/latest/refpages/source/VkColorSpaceKHR.html)
+  govern this path; MediaCodec HDR keys are not used for the Vulkan surface.
+- Decode has its own fence, including when swapchain acquisition times out or requires recreation.
+  PyroWave disables direct submission so GPU/display waits run on the core's decoder thread.
+  Its CLOCK_MONOTONIC completion feeds milestone 1 `FrameLatencyStats` and the existing CSV/overlay.
+  Input-to-output includes parsing/upload/queue wait and GPU completion, but excludes subsequent
+  image acquisition/present. Separate GPU timestamps bracket the GPU decode. Render/scanout time
+  stays unavailable; no fabricated render callback or rendered-FPS count. Fatal runtime decoder
+  errors end the connection; they do not attempt an in-place codec switch. Reconnect with explicit
+  HEVC/AV1 for a driver failure occurring after successful preparation.
+
+### Measured synthetic frames
+
+On 2026-10-07, `app/src/test/native/pyrowave_benchmark.cpp` used the pinned upstream Windows encoder
+to generate 1280×720 luma ramps/chroma checkerboards, packetized at 1024 bytes into the same container
+the Android renderer accepts. The two frames were 501,996 (4:2:0) and 502,656 (4:4:4) bytes, with a
+500,000-byte codec budget. Each of four runs discarded 10 warm-up decodes and measured 60 completed
+decodes; submissions were spaced by at least 17 ms and the process was restricted to two CPUs.
+
+The GPU selected by the upstream C API was **AMD Radeon RX 7900 XT**, Vulkan 1.4.349, raw driver
+version 8389003. This was the existing Windows toolchain build of the same pinned C API; DLL SHA-256
+`090423bf0054353f29b3cf6ac7cfab76a59cdc7bec369ae8c0564fdb825f8a31`.
+`PyroWaveBenchmark.java` feeds the native monotonic input/completed-output timestamps into the actual
+milestone 1 statistics class. The recorded input is checked in at
+`app/src/test/resources/pyrowave/windows-720p.csv`; the adapter can regenerate all four milestone 1 CSVs.
+
+| 720p, 8-bit | Completed frames | Input → output avg | p95 | p99 |
+| --- | ---: | ---: | ---: | ---: |
+| 4:2:0 compute | 60 | 15.850740 ms | 44.936700 ms | 110.844200 ms |
+| 4:2:0 fragment | 60 | 34.978430 ms | 135.435400 ms | 203.041700 ms |
+| 4:4:4 compute | 60 | 26.796847 ms | 93.904900 ms | 126.660700 ms |
+| 4:4:4 fragment | 60 | 24.810995 ms | 75.169600 ms | 108.253700 ms |
+
+These are **Windows synchronous GPU decode + CPU readback** timings on a shared, CPU-constrained
+machine, with large scheduling/contention tails. They are neither GPU-only nor Android renderer
+measurements, and establish no mobile performance target. Receive/render timestamps are left blank.
+The zero-coefficient warm-up was separately checked through the upstream compute and fragment paths
+for both chroma modes, producing grey pixels. No Android device/emulator was connected; Android
+surface output, ten-bit visual accuracy, HDR transitions, live transport and mobile timing remain
+unverified. The shaders compile and pass SPIR-V validation; that does not certify display output.
+
+To repeat the Windows benchmark from this repository in PowerShell (MSYS2 UCRT64 compiler, Windows
+executables; use a matching C API installation in `$PyroInstall`):
+
+```powershell
+$Bench = Join-Path $env:TEMP 'bp-pyrowave-bench'
+New-Item -ItemType Directory -Force $Bench | Out-Null
+$PyroInstall = 'C:/Users/ramaz/git/pyrowave-build/install-186f0393'
+$VulkanHeaders = 'C:/Users/ramaz/git/pyrowave-build/src-186f0393/Granite/third_party/khronos/vulkan-headers/include'
+$env:PATH = 'C:/msys64/ucrt64/bin;' + $env:PATH
+g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o "$Bench/frame-test.exe"
+& "$Bench/frame-test.exe"
+g++ -std=c++17 -O2 -Iapp/src/main/jni/pyrowave-renderer/prebuilt/include "-I$VulkanHeaders" app/src/test/native/pyrowave_benchmark.cpp "$PyroInstall/lib/libpyrowave-shared.dll.a" -o "$Bench/benchmark.exe"
+Copy-Item "$PyroInstall/bin/libpyrowave-shared-0.dll" $Bench
+$p = Start-Process "$Bench/benchmark.exe" -WorkingDirectory $Bench -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Bench/measurements.csv" -RedirectStandardError "$Bench/benchmark.log"
+$p.ProcessorAffinity = 3
+$p.WaitForExit()
+if ($p.ExitCode -ne 0) { throw 'Benchmark failed; inspect benchmark.log' }
+javac -J-XX:ActiveProcessorCount=2 -d "$Bench/classes" app/src/main/java/com/limelight/binding/video/FrameLatencyStats.java app/src/test/java/com/limelight/binding/video/PyroWaveBenchmark.java
+java -XX:ActiveProcessorCount=2 -cp "$Bench/classes" com.limelight.binding.video.PyroWaveBenchmark "$Bench/measurements.csv" $Bench
+```
+
+### Rebuilding the bundled decoder
+
+Run from the repository root. Use a fresh temporary directory; normal Gradle builds consume the
+committed prebuilts, so no downloads or CMake build run during ordinary application builds.
+No owner checkout, system services or drivers are modified by these commands.
+
+```powershell
+$Repo = (Get-Location).Path
+$Work = Join-Path $env:TEMP 'bp-pyrowave-rebuild'
+$Source = "$Work/pyrowave"
+$Sdk = 'C:/Users/ramaz/AppData/Local/Android/Sdk'
+$Ndk = "$Sdk/ndk/29.0.14206865"
+$env:PATH = "$Sdk/cmake/3.22.1/bin;" + $env:PATH
+git init $Source
+git -C $Source remote add origin https://github.com/Themaister/pyrowave.git
+git -C $Source fetch --depth 1 origin 186f0393b77f7755953b5ecde994bb1cec2e4155
+git -C $Source checkout --detach FETCH_HEAD
+git init "$Source/Granite"
+git -C "$Source/Granite" remote add origin https://github.com/Themaister/Granite.git
+git -C "$Source/Granite" fetch --depth 1 origin b6cffd5ce81f540f0855e6778428483e14763d9b
+git -C "$Source/Granite" checkout --detach FETCH_HEAD
+git -C "$Source/Granite" submodule update --init --jobs 2 third_party/volk third_party/khronos/vulkan-headers
+Get-ChildItem "$Repo/app/src/main/jni/pyrowave-renderer/patches/*.patch" | ForEach-Object { git -C $Source apply $_.FullName }
+foreach ($abi in @('arm64-v8a', 'x86_64')) {
+    cmake -S $Source -B "$Work/$abi" -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$Ndk/build/cmake/android.toolchain.cmake" "-DANDROID_ABI=$abi" -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
+    cmake --build "$Work/$abi" --target pyrowave-shared --parallel 2
+    Copy-Item "$Work/$abi/libpyrowave-shared.so" "app/src/main/jni/pyrowave-renderer/prebuilt/$abi/"
+    & "$Ndk/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe" --strip-unneeded "app/src/main/jni/pyrowave-renderer/prebuilt/$abi/libpyrowave-shared.so"
+}
+```
+
+Both libraries have 16 KiB ELF LOAD alignment and only Android system-library imports. This run's
+stripped SHA-256 hashes are `7b32cb6af70584821d55fb70b1b12376bdc53d5c7d19f039eef2abdde3984999`
+(ARM64) and `1978dac82d8722c6baf9be240c31bbd739409672c31c234a51cc6f9c1e833f00` (x86-64).
+To regenerate `shaders_spv.h`, compile each `shaders/fullscreen.vert` and `shaders/planar_csc.frag`
+with NDK `shader-tools/windows-x86_64/glslc.exe -O --target-env=vulkan1.3 -mfmt=c`, and put those
+initializer lists in `static const uint32_t fullscreen_vert_spv[]` / `planar_csc_frag_spv[]`.
+Also compile binary SPIR-V and run `spirv-val.exe --target-env vulkan1.3` on it.
+
+### Exact real-device checks still required
+
+Local verification passed with Windows JDK 17, the specified SDK, Gradle `--no-daemon --max-workers=2`,
+two active processors and a 1.5 GiB heap: `assembleNonRootDebug`, `assembleNonRootRelease`,
+`testNonRootDebugUnitTest` (46 tests, zero failures/errors/skips), and `lintNonRootDebug` (zero errors,
+201 existing warnings). Both APKs contain all four ordinary-codec ABIs and the two 64-bit PyroWave
+ABIs, with the complete notices preserved in release assets. Release 16 KiB zip alignment passed.
+The native parser/RTSP assertions and the 240-frame milestone 1 replay passed; the standalone ARM64
+benchmark also compiled against the bundled decoder. The root flavor and real-device checks below
+were not run.
+
+1. Build with JDK 17, the specified SDK, `gradlew.bat --no-daemon --max-workers=2
+   assembleNonRootDebug testNonRootDebugUnitTest`. Native make is already capped at `-j2`.
+   Find the APK under `app/build/intermediates/apk/nonRoot/debug/` with AGP 9.4, then
+   `adb -s SERIAL install -r app/build/intermediates/apk/nonRoot/debug/app-nonRoot-debug.apk`.
+2. On a Vulkan 1.3 Adreno and a Mali/Immortalis device, set Codec **Auto**, disable TextureView,
+   enable the performance overlay, and start at 1280×720/60. Pair with Butterpollo built with its
+   `186f0393` PyroWave encoder. Use adequate LAN bitrate (e.g. 200,000 kbps on gigabit Ethernet).
+   Capture `adb -s SERIAL logcat -v threadtime` to a file during the run. Verify the PyroWave surface
+   preparation and selected decode path logs, actual codec/chroma in the overlay, and host SDP
+   `bitStreamFormat=3`. Check that neither record-mode attribute is sent.
+3. Repeat with 4:4:4 on/off, HDR on/off, full range on/off, and host `prefer_sdr_10bit`. On an HDR10
+   panel, display ten-bit grey ramps, black/white patches, PQ highlights and single-pixel red/blue
+   text on the host. Confirm the actual SurfaceView's 10-bit ST2084 swapchain in Vulkan validation /
+   SurfaceFlinger diagnostics, BT.2020 primaries, no eight-bit intermediate/banding, correct blacks,
+   centre chroma and full-resolution colour text. Compare against a known-good host/local image.
+   Change/remove mastering/MaxCLL/MaxFALL metadata; toggle host HDR while connected. Confirm no stale
+   metadata, a new SDR colour-space swapchain on HDR-off and preserved ten-bit planes.
+4. Pause/disconnect/resume, background/foreground, rotate, replace/destroy the surface, and stream
+   while the host changes HDR. Verify objects and decode/presentation fences are released, no hangs
+   or repeated invalid semaphore use, and no validation-layer errors. Apply temporary packet loss/
+   reordering on a test network: complete recovered frames decode; unrecoverable frames drop and
+   the next intra frame recovers. Feed truncated/bad packet lengths and duplicate short blocks through
+   the native parser regression test; no loops or out-of-bounds reads are permitted.
+5. Stop normally to finalize the milestone 1 CSV, then extract it using
+   `adb -s SERIAL exec-out run-as com.butterpollo.client cat files/butterpollo-latency.csv > device.csv`.
+   During streaming use `files/butterpollo-latency.csv.tmp`. Report input-to-output avg/p95/p99 and
+   sample count, plus GPU-decode log/overlay timing separately. Render fields must remain blank with
+   `render_unavailable`. Repeat 1080p/native resolution at 60/120/240 Hz where supported, including
+   a thermal run; never substitute Windows timings for the device's measurements.
+6. Repeat with a 32-bit/API <29/Vulkan <1.3 device, TextureView, explicit HEVC/AV1, a missing-feature
+   Vulkan driver, and an HDR surface without the required format/extension pairs. Verify conventional
+   fallback, including HDR preference over PyroWave SDR. On a test host remove/change the SDP bitstream
+   ID and verify AV1/HEVC fallback; repeat with ordinary Sunshine/Apollo and H.264-only hosts.
+
+For an on-device synthetic C API benchmark independent of a host, compile
+`app/src/test/native/pyrowave_benchmark.cpp` with NDK's `aarch64-linux-android29-clang++.cmd`,
+`-std=c++17 -O2 -static-libstdc++`, include `jni/pyrowave-renderer/prebuilt/include`, and link with
+`-Lapp/src/main/jni/pyrowave-renderer/prebuilt/arm64-v8a -lpyrowave-shared`.
+Push the executable and the matching `.so` into `/data/local/tmp/bp-pyrowave/`; run
+`adb -s SERIAL shell 'cd /data/local/tmp/bp-pyrowave && chmod 700 benchmark && LD_LIBRARY_PATH=. ./benchmark > measurements.csv'`.
+Pull `measurements.csv` and feed it to the Java adapter above, then remove that temporary directory.
+This measures complete GPU decode plus readback; the live-stream CSV is the Android Surface renderer
+measurement. No instrumentation/emulator or mobile performance result is claimed from this run.
+
+## Milestone 4: first-attempt audit (superseded by 4b)
+
+The following records the first attempt at `c23f1357`; its disabled status and zero-frame
+measurement apply to that historical attempt, not the implementation above.
+
 
 **Mobile decoding is technically plausible and already demonstrated for SDR. This audit does not
 establish that mobile GPUs cannot decode PyroWave.** The requested Android Vulkan decoder, full

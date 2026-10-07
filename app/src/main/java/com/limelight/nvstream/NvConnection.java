@@ -226,20 +226,27 @@ public class NvConnection {
     }
     
     static int negotiateVideoFormats(int formats, int serverFormats) {
-        // PyroWave needs compatible depacketization and a Vulkan/HDR renderer. Until those exist,
-        // only pass codec families implemented by this client to the native handshake.
         formats &= MoonBridge.VIDEO_FORMAT_MASK_H264 | MoonBridge.VIDEO_FORMAT_MASK_H265 |
-                MoonBridge.VIDEO_FORMAT_MASK_AV1;
+                MoonBridge.VIDEO_FORMAT_MASK_AV1 | MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE;
 
         int[] clientBits = { MoonBridge.VIDEO_FORMAT_H265_MAIN10, MoonBridge.VIDEO_FORMAT_AV1_MAIN10,
                 MoonBridge.VIDEO_FORMAT_H264_HIGH8_444, MoonBridge.VIDEO_FORMAT_H265_REXT8_444,
                 MoonBridge.VIDEO_FORMAT_H265_REXT10_444, MoonBridge.VIDEO_FORMAT_AV1_HIGH8_444,
-                MoonBridge.VIDEO_FORMAT_AV1_HIGH10_444 };
-        int[] hostBits = { 0x200, 0x20000, 0x40000, 0x80000, 0x100000, 0x200000, 0x400000 };
+                MoonBridge.VIDEO_FORMAT_AV1_HIGH10_444, MoonBridge.VIDEO_FORMAT_PYROWAVE,
+                MoonBridge.VIDEO_FORMAT_PYROWAVE_444, MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10,
+                MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10_444 };
+        int[] hostBits = { 0x200, 0x20000, 0x40000, 0x80000, 0x100000, 0x200000, 0x400000, 0x800000, 0x1000000, 0x2000000, 0x4000000 };
         for (int i = 0; i < clientBits.length; i++) {
             if ((serverFormats & hostBits[i]) == 0) {
                 formats &= ~clientBits[i];
             }
+        }
+
+        int pyroWave = formats & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE;
+        formats &= ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE;
+        // HDR takes precedence over an SDR-only PyroWave host.
+        if ((formats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
+            pyroWave &= MoonBridge.VIDEO_FORMAT_MASK_10BIT;
         }
 
         // The native handshake prefers AV1 over HEVC regardless of bit depth/chroma.
@@ -254,10 +261,10 @@ public class NvConnection {
                 formats &= ~MoonBridge.VIDEO_FORMAT_MASK_H265;
             }
         }
-        return formats;
+        return formats | pyroWave;
     }
 
-    private boolean startApp() throws XmlPullParserException, IOException
+    private boolean startApp(VideoDecoderRenderer renderer) throws XmlPullParserException, IOException
     {
         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
         http = h;
@@ -288,12 +295,6 @@ public class NvConnection {
 
         context.serverCodecModeSupport = (int)h.getServerCodecModeSupport(serverInfo);
 
-        context.negotiatedVideoFormats = negotiateVideoFormats(context.streamConfig.getSupportedVideoFormats(), context.serverCodecModeSupport);
-        context.negotiatedHdr = (context.negotiatedVideoFormats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
-        if (!context.negotiatedHdr && (context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
-            context.connListener.displayTransientMessage("No common HDR codec with the host. The stream will be SDR.");
-        }
-        
         //
         // Decide on negotiated stream parameters now
         //
@@ -321,6 +322,16 @@ public class NvConnection {
             // Take what the client wanted
             context.negotiatedWidth = context.streamConfig.getWidth();
             context.negotiatedHeight = context.streamConfig.getHeight();
+        }
+
+        int offeredFormats = context.streamConfig.getSupportedVideoFormats();
+        int commonFormats = negotiateVideoFormats(offeredFormats, context.serverCodecModeSupport);
+        int preparedFormats = renderer.prepareVideoFormats(commonFormats, context.negotiatedWidth,
+                context.negotiatedHeight, context.streamConfig.getRefreshRate());
+        context.negotiatedVideoFormats = negotiateVideoFormats(preparedFormats, context.serverCodecModeSupport);
+        context.negotiatedHdr = (context.negotiatedVideoFormats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+        if (!context.negotiatedHdr && (offeredFormats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
+            context.connListener.displayTransientMessage("No common HDR codec with the host. The stream will be SDR.");
         }
 
         // We will perform some connection type detection if the caller asked for it
@@ -441,17 +452,20 @@ public class NvConnection {
                 context.connListener.stageStarting(appName);
 
                 try {
-                    if (!startApp()) {
+                    if (!startApp(videoDecoderRenderer)) {
+                        videoDecoderRenderer.cleanup();
                         context.connListener.stageFailed(appName, 0, 0);
                         return;
                     }
                     context.connListener.stageComplete(appName);
                 } catch (HostHttpResponseException e) {
+                    videoDecoderRenderer.cleanup();
                     e.printStackTrace();
                     context.connListener.displayMessage(e.getMessage());
                     context.connListener.stageFailed(appName, 0, e.getErrorCode());
                     return;
                 } catch (XmlPullParserException | IOException e) {
+                    videoDecoderRenderer.cleanup();
                     e.printStackTrace();
                     context.connListener.displayMessage(e.getMessage());
                     context.connListener.stageFailed(appName, MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989, 0);
@@ -466,6 +480,7 @@ public class NvConnection {
                 try {
                     connectionAllowed.acquire();
                 } catch (InterruptedException e) {
+                    videoDecoderRenderer.cleanup();
                     context.connListener.displayMessage(e.getMessage());
                     context.connListener.stageFailed(appName, 0, 0);
                     return;
@@ -490,6 +505,7 @@ public class NvConnection {
                             context.streamConfig.getColorSpace(),
                             context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority);
                     if (ret != 0) {
+                        videoDecoderRenderer.cleanup();
                         // LiStartConnection() failed, so the caller is not expected
                         // to stop the connection themselves. We need to release their
                         // semaphore count for them.

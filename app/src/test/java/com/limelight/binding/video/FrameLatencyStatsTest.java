@@ -8,6 +8,20 @@ import static org.junit.Assert.*;
 
 public class FrameLatencyStatsTest {
     @Test
+    public void completedGpuFenceDoesNotInventDisplayTiming() throws Exception {
+        FrameLatencyStats stats = new FrameLatencyStats();
+        stats.onDecoderInput(9, 9, 1000000, 2000000, (char) 0);
+        stats.onDecoderOutput(0, 9, 3500000);
+        stats.onOutputReleased(0, 6000000, true, false);
+        assertArrayEquals(new double[] {1, 1.5, 1.5, 1.5}, stats.summarize()[1], 0.00001);
+        assertEquals(0, stats.summarize()[2][0], 0);
+        assertEquals(0, stats.summarize()[3][0], 0);
+        StringWriter csv = new StringWriter();
+        stats.writeCsv(csv);
+        assertTrue(csv.toString().contains("render_unavailable"));
+    }
+
+    @Test
     public void hostDurationIsIndependentOfClientClockAndSurvivesCsvExport() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(42, 123, 1000000, 2000000, (char) 123);
