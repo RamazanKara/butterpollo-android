@@ -15,6 +15,7 @@ public class PreferenceConfiguration {
         FORCE_AV1,
         FORCE_HEVC,
         FORCE_H264,
+        FORCE_PYROWAVE,
     };
 
     public enum AnalogStickForScrolling {
@@ -376,6 +377,9 @@ public class PreferenceConfiguration {
         else if (str.equals("neverh265")) {
             return FormatOption.FORCE_H264;
         }
+        else if (str.equals("forcepyrowave")) {
+            return FormatOption.FORCE_PYROWAVE;
+        }
         else {
             // Should never get here
             return FormatOption.AUTO;
@@ -620,7 +624,8 @@ public class PreferenceConfiguration {
         config.codecPerformance = prefs.getBoolean(CODEC_PERFORMANCE_PREF_STRING, true);
         config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, false);
         // SurfaceView preserves HDR metadata and avoids TextureView's extra composition step.
-        config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr;
+        config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&
+                config.videoFormat != FormatOption.FORCE_PYROWAVE;
         config.unbatchedInput = prefs.getBoolean(UNBATCHED_INPUT_PREF_STRING, false);
         config.networkPriority = prefs.getBoolean(NETWORK_PRIORITY_PREF_STRING, false);
         config.virtualDisplay = prefs.getBoolean(VIRTUAL_DISPLAY_PREF_STRING, false);

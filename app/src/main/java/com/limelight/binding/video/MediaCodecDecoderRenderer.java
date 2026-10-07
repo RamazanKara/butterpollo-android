@@ -129,20 +129,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         public void run() {
             frameLatencyStats.expire(System.nanoTime());
             flushLatencyCsv();
-            double[][] summary = frameLatencyStats.summarize();
-            int[] labels = { R.string.latency_receive_input, R.string.latency_input_output,
-                    R.string.latency_output_render, R.string.latency_receive_render,
-                    R.string.latency_host_processing };
-            StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
-            for (int stage = 0; stage < labels.length; stage++) {
-                text.append('\n').append(context.getString(labels[stage])).append(": ");
-                if (summary[stage][0] == 0) {
-                    text.append(context.getString(R.string.latency_unavailable));
-                } else {
-                    text.append(context.getString(R.string.latency_values, summary[stage][1],
-                            summary[stage][2], summary[stage][3], (int) summary[stage][0]));
-                }
-            }
+            StringBuilder text = new StringBuilder(formatLatencyOverlay(context, frameLatencyStats.summarize()));
             if (latencyCsv == null) {
                 text.append('\n').append(context.getString(R.string.latency_csv_failed));
             } else if (frameLatencyStats.getCsvRowsLost() != 0) {
@@ -152,6 +139,23 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             latencyHandler.postDelayed(this, 1000);
         }
     };
+
+    public static String formatLatencyOverlay(Context context, double[][] summary) {
+        int[] labels = { R.string.latency_receive_input, R.string.latency_input_output,
+                R.string.latency_output_render, R.string.latency_receive_render,
+                R.string.latency_host_processing };
+        StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
+        for (int stage = 0; stage < labels.length; stage++) {
+            text.append('\n').append(context.getString(labels[stage])).append(": ");
+            if (summary[stage][0] == 0) {
+                text.append(context.getString(R.string.latency_unavailable));
+            } else {
+                text.append(context.getString(R.string.latency_values, summary[stage][1],
+                        summary[stage][2], summary[stage][3], (int) summary[stage][0]));
+            }
+        }
+        return text.toString();
+    }
 
     private long lastTimestampUs;
     private int lastFrameNumber;
@@ -302,7 +306,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private MediaCodecInfo findAv1Decoder(PreferenceConfiguration prefs, boolean requestedHdr) {
         if (prefs.videoFormat != PreferenceConfiguration.FormatOption.FORCE_AV1 &&
-                !(requestedHdr && prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO)) {
+                !(requestedHdr && (prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO ||
+                        prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE))) {
             return null;
         }
 
@@ -501,7 +506,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     public boolean isPyroWaveSupported() {
-        return prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO &&
+        return prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE &&
                 !prefs.useTextureView && PyroWaveDecoderRenderer.isAvailable();
     }
 
@@ -527,7 +532,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 MoonBridge.VIDEO_FORMAT_PYROWAVE_444, MoonBridge.VIDEO_FORMAT_PYROWAVE };
         for (int choice : choices) {
             if ((formats & choice) != 0 && !stopping &&
-                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, prefs.fullRange)) {
+                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, prefs.fullRange) && !stopping) {
                 LimeLog.info("PyroWave surface initialized before negotiation: " + Integer.toHexString(choice));
                 return (formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) | choice;
             }
@@ -825,21 +830,26 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public int setup(int format, int width, int height, int redrawRate) {
-        this.initialWidth = width;
-        this.initialHeight = height;
-        this.videoFormat = format;
-        this.refreshRate = redrawRate;
-
         int result;
-        if ((format & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-            result = pyroWaveRenderer.getFormat() == format ? 0 : -1;
-            if (result == 0 && currentHdrMode != null) {
-                pyroWaveRenderer.setHdrMode(currentHdrMode, currentHdrMetadata);
+        synchronized (codecRecoveryMonitor) {
+            if (stopping) {
+                return -1;
             }
-        } else {
-            // RTSP may reject an incompatible PyroWave bitstream after surface preparation.
-            pyroWaveRenderer.cleanup();
-            result = initializeDecoder(false);
+            this.initialWidth = width;
+            this.initialHeight = height;
+            this.videoFormat = format;
+            this.refreshRate = redrawRate;
+
+            if ((format & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                result = pyroWaveRenderer.getFormat() == format ? 0 : -1;
+                if (result == 0 && currentHdrMode != null) {
+                    pyroWaveRenderer.setHdrMode(currentHdrMode, currentHdrMetadata);
+                }
+            } else {
+                // RTSP may reject an incompatible PyroWave bitstream after surface preparation.
+                pyroWaveRenderer.cleanup();
+                result = initializeDecoder(false);
+            }
         }
         if (result == 0) {
             if (prefs.enableYuv444 && (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) == 0) {
@@ -1405,7 +1415,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public void prepareForStop() {
         // Let the decoding code know to ignore codec exceptions now
         stopping = true;
-        pyroWaveRenderer.cleanup();
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            // Vulkan teardown and HDR transitions may wait on the GPU; keep the UI off that lock.
+            return;
+        }
 
         // Halt the rendering thread
         if (rendererThread != null) {
@@ -1487,9 +1500,18 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     latencyThread.quitSafely();
                 }
             });
-            try {
-                latencyThread.join();
-            } catch (InterruptedException e) {
+            boolean interrupted = false;
+            while (latencyThread.isAlive()) {
+                try {
+                    latencyThread.join();
+                } catch (InterruptedException e) {
+                    // Reconnect must not overwrite the CSV until the cancelled session closes it.
+                    interrupted = true;
+                }
+            }
+            latencyHandler = null;
+            latencyThread = null;
+            if (interrupted) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -1497,34 +1519,40 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void setHdrMode(boolean enabled, byte[] hdrMetadata) {
-        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-            currentHdrMode = enabled;
-            currentHdrMetadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata.clone() : null;
-            pyroWaveRenderer.setHdrMode(enabled, currentHdrMetadata);
-            return;
-        }
-        // HDR metadata is only supported in Android 7.0 and later, so don't bother
-        // restarting the codec on anything earlier than that.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            byte[] metadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata : null;
-            boolean previousMode = currentHdrMode != null ? currentHdrMode :
-                    (getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
-            currentHdrMode = enabled;
-            if (previousMode == enabled && Arrays.equals(currentHdrMetadata, metadata)) {
+        // A callback during recovery must not have its new metadata or restart request overwritten.
+        synchronized (codecRecoveryMonitor) {
+            if (stopping) {
                 return;
             }
-            currentHdrMetadata = metadata == null ? null : metadata.clone();
+            if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                currentHdrMode = enabled;
+                currentHdrMetadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata.clone() : null;
+                pyroWaveRenderer.setHdrMode(enabled, currentHdrMetadata);
+                return;
+            }
+            // HDR metadata is only supported in Android 7.0 and later, so don't bother
+            // restarting the codec on anything earlier than that.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                byte[] metadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata : null;
+                boolean previousMode = currentHdrMode != null ? currentHdrMode :
+                        (getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+                currentHdrMode = enabled;
+                if (previousMode == enabled && Arrays.equals(currentHdrMetadata, metadata)) {
+                    return;
+                }
+                currentHdrMetadata = metadata == null ? null : metadata.clone();
 
-            // If we reach this point, we need to restart the MediaCodec instance to
-            // pick up the HDR metadata change. This will happen on the next input
-            // or output buffer.
+                // If we reach this point, we need to restart the MediaCodec instance to
+                // pick up the HDR metadata change. This will happen on the next input
+                // or output buffer.
 
-            // HACK: Reset codec recovery attempt counter, since this is an expected "recovery"
-            codecRecoveryAttempts = 0;
+                // HACK: Reset codec recovery attempt counter, since this is an expected "recovery"
+                codecRecoveryAttempts = 0;
 
-            // Promote None/Flush to Restart and leave Reset alone
-            if (!codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESTART)) {
-                codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+                // Promote None/Flush to Restart and leave Reset alone
+                if (!codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESTART)) {
+                    codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+                }
             }
         }
     }

@@ -30,9 +30,15 @@ final class PyroWaveDecoderRenderer {
     synchronized boolean setup(Surface surface, int format, int width, int height, int fps, boolean fullRange) {
         cleanup();
         if (!LIBRARY_LOADED || surface == null || !surface.isValid()) return false;
-        handle = nativeCreate(surface, width, height, fps,
-                (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0,
-                (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange);
+        try {
+            handle = nativeCreate(surface, width, height, fps,
+                    (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0,
+                    (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange);
+        } catch (IllegalArgumentException e) {
+            // The surface may be released between isValid() and the native window lookup.
+            LimeLog.warning("PyroWave surface unavailable: " + e);
+            return false;
+        }
         this.format = handle != 0 ? format : 0;
         return handle != 0;
     }

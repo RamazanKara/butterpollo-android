@@ -14,11 +14,24 @@
 
 static inline int selectPyroWaveFormat(int formats, unsigned int serverFormats, const char* sdp) {
     // Match a complete attribute: a future bitstream revision must use the ordinary codecs.
-    if (!strstr(sdp, "PYROWAVE/90000") ||
-        (!strstr(sdp, "a=x-ss-pyrowave.bitstream:186f0393\r\n") &&
-         !strstr(sdp, "a=x-ss-pyrowave.bitstream:186f0393\n"))) {
-        return 0;
+    int codec = 0, bitstream = 0;
+    for (const char* line = sdp; *line;) {
+        const char* end = strchr(line, '\n');
+        size_t length = end ? (size_t)(end - line) : strlen(line);
+        if (length && line[length - 1] == '\r') length--;
+        const char* revision = "a=x-ss-pyrowave.bitstream:186f0393";
+        if (length == strlen(revision) && !memcmp(line, revision, length)) bitstream = 1;
+        if (length > 9 && !memcmp(line, "a=rtpmap:", 9)) {
+            const char* payload = line + 9;
+            while (payload < line + length && *payload >= '0' && *payload <= '9') payload++;
+            const char* format = " PYROWAVE/90000";
+            if (payload > line + 9 && (size_t)(line + length - payload) == strlen(format) &&
+                !memcmp(payload, format, strlen(format))) codec = 1;
+        }
+        if (!end) break;
+        line = end + 1;
     }
+    if (!codec || !bitstream) return 0;
     const int client[] = { VIDEO_FORMAT_PYROWAVE_MAIN10_444, VIDEO_FORMAT_PYROWAVE_MAIN10,
                            VIDEO_FORMAT_PYROWAVE_444, VIDEO_FORMAT_PYROWAVE };
     const unsigned int host[] = { 0x04000000, 0x02000000, 0x01000000, 0x00800000 };
