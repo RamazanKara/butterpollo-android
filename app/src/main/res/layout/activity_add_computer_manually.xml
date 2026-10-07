@@ -31,7 +31,7 @@
         android:ems="10"
         android:singleLine="true"
         android:preferKeepClear="true"
-        android:inputType="textNoSuggestions"
+        android:inputType="textUri"
         android:hint="@string/ip_hint" >
         
         <requestFocus />
@@ -46,6 +46,6 @@
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
         android:preferKeepClear="true"
-        android:text="@android:string/ok"/>
+        android:text="@string/addpc_button"/>
 	
 </RelativeLayout>
