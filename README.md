@@ -27,8 +27,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
 - Settings split into Video, Latency, Input, Host and App screens with a title bar, a summary of the
-  current stream setup, and **Reset all settings** (keeps paired PCs, per-PC settings and the
-  on-screen control layout). Conservative 720p/60, automatic codec and low-latency decoding defaults.
+  current stream setup, and **Reset all settings** (keeps paired PCs, per-PC settings, controller
+  button mappings and the on-screen control layout). Conservative 720p/60, automatic codec and low-latency decoding defaults.
 - A bitrate dialog built for LAN rates: logarithmic slider, -/+ fine steps and presets from 10 Mbps
   to the 280 Mbps PyroWave starting point.
 - A short, skippable pairing guide on first launch (also behind the **?** button), and readable

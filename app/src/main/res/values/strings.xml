@@ -385,7 +385,7 @@
     <string name="title_reset_settings">Reset all settings</string>
     <string name="summary_reset_settings">Return every setting in these screens to its default</string>
     <string name="dialog_reset_settings_title">Reset all settings?</string>
-    <string name="dialog_reset_settings_text">Video, latency, input, host and app settings return to their defaults. Paired PCs, per-PC streaming settings, your on-screen control layout and the app language are kept.</string>
+    <string name="dialog_reset_settings_text">Video, latency, input, host and app settings return to their defaults. Paired PCs, per-PC streaming settings, controller button mappings, your on-screen control layout and the app language are kept.</string>
     <string name="dialog_reset_settings_confirm">Reset</string>
     <string name="toast_reset_settings">Settings reset to defaults</string>
     <string name="addpc_button">Add</string>
