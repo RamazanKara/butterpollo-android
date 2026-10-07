@@ -48,6 +48,7 @@ public class ServerHelper {
         i.putExtra(Game.EXTRA_APP_NAME, app.getAppName());
         i.putExtra(Game.EXTRA_APP_ID, ""+app.getAppId());
         i.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
+        i.putExtra(Game.EXTRA_APP_UUID, app.getAppUuid());
         i.setAction(Intent.ACTION_DEFAULT);
         return i;
     }
@@ -61,6 +62,7 @@ public class ServerHelper {
         intent.putExtra(Game.EXTRA_APP_NAME, app.getAppName());
         intent.putExtra(Game.EXTRA_APP_ID, app.getAppId());
         intent.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
+        intent.putExtra(Game.EXTRA_APP_UUID, app.getAppUuid());
         intent.putExtra(Game.EXTRA_UNIQUEID, managerBinder.getUniqueId());
         intent.putExtra(Game.EXTRA_PC_UUID, computer.uuid);
         intent.putExtra(Game.EXTRA_PC_NAME, computer.name);

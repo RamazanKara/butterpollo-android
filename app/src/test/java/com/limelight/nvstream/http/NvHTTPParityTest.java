@@ -477,6 +477,57 @@ public class NvHTTPParityTest {
         assertEquals(42, apps.get(0).getAppId());
         assertTrue(apps.get(0).isHdrSupported());
         assertEquals("Game & tools", apps.get(1).getAppName());
+        assertEquals("00000000-0000-0000-0000-000000000042", apps.get(0).getAppUuid());
+        assertEquals(0, apps.get(0).getHostIndex());
+        assertEquals("2", apps.get(1).getArtVersion());
+    }
+
+    @Test
+    public void appUuidLaunchIsEscapedAndRunningIdentityWinsOverReusedNumericIds() throws Exception {
+        ConnectionContext context = context("butterpollo-serverinfo.xml");
+        NvApp app = context.streamConfig.getApp();
+        assertNull(query(context, false).queryParameter("appuuid"));
+        app.setAppUuid("app &?=# identity");
+        assertEquals("app &?=# identity", query(context, false).queryParameter("appuuid"));
+        assertEquals(1, query(context, false).queryParameterValues("appid").size());
+        app.setAppId(42);
+        assertTrue(app.matchesRunningApp(43, app.getAppUuid()));
+        assertFalse(app.matchesRunningApp(42, "different-app"));
+        assertTrue(app.matchesRunningApp(42, null));
+        assertFalse(app.matchesRunningApp(0, app.getAppUuid()));
+    }
+
+    @Test
+    public void advertisedHostOrderWinsWhileStockAndInvalidIndicesSortByName() throws Exception {
+        LinkedList<NvApp> apps = NvHTTP.getAppListByReader(new StringReader(
+                "<root status_code=\"200\">" +
+                        "<App><ID>1</ID><AppTitle>Zulu</AppTitle><IDX>0</IDX></App>" +
+                        "<App><ID>2</ID><AppTitle>Alpha</AppTitle><IDX>1</IDX></App>" +
+                        "<App><ID>3</ID><AppTitle>Beta</AppTitle><IDX>-1</IDX></App>" +
+                        "<App><ID>4</ID><AppTitle>Charlie</AppTitle><IDX>oops</IDX></App>" +
+                        "<App><ID>5</ID><AppTitle>Delta</AppTitle><IDX>2147483648</IDX></App>" +
+                        "</root>"));
+        java.util.Collections.reverse(apps);
+        java.util.Collections.sort(apps, NvApp::compareForDisplay);
+        assertEquals("Zulu", apps.get(0).getAppName());
+        assertEquals("Alpha", apps.get(1).getAppName());
+        assertEquals("Beta", apps.get(2).getAppName());
+        assertEquals(Integer.MAX_VALUE, apps.get(4).getHostIndex());
+        assertTrue(new NvApp("alpha").compareForDisplay(new NvApp("Beta")) < 0);
+    }
+
+    @Test
+    public void artworkCacheTracksOpaqueVersionAndIdentityWithoutUsingHostPaths() {
+        NvApp app = new NvApp("Game", 42, false);
+        assertEquals("42", app.getAssetCacheKey());
+        app.setAppUuid("a");
+        String original = app.getAssetCacheKey();
+        app.setArtVersion("../../new/art?file=1");
+        String updated = app.getAssetCacheKey();
+        assertNotEquals(original, updated);
+        assertTrue(updated.matches("42-[0-9a-f-]{36}"));
+        app.setAppUuid("b");
+        assertNotEquals(updated, app.getAssetCacheKey());
     }
 
     @Test

@@ -33,7 +33,7 @@ public class DiskAssetLoader {
     }
 
     public boolean checkCacheExists(CachedAppAssetLoader.LoaderTuple tuple) {
-        return CacheHelper.cacheFileExists(cacheDir, "boxart", tuple.computer.uuid, tuple.app.getAppId() + ".png");
+        return CacheHelper.cacheFileExists(cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png");
     }
 
     // https://developer.android.com/topic/performance/graphics/load-bitmap.html
@@ -59,7 +59,7 @@ public class DiskAssetLoader {
     }
 
     public ScaledBitmap loadBitmapFromCache(CachedAppAssetLoader.LoaderTuple tuple, int sampleSize) {
-        File file = getFile(tuple.computer.uuid, tuple.app.getAppId());
+        File file = getFile(tuple.computer.uuid, tuple.cacheKey);
 
         // Don't bother with anything if it doesn't exist
         if (!file.exists()) {
@@ -133,8 +133,8 @@ public class DiskAssetLoader {
         return null;
     }
 
-    public File getFile(String computerUuid, int appId) {
-        return CacheHelper.openPath(false, cacheDir, "boxart", computerUuid, appId + ".png");
+    public File getFile(String computerUuid, String cacheKey) {
+        return CacheHelper.openPath(false, cacheDir, "boxart", computerUuid, cacheKey + ".png");
     }
 
     public void deleteAssetsForComputer(String computerUuid) {
@@ -150,7 +150,7 @@ public class DiskAssetLoader {
     public void populateCacheWithStream(CachedAppAssetLoader.LoaderTuple tuple, InputStream input) {
         boolean success = false;
         try (final OutputStream out = CacheHelper.openCacheFileForOutput(
-                cacheDir, "boxart", tuple.computer.uuid, tuple.app.getAppId() + ".png")
+                cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png")
         ) {
             CacheHelper.writeInputStreamToOutputStream(input, out, MAX_ASSET_SIZE);
             success = true;
@@ -159,7 +159,7 @@ public class DiskAssetLoader {
         } finally {
             if (!success) {
                 LimeLog.warning("Unable to populate cache with tuple: "+tuple);
-                CacheHelper.deleteCacheFile(cacheDir, "boxart", tuple.computer.uuid, tuple.app.getAppId() + ".png");
+                CacheHelper.deleteCacheFile(cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png");
             }
         }
     }

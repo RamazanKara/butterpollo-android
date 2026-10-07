@@ -376,6 +376,16 @@ public class NvConnection {
         //
         
         NvApp app = context.streamConfig.getApp();
+
+        if (!app.getAppUuid().isEmpty()) {
+            // Resolve stale shortcut IDs before the host's ID-or-UUID lookup can select another app.
+            NvApp currentApp = h.getAppByUuid(app.getAppUuid());
+            if (currentApp == null) {
+                context.connListener.displayMessage("This app is no longer available on the host. Refresh its app list.");
+                return false;
+            }
+            app.setAppId(currentApp.getAppId());
+        }
         
         // If the client did not provide an exact app ID, do a lookup with the applist
         if (!context.streamConfig.getApp().isInitialized()) {
@@ -396,7 +406,7 @@ public class NvConnection {
         // If there's a game running, resume it
         if (h.getCurrentGame(serverInfo) != 0) {
             try {
-                if (h.getCurrentGame(serverInfo) == app.getAppId()) {
+                if (app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
                     if (!h.launchApp(context, "resume", app.getAppId(), context.negotiatedHdr)) {
                         context.connListener.displayMessage("Failed to resume existing session");
                         return false;
