@@ -137,16 +137,20 @@ their existing three-finger keyboard gesture.
 The local checks cover profile validation/round-trips, fractional/stock-host query behavior,
 UUID/order/artwork identity, the trailing version sentinel, OTP hashing/request mode, bandwidth
 streaming/cancellation boundaries and the automatic-bitrate state machine, alongside existing native
-protocol/decoder tests. Before rebasing, `assembleNonRootDebug` passed for all four ordinary-codec ABIs,
+protocol/decoder tests. After rebasing onto the UI pass at `67e929b1`, `assembleNonRootDebug` passed for all four ordinary-codec ABIs,
 `testNonRootDebugUnitTest` passed 86 tests with zero failures/errors/skips, and `lintNonRootDebug`
-reported zero errors and 203 warnings (including two AV1 spelling warnings). The native
+reported zero errors and 196 warnings (including two AV1 spelling warnings). The native
 `pyrowave_frame_test` assertions passed with GCC 16.1. These runs used Windows/JDK 17 and Gradle
 `--no-daemon --max-workers=2`; they do not certify a stream or real device.
 
-`scripts/emulator-smoke.py` uses synthetic host responses and exercises discovery/settings/profile
-UI and the production overlay layout. It does not pair with a real host, decode a stream, measure
-a physical panel or certify controllers. The milestone 7 emulator run and post-rebase verification
-are still pending at this record; earlier counts below belong to historical milestones.
+After rebasing, `scripts/emulator-smoke.py` passed on the headless Android 35 `sunset` AVD:
+manual discovery, invalid profile input, saving/reopening 1920×1080 at 59.94 Hz, resetting to global
+settings, overlay preference persistence, About's Moonlight/GPL-3.0 attribution, and production
+overlay layout/rotation. Eleven screenshots were refreshed and the profile, settings, host list and
+overlay captures were visually inspected. The crash buffer was empty; the script stopped its emulator
+and `adb devices` was empty afterward. It waited until the previously running emulator had exited.
+The fixture does not pair with a real host, decode a stream, measure a physical panel or certify
+controllers. Earlier counts below belong to historical milestones.
 
 The following still require real Android hardware and a host; passing synthetic tests is insufficient:
 
