@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="bandwidth_probe_title">Test PyroWave bandwidth</string>
-    <string name="bandwidth_probe_confirmation">Download 32 MiB from this paired PC to measure HTTP throughput. This uses network data and may affect other streams. No streaming settings will change.</string>
+    <string name="bandwidth_probe_confirmation">Downloads 32 MiB from this PC to check whether the network is fast enough for PyroWave (about 280 Mbps at 720p/60). Other traffic on the network may slow down briefly. Your settings are not changed.</string>
     <string name="bandwidth_probe_start">Start test</string>
     <string name="bandwidth_probe_running">Measuring HTTP throughput… The transfer stops after 30 seconds. Leave this screen or tap Cancel to stop.</string>
     <string name="bandwidth_probe_result">Observed HTTP throughput: %1$.1f Mbps</string>
