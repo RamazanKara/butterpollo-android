@@ -161,6 +161,13 @@ public abstract class AbstractXboxController extends AbstractController {
             inputThread = null;
         }
 
+        // Let Android reclaim controllers that were detached by claimInterface().
+        for (int i = 0; i < device.getInterfaceCount(); i++) {
+            if (!connection.releaseInterface(device.getInterface(i))) {
+                LimeLog.warning("Failed to release controller interface");
+            }
+        }
+
         // Close the USB connection
         connection.close();
 
