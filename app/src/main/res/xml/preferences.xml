@@ -66,6 +66,31 @@
             seekbar:step="5"
             android:text="%" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_codec_settings"
+        android:key="category_codec_settings">
+        <ListPreference
+            android:key="video_format"
+            android:title="@string/title_video_format"
+            android:entries="@array/video_format_names"
+            android:entryValues="@array/video_format_values"
+            android:summary="@string/summary_video_format"
+            android:defaultValue="auto" />
+        <CheckBoxPreference
+            android:key="checkbox_enable_hdr"
+            android:title="@string/title_enable_hdr"
+            android:summary="@string/summary_enable_hdr"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_full_range"
+            android:title="@string/title_full_range"
+            android:summary="@string/summary_full_range"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_yuv444"
+            android:title="@string/title_yuv444"
+            android:summary="@string/summary_yuv444"
+            android:defaultValue="false" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_latency_settings"
         android:key="category_latency_settings">
         <ListPreference
@@ -121,31 +146,6 @@
             android:key="export_latency_csv"
             android:title="@string/title_export_latency_csv"
             android:summary="@string/summary_export_latency_csv" />
-    </PreferenceCategory>
-    <PreferenceCategory android:title="@string/category_codec_settings"
-        android:key="category_codec_settings">
-        <ListPreference
-            android:key="video_format"
-            android:title="@string/title_video_format"
-            android:entries="@array/video_format_names"
-            android:entryValues="@array/video_format_values"
-            android:summary="@string/summary_video_format"
-            android:defaultValue="auto" />
-        <CheckBoxPreference
-            android:key="checkbox_enable_hdr"
-            android:title="@string/title_enable_hdr"
-            android:summary="@string/summary_enable_hdr"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_full_range"
-            android:title="@string/title_full_range"
-            android:summary="@string/summary_full_range"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_yuv444"
-            android:title="@string/title_yuv444"
-            android:summary="@string/summary_yuv444"
-            android:defaultValue="false" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_audio_settings">
         <ListPreference
@@ -288,7 +288,7 @@
             android:defaultValue="90"
             android:summary="@string/summary_osc_opacity"
             android:text="@string/suffix_osc_opacity"
-            android:title="@string/dialog_title_osc_opacity" />
+            android:title="@string/title_osc_opacity" />
         <com.limelight.preferences.ConfirmDeleteOscPreference
             android:title="@string/title_reset_osc"
             android:summary="@string/summary_reset_osc"
@@ -337,6 +337,13 @@
             android:title="@string/title_checkbox_disable_warnings"
             android:summary="@string/summary_checkbox_disable_warnings"
             android:defaultValue="false" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_about"
+        android:key="category_about">
+        <com.limelight.preferences.WebLauncherPreference
+            android:key="about_app"
+            android:title="@string/title_about"
+            url="https://github.com/RamazanKara/butterpollo-android"/>
     </PreferenceCategory>
     <!--PreferenceCategory android:title="@string/category_help"
         android:key="category_help">
