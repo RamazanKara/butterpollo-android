@@ -221,6 +221,11 @@ public class NvConnection {
     }
     
     static int negotiateVideoFormats(int formats, int serverFormats) {
+        // PyroWave needs compatible depacketization and a Vulkan/HDR renderer. Until those exist,
+        // only pass codec families implemented by this client to the native handshake.
+        formats &= MoonBridge.VIDEO_FORMAT_MASK_H264 | MoonBridge.VIDEO_FORMAT_MASK_H265 |
+                MoonBridge.VIDEO_FORMAT_MASK_AV1;
+
         int[] clientBits = { MoonBridge.VIDEO_FORMAT_H265_MAIN10, MoonBridge.VIDEO_FORMAT_AV1_MAIN10,
                 MoonBridge.VIDEO_FORMAT_H264_HIGH8_444, MoonBridge.VIDEO_FORMAT_H265_REXT8_444,
                 MoonBridge.VIDEO_FORMAT_H265_REXT10_444, MoonBridge.VIDEO_FORMAT_AV1_HIGH8_444,
