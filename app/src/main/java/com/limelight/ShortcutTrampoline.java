@@ -317,7 +317,6 @@ public class ShortcutTrampoline extends Activity {
         else if (appNameString != null && !appNameString.isEmpty()) {
             // Use appNameString to find the corresponding AppId
             try {
-                int appId = -1;
                 String rawAppList = CacheHelper.readInputStreamToString(CacheHelper.openCacheFileForInput(getCacheDir(), "applist", uuidString));
 
                 if (rawAppList.isEmpty()) {
@@ -331,22 +330,22 @@ public class ShortcutTrampoline extends Activity {
 
                 for (NvApp _app : applist) {
                     if (_app.getAppName().equals(appNameString)) {
-                        appId = _app.getAppId();
+                        app = _app;
                         break;
                     }
                 }
-                if (appId < 0) {
+                if (app == null || app.getAppId() < 0) {
                     Dialog.displayDialog(ShortcutTrampoline.this,
                             getResources().getString(R.string.conn_error_title),
                             getResources().getString(R.string.scut_invalid_app_id),
                             true);
                     return;
                 }
-                setIntent(new Intent(getIntent()).putExtra(Game.EXTRA_APP_ID, appId));
-                app = new NvApp(
-                        appNameString,
-                        appId,
-                        getIntent().getBooleanExtra(Game.EXTRA_APP_HDR, false));
+                app.setHdrSupported(getIntent().getBooleanExtra(Game.EXTRA_APP_HDR, app.isHdrSupported()));
+                setIntent(new Intent(getIntent())
+                        .putExtra(Game.EXTRA_APP_ID, Integer.toString(app.getAppId()))
+                        .putExtra(Game.EXTRA_APP_UUID, app.getAppUuid())
+                        .putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported()));
             } catch (IOException | XmlPullParserException e) {
                 Dialog.displayDialog(ShortcutTrampoline.this,
                         getResources().getString(R.string.conn_error_title),
