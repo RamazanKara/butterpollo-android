@@ -114,6 +114,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private VideoStats lastWindowVideoStats;
     private VideoStats globalVideoStats;
 
+    private final PyroWaveDecoderRenderer pyroWaveRenderer = new PyroWaveDecoderRenderer();
+    private long pyroWaveDecodeRemainderNs;
+    private int pyroWaveFailures;
+
     private final FrameLatencyStats frameLatencyStats = new FrameLatencyStats();
     private HandlerThread latencyThread;
     private Handler latencyHandler;
@@ -496,11 +500,43 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
+    public boolean isPyroWaveSupported() {
+        return prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO &&
+                !prefs.useTextureView && PyroWaveDecoderRenderer.isAvailable();
+    }
+
     public int getSupportedVideoFormats(boolean hdr) {
-        return MoonBridge.VIDEO_FORMAT_H264 |
+        int pyroWave = 0;
+        if (isPyroWaveSupported()) {
+            pyroWave = MoonBridge.VIDEO_FORMAT_PYROWAVE;
+            if (prefs.enableYuv444) pyroWave |= MoonBridge.VIDEO_FORMAT_PYROWAVE_444;
+            if (hdr) {
+                pyroWave |= MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10;
+                if (prefs.enableYuv444) pyroWave |= MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10_444;
+            }
+        }
+        return pyroWave | MoonBridge.VIDEO_FORMAT_H264 |
                 getDecoderVideoFormats(avcDecoder, "video/avc", false, prefs.enableYuv444) |
                 getDecoderVideoFormats(hevcDecoder, "video/hevc", hdr, prefs.enableYuv444) |
                 getDecoderVideoFormats(av1Decoder, "video/av01", hdr, false);
+    }
+
+    @Override
+    public int prepareVideoFormats(int formats, int width, int height, int fps) {
+        int[] choices = { MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10_444, MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10,
+                MoonBridge.VIDEO_FORMAT_PYROWAVE_444, MoonBridge.VIDEO_FORMAT_PYROWAVE };
+        for (int choice : choices) {
+            if ((formats & choice) != 0 && !stopping &&
+                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, prefs.fullRange)) {
+                LimeLog.info("PyroWave surface initialized before negotiation: " + Integer.toHexString(choice));
+                return (formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) | choice;
+            }
+        }
+        pyroWaveRenderer.cleanup();
+        if ((formats & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            LimeLog.warning("PyroWave initialization failed; retaining MediaCodec fallback");
+        }
+        return formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE;
     }
 
     public int getPreferredColorSpace() {
@@ -794,7 +830,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.videoFormat = format;
         this.refreshRate = redrawRate;
 
-        int result = initializeDecoder(false);
+        int result;
+        if ((format & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            result = pyroWaveRenderer.getFormat() == format ? 0 : -1;
+            if (result == 0 && currentHdrMode != null) {
+                pyroWaveRenderer.setHdrMode(currentHdrMode, currentHdrMetadata);
+            }
+        } else {
+            // RTSP may reject an incompatible PyroWave bitstream after surface preparation.
+            pyroWaveRenderer.cleanup();
+            result = initializeDecoder(false);
+        }
         if (result == 0) {
             if (prefs.enableYuv444 && (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) == 0) {
                 activity.runOnUiThread(() -> Toast.makeText(context, R.string.yuv444_fallback, Toast.LENGTH_LONG).show());
@@ -816,7 +862,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     updateLatencyStats.run();
                 }
             });
-            setFrameRenderedListener();
+            if (videoDecoder != null) setFrameRenderedListener();
         }
         return result;
     }
@@ -1350,6 +1396,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void start() {
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) return;
         startRendererThread();
         startChoreographerThread();
     }
@@ -1358,6 +1405,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public void prepareForStop() {
         // Let the decoding code know to ignore codec exceptions now
         stopping = true;
+        pyroWaveRenderer.cleanup();
 
         // Halt the rendering thread
         if (rendererThread != null) {
@@ -1405,6 +1453,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         // Wait for the renderer thread to shut down
+        if (rendererThread == null) return;
         try {
             rendererThread.join();
         } catch (InterruptedException e) {
@@ -1419,7 +1468,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void cleanup() {
-        videoDecoder.release();
+        pyroWaveRenderer.cleanup();
+        if (videoDecoder != null) {
+            videoDecoder.release();
+            videoDecoder = null;
+        }
         if (latencyHandler != null) {
             latencyHandler.post(new Runnable() {
                 @Override
@@ -1444,6 +1497,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void setHdrMode(boolean enabled, byte[] hdrMetadata) {
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            currentHdrMode = enabled;
+            currentHdrMetadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata.clone() : null;
+            pyroWaveRenderer.setHdrMode(enabled, currentHdrMetadata);
+            return;
+        }
         // HDR metadata is only supported in Android 7.0 and later, so don't bother
         // restarting the codec on anything earlier than that.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -1579,6 +1638,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     decoder = hevcDecoder.getName();
                 } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
                     decoder = av1Decoder.getName();
+                } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                    decoder = "PyroWave (Vulkan)";
                 } else {
                     decoder = "(unknown)";
                 }
@@ -1589,7 +1650,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
+                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0) {
+                    sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
+                }
                 sb.append(context.getString(R.string.perf_overlay_netdrops,
                         (float)lastTwo.framesLost / lastTwo.totalFrames * 100)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netlatency,
@@ -1600,6 +1663,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }
                 sb.append('\n');
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
+                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                    int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
+                    sb.append("\nGPU decode: ").append(gpuUs > 0 ? (gpuUs / 1000.0) + " ms" : "unavailable");
+                }
                 sb.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(sb.toString());
             }
@@ -1608,6 +1675,34 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             lastWindowVideoStats.copy(activeWindowVideoStats);
             activeWindowVideoStats.clear();
             activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
+        }
+
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            long inputNs = System.nanoTime();
+            long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
+            lastTimestampUs = ptsUs;
+            frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, inputNs, frameHostProcessingLatency);
+            long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength);
+            activeWindowVideoStats.totalFrames++;
+            activeWindowVideoStats.totalFramesReceived++;
+            if (outputNs > 0) {
+                pyroWaveFailures = 0;
+                frameLatencyStats.onDecoderOutput(0, ptsUs, outputNs);
+                frameLatencyStats.onOutputReleased(0, System.nanoTime(), true, false);
+                pyroWaveDecodeRemainderNs += outputNs - inputNs;
+                activeWindowVideoStats.decoderTimeMs += pyroWaveDecodeRemainderNs / 1000000;
+                pyroWaveDecodeRemainderNs %= 1000000;
+                activeWindowVideoStats.totalTimeMs += (outputNs - receiveTimeNs) / 1000000;
+            } else {
+                frameLatencyStats.discard(ptsUs, outputNs < 0 ? "decode_failed" : "invalid_frame");
+                if (outputNs < 0 || ++pyroWaveFailures == 60) {
+                    LimeLog.severe("PyroWave decoder stopped producing frames");
+                    stopping = true;
+                    MoonBridge.bridgeClConnectionTerminated(MoonBridge.ML_ERROR_NO_VIDEO_FRAME);
+                }
+            }
+            // Intra-only: recover on the next complete frame, without IDR request storms.
+            return MoonBridge.DR_OK;
         }
 
         boolean csdSubmittedForThisFrame = false;

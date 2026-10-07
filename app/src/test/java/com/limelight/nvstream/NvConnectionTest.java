@@ -12,11 +12,37 @@ public class NvConnectionTest {
     private static final int PYROWAVE_HOST_FORMATS = 0x07800000;
 
     @Test
-    public void unimplementedCodecFamiliesNeverReachTheNativeHandshake() {
+    public void unknownCodecFamiliesNeverReachTheNativeHandshake() {
         int host = PYROWAVE_HOST_FORMATS | 0x30301;
-        assertEquals(CLIENT_HDR,
+        assertEquals(CLIENT_HDR | VIDEO_FORMAT_PYROWAVE_MAIN10 | VIDEO_FORMAT_PYROWAVE_MAIN10_444,
                 NvConnection.negotiateVideoFormats(CLIENT_HDR | PYROWAVE_CLIENT_FORMATS | 0x40000000, host));
-        assertEquals(0, NvConnection.negotiateVideoFormats(PYROWAVE_CLIENT_FORMATS, host));
+        assertEquals(PYROWAVE_CLIENT_FORMATS, NvConnection.negotiateVideoFormats(PYROWAVE_CLIENT_FORMATS, host));
+    }
+
+    @Test
+    public void pyrowaveProfilesRequireTheirOwnHostBits() {
+        int[] client = { VIDEO_FORMAT_PYROWAVE, VIDEO_FORMAT_PYROWAVE_444,
+                VIDEO_FORMAT_PYROWAVE_MAIN10, VIDEO_FORMAT_PYROWAVE_MAIN10_444 };
+        int[] host = { 0x00800000, 0x01000000, 0x02000000, 0x04000000 };
+        for (int i = 0; i < client.length; i++) {
+            assertEquals(client[i], NvConnection.negotiateVideoFormats(PYROWAVE_CLIENT_FORMATS, host[i]));
+        }
+        assertEquals(0, NvConnection.negotiateVideoFormats(PYROWAVE_CLIENT_FORMATS, 0x30301));
+    }
+
+    @Test
+    public void surfaceFailureRetainsConventionalFallback() {
+        int common = NvConnection.negotiateVideoFormats(CLIENT_HDR | PYROWAVE_CLIENT_FORMATS, 0x07830301);
+        assertEquals(CLIENT_HDR, NvConnection.negotiateVideoFormats(common & ~VIDEO_FORMAT_MASK_PYROWAVE, 0x07830301));
+        // PyroWave HDR must not erase ordinary SDR codecs needed on a bitstream mismatch.
+        assertEquals(VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265 | VIDEO_FORMAT_AV1_MAIN8 | VIDEO_FORMAT_PYROWAVE_MAIN10,
+                NvConnection.negotiateVideoFormats(CLIENT_HDR | VIDEO_FORMAT_PYROWAVE_MAIN10, 0x02010101));
+    }
+
+    @Test
+    public void conventionalHdrWinsOverPyrowaveSdr() {
+        assertEquals(CLIENT_HDR, NvConnection.negotiateVideoFormats(CLIENT_HDR |
+                VIDEO_FORMAT_PYROWAVE | VIDEO_FORMAT_PYROWAVE_444, 0x01830301));
     }
 
     @Test
