@@ -193,7 +193,6 @@
     <string name="title_checkbox_enable_pip">படம்-இன்-பட பார்வையாளர் பயன்முறையை இயக்கவும்</string>
     <string name="summary_checkbox_enable_pip">பல்பணி செய்யும் போது ச்ட்ரீமை பார்க்க அனுமதிக்கிறது (ஆனால் கட்டுப்படுத்தப்படவில்லை)</string>
     <string name="title_language_list">மொழி</string>
-    <string name="summary_language_list">நிலவொளிக்கு பயன்படுத்த மொழி</string>
     <string name="title_checkbox_small_icon_mode">சிறிய பெட்டி கலையைப் பயன்படுத்தவும்</string>
     <string name="summary_checkbox_small_icon_mode">பயன்பாட்டு கட்டத்தில் உள்ள சிறிய பெட்டி கலை மேலும் பயன்பாடுகள் திரையில் காண அனுமதிக்கிறது</string>
     <string name="category_host_settings">புரவலன் அமைப்புகள்</string>
@@ -241,7 +240,6 @@
     <string name="videoformat_hevcalways">HEVC ஐ விரும்புங்கள்</string>
     <string name="videoformat_h264always">H.264 ஐ விரும்புங்கள்</string>
     <string name="title_frame_pacing">வீடியோ பிரேம் வேகக்கட்டுப்பாடு</string>
-    <string name="summary_frame_pacing">வீடியோ நேரந்தவறுகை மற்றும் மென்மையை எவ்வாறு சமநிலைப்படுத்துவது என்பதைக் குறிப்பிடவும்</string>
     <string name="pacing_latency">குறைந்த தாமதத்தை விரும்புங்கள்</string>
     <string name="pacing_balanced">சமநிலையானது</string>
     <string name="pacing_balanced_alt">FPS வரம்புடன் சமநிலையானது</string>

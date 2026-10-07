@@ -2,6 +2,7 @@ package com.limelight.preferences;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.res.TypedArray;
 import android.os.Bundle;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -50,8 +51,9 @@ public class ControllerMappingActivity extends Activity {
         root.addView(intro);
 
         deviceView = new TextView(this);
-        deviceView.setTextSize(18);
-        deviceView.setPadding(0, padding, 0, padding / 2);
+        deviceView.setTextSize(14);
+        deviceView.setTextColor(accentColor());
+        deviceView.setPadding(0, padding * 3 / 2, 0, padding / 2);
         root.addView(deviceView);
 
         mappingList = new LinearLayout(this);
@@ -110,29 +112,53 @@ public class ControllerMappingActivity extends Activity {
         deviceView.setText(deviceName);
         resetButton.setVisibility(map.isEmpty() ? View.GONE : View.VISIBLE);
         if (map.isEmpty()) {
-            mappingList.addView(row(getString(R.string.controller_mapping_none), false));
+            mappingList.addView(row(getString(R.string.controller_mapping_none), null, null));
             return;
         }
         for (Map.Entry<Integer, Integer> entry : map.entries().entrySet()) {
-            TextView row = row(getString(R.string.controller_mapping_row,
-                    buttonName(entry.getKey()), targetName(entry.getValue())), true);
             int source = entry.getKey();
-            row.setOnClickListener(v -> chooseTarget(source));
-            mappingList.addView(row);
+            mappingList.addView(row(buttonName(source),
+                    getString(R.string.controller_mapping_row, targetName(entry.getValue())),
+                    v -> chooseTarget(source)));
         }
     }
 
-    private TextView row(String text, boolean clickable) {
-        TextView row = new TextView(this);
-        int padding = Math.round(12 * getResources().getDisplayMetrics().density);
+    // Two-line rows with dividers, matching the settings list
+    private View row(String title, String summary, View.OnClickListener onClick) {
+        float density = getResources().getDisplayMetrics().density;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        int padding = Math.round(14 * density);
         row.setPadding(0, padding, 0, padding);
-        row.setTextSize(16);
-        row.setText(text);
-        if (clickable) {
-            row.setBackgroundResource(android.R.drawable.list_selector_background);
-            row.setFocusable(true);
+        TextView titleView = new TextView(this);
+        titleView.setTextSize(18);
+        titleView.setText(title);
+        row.addView(titleView);
+        if (summary != null) {
+            TextView summaryView = new TextView(this);
+            summaryView.setTextSize(14);
+            summaryView.setText(summary);
+            row.addView(summaryView);
+            TypedArray attrs = obtainStyledAttributes(new int[] {android.R.attr.selectableItemBackground});
+            row.setBackground(attrs.getDrawable(0));
+            attrs.recycle();
+            row.setOnClickListener(onClick);
         }
-        return row;
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.addView(row);
+        View divider = new View(this);
+        divider.setBackgroundColor(0x1FFFFFFF);
+        wrapper.addView(divider, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.max(1, Math.round(density))));
+        return wrapper;
+    }
+
+    private int accentColor() {
+        TypedArray attrs = obtainStyledAttributes(new int[] {android.R.attr.colorAccent});
+        int color = attrs.getColor(0, 0xFF80CBC4);
+        attrs.recycle();
+        return color;
     }
 
     private static boolean isControllerEvent(KeyEvent event) {
@@ -161,10 +187,17 @@ public class ControllerMappingActivity extends Activity {
     }
 
     private void chooseTarget(int source) {
-        int[] targets = ControllerButtonMap.TARGETS;
-        CharSequence[] labels = new CharSequence[targets.length + 1];
+        // The button itself is offered once, as the default entry
+        int[] targets = new int[ControllerButtonMap.TARGETS.length];
+        int count = 0;
+        for (int target : ControllerButtonMap.TARGETS) {
+            if (target != source) {
+                targets[count++] = target;
+            }
+        }
+        CharSequence[] labels = new CharSequence[count + 1];
         labels[0] = getString(R.string.controller_mapping_default, buttonName(source));
-        for (int i = 0; i < targets.length; i++) {
+        for (int i = 0; i < count; i++) {
             labels[i + 1] = targetName(targets[i]);
         }
         new AlertDialog.Builder(this)

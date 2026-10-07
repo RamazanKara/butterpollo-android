@@ -47,6 +47,20 @@ public final class HostStreamProfile {
         }
     }
 
+    /** Parses Mbps with up to three decimals into kbps. */
+    static int parseBitrateMbps(String text) {
+        try {
+            return requireRange(new BigDecimal(text.trim().replace(',', '.'))
+                    .movePointRight(3).intValueExact(), 500, 1000000);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Bitrate needs at most three decimal places", e);
+        }
+    }
+
+    static String formatBitrateMbps(int kbps) {
+        return BigDecimal.valueOf(kbps, 3).stripTrailingZeros().toPlainString();
+    }
+
     static String formatRefreshRate(int refreshRateX100) {
         return BigDecimal.valueOf(refreshRateX100, 2).stripTrailingZeros().toPlainString();
     }

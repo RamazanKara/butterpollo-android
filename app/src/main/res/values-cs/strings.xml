@@ -233,7 +233,6 @@
     <string name="title_only_l3r3">Zobrazit pouze L3 a R3</string>
     <string name="summary_checkbox_enable_pip">Umožní, aby byl stream sledován (ale ne ovládá) během multitaskingu</string>
     <string name="title_language_list">Jazyk</string>
-    <string name="summary_language_list">Jazyk, který bude Moonlight používat</string>
     <string name="title_checkbox_small_icon_mode">Použít malý box art</string>
     <string name="summary_checkbox_small_icon_mode">Díky menšímu box artu v seznamu aplikací uvidíte na obrazovce více aplikací naráz</string>
     <string name="category_host_settings">Nastavení hostitele</string>
@@ -245,6 +244,5 @@
     <string name="summary_enable_hdr">Streamovat v HDR, pokud jej hra a GPU počítače podporují. HDR vyžaduje GPU GTX 1000 nebo novější.</string>
     <string name="videoformat_hevcalways">Vždy použít HEVC (může padat)</string>
     <string name="title_frame_pacing">Frame pacing videa</string>
-    <string name="summary_frame_pacing">Zvolte, jak vyvážit zpoždění videa a jeho plynulost</string>
     <string name="pacing_latency">Preferovat nejnižší zpoždění</string>
 </resources>

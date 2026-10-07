@@ -93,7 +93,6 @@
     <string name="summary_checkbox_show_onscreen_controls">Geeft een virtuele controller weer op het touchscreen</string>
     <string name="category_ui_settings">Interface­instellingen</string>
     <string name="title_language_list">Taal</string>
-    <string name="summary_language_list">Taal te gebruiken in Moonlight</string>
     <string name="title_checkbox_small_icon_mode">Gebruik kleine iconen</string>
     <string name="summary_checkbox_small_icon_mode">Gebruik kleine iconen in kolom onderdelen zodat meer items tegelijk zichtbaar worden</string>
     <string name="category_host_settings">Host-instellingen</string>
@@ -267,7 +266,6 @@
     <string name="summary_setup_guide">Bekijk instructies over hoe u uw gaming-PC instelt voor streaming</string>
     <string name="summary_troubleshooting">Bekijk tips voor het diagnosticeren en oplossen van veelvoorkomende streamingproblemen</string>
     <string name="toast_controller_type_changed">Het type gamepad kan worden gewijzigd vanwege de emulatie van bewegingssensoren</string>
-    <string name="summary_frame_pacing">Geef aan hoe u de videovertraging en vloeiend beeld wil balanceren</string>
     <string name="pacing_smoothness">Geef de voorkeur aan het meest vloeiende beeld (kan de vertraging aanzienlijk verhogen)</string>
     <string name="title_analog_scrolling">Gebruik een analoge stick om te scrollen</string>
     <string name="summary_analog_scrolling">Selecteer een analoge stick om te scrollen in de muis-emulatiemodus</string>

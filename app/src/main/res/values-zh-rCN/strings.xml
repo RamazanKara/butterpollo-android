@@ -154,7 +154,6 @@
     <string name="toast_reset_osc_success"> 屏幕按钮布局已经重置 </string>
     <string name="category_ui_settings"> 界面设置 </string>
     <string name="title_language_list"> 语言 </string>
-    <string name="summary_language_list"> 选择Moonlight显示的语言 </string>
     <string name="title_checkbox_small_icon_mode"> 使用小图标 </string>
     <string name="summary_checkbox_small_icon_mode"> 使用小图标以在屏幕上显示更多项目 </string>
     <string name="category_host_settings"> 主机设置 </string>
@@ -242,7 +241,6 @@
     <string name="title_setup_guide">安装向导</string>
     <string name="title_troubleshooting">解决方案向导</string>
     <string name="summary_troubleshooting">查看有关诊断和修复常见流传输问题的提示</string>
-    <string name="summary_frame_pacing">指定如何平衡视频延迟和流畅度</string>
     <string name="pacing_balanced_alt">有FPS限制的平衡</string>
     <string name="pacing_latency">优先最低延迟</string>
     <string name="summary_seekbar_deadzone">注意：有些游戏可以执行一个比Moonlight摇杆配置的更大的盲区。</string>

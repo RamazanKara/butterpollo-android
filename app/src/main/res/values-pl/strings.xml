@@ -95,7 +95,6 @@
     <string name="title_checkbox_enable_pip">Włącz tryb obserwatora obrazu w obrazie</string>
     <string name="summary_reset_osc">Przywraca domyślny rozmiar i położenie wszystkich elementów sterujących na ekranie</string>
     <string name="title_language_list">Język</string>
-    <string name="summary_language_list">Język używany w Moonlight</string>
     <string name="category_host_settings">Ustawienia hosta</string>
     <string name="summary_checkbox_small_icon_mode">Mniejsze ramki w siatce aplikacji pozwalają na wyświetlanie większej liczby aplikacji na ekranie</string>
     <string name="title_checkbox_enable_sops">Optymalizacja ustawień gry</string>
@@ -207,7 +206,6 @@
     <string name="audioconf_51surround">5.1 Surround Sound</string>
     <string name="audioconf_71surround">7.1 Surround Sound</string>
     <string name="videoformat_hevcalways">Preferowany HEVC</string>
-    <string name="summary_frame_pacing">Określenie sposobu równoważenia opóźnienia i płynności wideo</string>
     <string name="pacing_latency">Preferowane najniższe opóźnienia</string>
     <string name="perf_overlay_hostprocessinglatency">Opóźnienie przetwarzania hosta min/max/średnia: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="perf_overlay_netlatency">Średnie opóźnienie sieci: %1$d ms (wariancja: %2$d ms)</string>

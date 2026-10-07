@@ -19,7 +19,6 @@
     <string name="title_checkbox_host_audio">Phát âm thanh trên PC</string>
     <string name="summary_checkbox_small_icon_mode">Bìa nhỏ trong lưới ứng dụng cho phép hiển thị nhiều ứng dụng hơn trên màn hình</string>
     <string name="title_checkbox_small_icon_mode">Sử dụng bìa nhỏ</string>
-    <string name="summary_language_list">Ngôn ngữ để sử dụng cho Moonlight</string>
     <string name="title_language_list">Ngôn ngữ</string>
     <string name="summary_checkbox_enable_pip">Cho phép stream được xem (nhưng không được điều khiển) trong khi đa nhiệm</string>
     <string name="title_checkbox_enable_pip">Bật chế độ quan sát Hình-trong-Hình</string>
@@ -208,7 +207,6 @@
     <string name="perf_overlay_streamdetails">Tốc độ khung hình: %1$s %2$.2f FPS</string>
     <string name="resolution_prefix_native_fullscreen">Toàn màn hình theo hệ thống</string>
     <string name="title_frame_pacing">Nhịp độ khung hình video</string>
-    <string name="summary_frame_pacing">Chỉ ra cách cân bằng giữa độ trễ video và độ mượt mà</string>
     <string name="pacing_latency">Ưu tiên độ trễ thấp nhất</string>
     <string name="pacing_balanced">Cân bằng</string>
     <string name="pacing_smoothness">Ưu tiên video mượt nhất (có thể tăng độ trễ đáng kể)</string>

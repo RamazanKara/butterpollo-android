@@ -26,7 +26,6 @@
     <string name="perf_overlay_streamdetails">Video plūsma: %1$s %2$.2f kadri/s</string>
     <string name="perf_overlay_decoder">Dekodētājs: %1$s</string>
     <string name="pacing_smoothness">Vēlos plūdenāku, vienmērīgāku video (var ievērojami palielināt latentumu)</string>
-    <string name="summary_frame_pacing">Norādiet, kā līdzsvarot video latentumu un plūdenumu, vienmērīgumu</string>
     <string name="pacing_latency">Vēlos mazāku aizkavi</string>
     <string name="unable_to_pin_shortcut">Jūsu pašreizējais palaidējs neļauj izveidot piespraustas saīsnes.</string>
     <string name="check_ports_msg">Pārbaudiet savus ugunsmūra un portu pārsūtīšanas noteikumus portam(-iem):</string>

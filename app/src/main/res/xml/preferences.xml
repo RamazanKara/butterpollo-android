@@ -98,7 +98,6 @@
             android:title="@string/title_frame_pacing"
             android:entries="@array/video_frame_pacing_names"
             android:entryValues="@array/video_frame_pacing_values"
-            android:summary="@string/summary_frame_pacing"
             android:defaultValue="latency" />
         <CheckBoxPreference
             android:key="checkbox_codec_low_latency"
@@ -327,7 +326,6 @@
             android:title="@string/title_language_list"
             android:entries="@array/language_names"
             android:entryValues="@array/language_values"
-            android:summary="@string/summary_language_list"
             android:defaultValue="default" />
         <com.limelight.preferences.SmallIconCheckboxPreference
             android:key="checkbox_small_icon_mode"
