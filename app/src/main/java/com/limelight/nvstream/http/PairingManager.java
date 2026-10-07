@@ -216,7 +216,7 @@ public class PairingManager {
         if (serverCert == null) {
             // Attempting to pair while another device is pairing will cause GFE
             // to give an empty cert in the response.
-            http.unpair();
+            http.cancelPairing();
             return PairState.ALREADY_IN_PROGRESS;
         }
 
@@ -230,7 +230,7 @@ public class PairingManager {
         // Send the encrypted challenge to the server
         String challengeResp = http.executePairingCommand("clientchallenge="+bytesToHex(encryptedChallenge), true);
         if (!NvHTTP.getXmlString(challengeResp, "paired", true).equals("1")) {
-            http.unpair();
+            http.cancelPairing();
             return PairState.FAILED;
         }
         
@@ -247,7 +247,7 @@ public class PairingManager {
         byte[] challengeRespEncrypted = encryptAes(challengeRespHash, aesKey);
         String secretResp = http.executePairingCommand("serverchallengeresp="+bytesToHex(challengeRespEncrypted), true);
         if (!NvHTTP.getXmlString(secretResp, "paired", true).equals("1")) {
-            http.unpair();
+            http.cancelPairing();
             return PairState.FAILED;
         }
         
@@ -259,7 +259,7 @@ public class PairingManager {
         // Ensure the authenticity of the data
         if (!verifySignature(serverSecret, serverSignature, serverCert)) {
             // Cancel the pairing process
-            http.unpair();
+            http.cancelPairing();
             
             // Looks like a MITM
             return PairState.FAILED;
@@ -269,7 +269,7 @@ public class PairingManager {
         byte[] serverChallengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(randomChallenge, serverCert.getSignature()), serverSecret));
         if (!Arrays.equals(serverChallengeRespHash, serverResponse)) {
             // Cancel the pairing process
-            http.unpair();
+            http.cancelPairing();
             
             // Probably got the wrong PIN
             return PairState.PIN_WRONG;
@@ -279,7 +279,7 @@ public class PairingManager {
         byte[] clientPairingSecret = concatBytes(clientSecret, signData(clientSecret, pk));
         String clientSecretResp = http.executePairingCommand("clientpairingsecret="+bytesToHex(clientPairingSecret), true);
         if (!NvHTTP.getXmlString(clientSecretResp, "paired", true).equals("1")) {
-            http.unpair();
+            http.cancelPairing();
             return PairState.FAILED;
         }
         

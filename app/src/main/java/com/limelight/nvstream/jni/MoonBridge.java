@@ -4,6 +4,8 @@ import com.limelight.nvstream.NvConnectionListener;
 import com.limelight.nvstream.av.audio.AudioRenderer;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 
+import java.util.function.BooleanSupplier;
+
 public class MoonBridge {
     /* See documentation in Limelight.h for information about these functions and constants */
 
@@ -140,6 +142,7 @@ public class MoonBridge {
     private static AudioRenderer audioRenderer;
     private static VideoDecoderRenderer videoRenderer;
     private static NvConnectionListener connectionListener;
+    private static BooleanSupplier connectionCancelled;
 
     static {
         System.loadLibrary("moonlight-core");
@@ -274,6 +277,11 @@ public class MoonBridge {
     }
 
     public static void bridgeClStageStarting(int stage) {
+        // LiStartConnection resets its interrupt flag before this first callback.
+        if (connectionCancelled != null && connectionCancelled.getAsBoolean()) {
+            interruptConnection();
+            return;
+        }
         if (connectionListener != null) {
             connectionListener.stageStarting(getStageName(stage));
         }
@@ -339,16 +347,19 @@ public class MoonBridge {
         }
     }
 
-    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
+    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer,
+                                   NvConnectionListener connectionListener, BooleanSupplier connectionCancelled) {
         MoonBridge.videoRenderer = videoRenderer;
         MoonBridge.audioRenderer = audioRenderer;
         MoonBridge.connectionListener = connectionListener;
+        MoonBridge.connectionCancelled = connectionCancelled;
     }
 
     public static void cleanupBridge() {
         MoonBridge.videoRenderer = null;
         MoonBridge.audioRenderer = null;
         MoonBridge.connectionListener = null;
+        MoonBridge.connectionCancelled = null;
     }
 
     public static native int startConnection(String address, String appVersion, String gfeVersion,
