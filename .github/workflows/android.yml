@@ -5,10 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      device_build:
-        description: Also build the arm64 test APK and run the emulator smoke test
-        type: boolean
-        default: false
+      prerelease_tag:
+        description: Run the emulator smoke test and publish an arm64 debug APK as this pre-release tag
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -17,6 +17,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write # only the pre-release step uses the token
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,7 +41,7 @@ jobs:
           path: app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk
           if-no-files-found: error
       - name: Emulator smoke test
-        if: inputs.device_build
+        if: inputs.prerelease_tag
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -49,14 +51,25 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" emulator platform-tools "$image" > /dev/null
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n sunset -k "$image" -d pixel_6
           pip install --quiet pillow
-          python3 scripts/emulator-smoke.py
+          BUTTERPOLLO_EMULATOR_GPU=swiftshader_indirect BUTTERPOLLO_BOOT_TIMEOUT=420 python3 scripts/emulator-smoke.py ||
+            { tail -n 80 app/build/emulator-smoke/emulator.log; exit 1; }
       - name: Build arm64 test APK
-        if: inputs.device_build
+        if: inputs.prerelease_tag
         run: |
           bash gradlew --no-daemon --max-workers=2 -PabiFilters=arm64-v8a :app:assembleNonRootDebug
           cp app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk butterpollo-arm64-debug.apk
+      - name: Publish pre-release
+        if: inputs.prerelease_tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.prerelease_tag }}
+        run: |
+          zip -qj smoke-screenshots.zip docs/screenshots/*.png
+          gh release create "$TAG" butterpollo-arm64-debug.apk smoke-screenshots.zip \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "$TAG (debug test build)" \
+            --notes "Debug-signed arm64 test build from $GITHUB_SHA. Uninstall builds signed by another CI run first."
       - uses: actions/upload-artifact@v7
-        if: always() && inputs.device_build
+        if: always() && inputs.prerelease_tag
         with:
           name: butterpollo-device-test
           path: |

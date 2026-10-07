@@ -140,11 +140,11 @@ def main():
     with LOGS.joinpath("emulator.log").open("w") as log:
         process = subprocess.Popen([str(EMULATOR), "-avd", "sunset", "-read-only",
                                     "-no-snapshot", "-no-window", "-no-audio", "-no-boot-anim",
-                                    "-gpu", "swiftshader", "-cores", "2", "-memory", "2048",
+                                    "-gpu", os.environ.get("BUTTERPOLLO_EMULATOR_GPU", "swiftshader"), "-cores", "2", "-memory", "2048",
                                     "-port", "5554"], stdout=log, stderr=subprocess.STDOUT,
                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         try:
-            deadline = time.monotonic() + 180
+            deadline = time.monotonic() + int(os.environ.get("BUTTERPOLLO_BOOT_TIMEOUT", "180"))
             while time.monotonic() < deadline:
                 if process.poll() is not None:
                     raise RuntimeError("Emulator exited; see app/build/emulator-smoke/emulator.log")

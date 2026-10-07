@@ -6,7 +6,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Per-PC custom resolution, fractional refresh, bitrate, render scale, virtual-display, HDR,
   colour-range and codec profiles. Long-press a PC and select **Streaming settings for this PC**.
 - Trackpad, direct mouse and native multi-touch modes, with a live on-screen gamepad layout editor.
-- Multiple USB/Bluetooth controllers with device mappings, feedback and motion where supported;
+- Multiple USB/Bluetooth controllers with device mappings, per-controller button remapping
+  (**Settings → Controller buttons**), feedback and motion where supported;
   hardware keyboard/mouse input, Wake-on-LAN, pinned app shortcuts and picture-in-picture.
 - An instant stream menu for input modes, keyboard, overlay, disconnect and reconnect.
   **Ctrl+Alt+Shift+S** toggles the performance overlay; **Ctrl+Alt+Shift+M** opens the menu.
