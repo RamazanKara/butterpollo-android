@@ -56,8 +56,10 @@ def find(label, scroll=False):
             area = next((n for n in root.iter("node") if n.get("scrollable") == "true"), None)
             if area is not None:
                 x1, y1, x2, y2 = bounds(area)
-                adb("shell", "input", "swipe", str((x1+x2)//2), str(y1+(y2-y1)*3//4),
-                    str((x1+x2)//2), str(y1+(y2-y1)//3), "300")
+                start, end = y1+(y2-y1)*3//4, y1+(y2-y1)//3
+                if scroll == "up":
+                    start, end = end, start
+                adb("shell", "input", "swipe", str((x1+x2)//2), str(start), str((x1+x2)//2), str(end), "300")
         time.sleep(0.5)
     LOGS.joinpath("missing-node.xml").write_bytes(ET.tostring(root))
     raise AssertionError(f"UI node missing: {label}")
@@ -217,7 +219,15 @@ def main():
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
                 "Overlay preference was not enabled")
-            tap("Controller buttons", scroll=True)
+            adb("shell", "input", "keyevent", "3")
+            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
+            find(overlay)
+            find("Butterpollo Android", scroll=True)
+            screenshot("09-settings-about")
+            summary = next((n.get("text", "") for n in tree().iter("node")
+                            if "Moonlight" in n.get("text", "")), "")
+            assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
+            tap("Controller buttons", scroll="up")
             find("Waiting for a button press…")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
             find("Y sends…")
@@ -228,15 +238,7 @@ def main():
             prefs("ControllerButtonMaps", lambda root: any(n.text == "100:96" for n in root),
                   "Controller mapping was not saved")
             adb("shell", "input", "keyevent", "4")
-            find(overlay)
-            adb("shell", "input", "keyevent", "3")
-            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
-            find(overlay)
-            find("Butterpollo Android", scroll=True)
-            screenshot("09-settings-about")
-            summary = next((n.get("text", "") for n in tree().iter("node")
-                            if "Moonlight" in n.get("text", "")), "")
-            assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
+            find("Controller buttons")
             adb("shell", "input", "keyevent", "4")
             find(HOST_NAME)
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
