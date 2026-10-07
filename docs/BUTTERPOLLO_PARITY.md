@@ -110,6 +110,10 @@ their existing three-finger keyboard gesture.
   shortcuts when List permission is unavailable. `IDX` orders apps when supplied, and artwork cache
   keys include app UUID and opaque `ArtVersion`. The current Rust host emits the numeric app ID as
   its artwork token: replacing a cover without changing that token remains a host-side signalling gap.
+  New UUID-bearing shortcuts also use stable UUID keys, so later numeric-ID reuse cannot overwrite
+  them. Recreate older numeric-only shortcuts from the current app list to gain this behavior;
+  their original app identity cannot be safely inferred. Android TV recommendation program keys
+  remain numeric, although launch intents carry UUIDs and poster URLs use versioned artwork keys.
 - Android backup/device transfer excludes the client certificate, private key and installation ID.
   A restored installation therefore pairs again; a normal update of the same installation keeps its
   identity. Permission displays and action-time refresh remain independent of these local profiles.
@@ -134,7 +138,7 @@ The local checks cover profile validation/round-trips, fractional/stock-host que
 UUID/order/artwork identity, the trailing version sentinel, OTP hashing/request mode, bandwidth
 streaming/cancellation boundaries and the automatic-bitrate state machine, alongside existing native
 protocol/decoder tests. Before rebasing, `assembleNonRootDebug` passed for all four ordinary-codec ABIs,
-`testNonRootDebugUnitTest` passed 82 tests with zero failures/errors/skips, and `lintNonRootDebug`
+`testNonRootDebugUnitTest` passed 86 tests with zero failures/errors/skips, and `lintNonRootDebug`
 reported zero errors and 203 warnings (including two AV1 spelling warnings). The native
 `pyrowave_frame_test` assertions passed with GCC 16.1. These runs used Windows/JDK 17 and Gradle
 `--no-daemon --max-workers=2`; they do not certify a stream or real device.
