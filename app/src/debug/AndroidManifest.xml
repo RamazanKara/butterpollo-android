@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.limelight.LatencyOverlaySmokeActivity"
+            android:exported="true"
+            android:label="Butterpollo overlay smoke test"
+            android:theme="@style/StreamTheme" />
+    </application>
+</manifest>

@@ -22,8 +22,12 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Build debug APK and run unit tests
-        run: bash gradlew --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:testNonRootDebugUnitTest
+      - name: Build debug APK, lint and run unit tests
+        run: bash gradlew --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:lintNonRootDebug :app:testNonRootDebugUnitTest
+      - name: Check native frame parsing and negotiation
+        run: |
+          g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o /tmp/pyrowave-frame-test
+          /tmp/pyrowave-frame-test
       - uses: actions/upload-artifact@v7
         with:
           name: butterpollo-debug

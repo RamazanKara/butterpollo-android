@@ -1,0 +1,3 @@
+<resources>
+    <string name="smoke_overlay_message" translatable="false">Butterpollo • UI smoke test (no stream)\n%1$s</string>
+</resources>
