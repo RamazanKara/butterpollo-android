@@ -6,10 +6,11 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Per-frame latency overlay/CSV and configurable Android low-latency controls.
 - Native-resolution, high-refresh virtual-display requests with host render scale.
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
+- PyroWave remains disabled; PyroWave-capable hosts use the existing HEVC/AV1/H.264 negotiation.
 - Host processing avg/p95/p99 beside client latency, and persistent per-device identity.
 
-See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for limits and deferred
-PyroWave/Apollo extras. The links below describe the upstream Moonlight project.
+See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
+findings, known limits and deferred Apollo extras. The links below describe the upstream Moonlight project.
 
 [![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/232a8tadrrn8jv0k/branch/master?svg=true)](https://ci.appveyor.com/project/cgutman/moonlight-android/branch/master)
 [![Translation Status](https://hosted.weblate.org/widgets/moonlight/-/moonlight-android/svg-badge.svg)](https://hosted.weblate.org/projects/moonlight/moonlight-android/)

@@ -4,7 +4,7 @@
   <uniqueid>ef95b248-f698-48d2-95e4-16e02a1fa911</uniqueid><PairStatus>1</PairStatus>
   <HttpsPort>47984</HttpsPort><ExternalPort>47989</ExternalPort><LocalIP>192.0.2.1</LocalIP><mac>00:00:00:00:00:00</mac>
   <currentgame>0</currentgame><currentgameuuid></currentgameuuid><state>SUNSHINE_SERVER_FREE</state>
-  <ServerCodecModeSupport>197377</ServerCodecModeSupport><MaxLumaPixelsHEVC>1869449984</MaxLumaPixelsHEVC>
+  <ServerCodecModeSupport>126026497</ServerCodecModeSupport><MaxLumaPixelsHEVC>1869449984</MaxLumaPixelsHEVC>
   <RustHostVersion>2.0.0-rc.19</RustHostVersion><RustHostSessionCount></RustHostSessionCount><RustHostPendingSessionCount></RustHostPendingSessionCount>
   <RustHostApplicationActive></RustHostApplicationActive><RustHostProfile></RustHostProfile>
   <VirtualDisplayCapable>true</VirtualDisplayCapable><VirtualDisplayDriverReady>true</VirtualDisplayDriverReady><VirtualDisplayHDRCapable>true</VirtualDisplayHDRCapable>

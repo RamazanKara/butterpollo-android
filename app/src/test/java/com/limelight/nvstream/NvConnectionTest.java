@@ -8,6 +8,37 @@ import static org.junit.Assert.*;
 public class NvConnectionTest {
     private static final int CLIENT_HDR = VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265 |
             VIDEO_FORMAT_H265_MAIN10 | VIDEO_FORMAT_AV1_MAIN8 | VIDEO_FORMAT_AV1_MAIN10;
+    private static final int PYROWAVE_CLIENT_FORMATS = 0x0F0000;
+    private static final int PYROWAVE_HOST_FORMATS = 0x07800000;
+
+    @Test
+    public void unimplementedCodecFamiliesNeverReachTheNativeHandshake() {
+        int host = PYROWAVE_HOST_FORMATS | 0x30301;
+        assertEquals(CLIENT_HDR,
+                NvConnection.negotiateVideoFormats(CLIENT_HDR | PYROWAVE_CLIENT_FORMATS | 0x40000000, host));
+        assertEquals(0, NvConnection.negotiateVideoFormats(PYROWAVE_CLIENT_FORMATS, host));
+    }
+
+    @Test
+    public void pyrowaveHostStillUsesAv1OrHevcHdrWithOrdinaryClients() {
+        for (int extension : new int[] {0x00800000, 0x01000000, 0x02000000, 0x04000000,
+                PYROWAVE_HOST_FORMATS}) {
+            assertEquals(VIDEO_FORMAT_H264 | VIDEO_FORMAT_AV1_MAIN8 | VIDEO_FORMAT_AV1_MAIN10,
+                    NvConnection.negotiateVideoFormats(CLIENT_HDR, extension | 0x30101));
+            assertEquals(VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265 | VIDEO_FORMAT_H265_MAIN10,
+                    NvConnection.negotiateVideoFormats(CLIENT_HDR, extension | 0x10301));
+        }
+    }
+
+    @Test
+    public void pyrowaveHdrAnd444DoNotImplyConventionalHdrOr444() {
+        int client = VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265 | VIDEO_FORMAT_H265_MAIN10 |
+                VIDEO_FORMAT_H264_HIGH8_444 | VIDEO_FORMAT_H265_REXT8_444;
+        assertEquals(VIDEO_FORMAT_H264 | VIDEO_FORMAT_H265,
+                NvConnection.negotiateVideoFormats(client, PYROWAVE_HOST_FORMATS | 0x101));
+        assertEquals(VIDEO_FORMAT_H264,
+                NvConnection.negotiateVideoFormats(VIDEO_FORMAT_H264, PYROWAVE_HOST_FORMATS | 1));
+    }
 
     @Test
     public void prefersHevcHdrOverAv1Sdr() {

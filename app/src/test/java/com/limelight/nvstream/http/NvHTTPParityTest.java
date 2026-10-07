@@ -41,6 +41,16 @@ public class NvHTTPParityTest {
         assertNotEquals(one.queryParameter("uniqueid"), second.getCompleteUrl(base, "serverinfo", null).queryParameter("uniqueid"));
     }
 
+    @Test
+    public void pyrowaveServerCapabilitiesRemainSeparateFromLaunchHdr() throws Exception {
+        ConnectionContext context = context("butterpollo-serverinfo.xml");
+        String server = fixture("butterpollo-serverinfo.xml");
+        assertEquals(0x07830301L, Long.parseLong(NvHTTP.getXmlString(server, "ServerCodecModeSupport", true)));
+        assertNull(query(context, false).queryParameter("hdrMode"));
+        assertEquals("1", query(context, true).queryParameter("hdrMode"));
+        assertFalse(query(context, true).toString().toLowerCase(Locale.ROOT).contains("pyrowave"));
+    }
+
     private String fixture(String name) throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/protocol/" + name)) {
             assertNotNull(input);
