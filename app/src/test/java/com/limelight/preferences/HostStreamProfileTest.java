@@ -15,6 +15,18 @@ public class HostStreamProfileTest {
     }
 
     @Test
+    public void bitrateIsEnteredInMbpsAndStoredInKbps() {
+        assertEquals(280000, HostStreamProfile.parseBitrateMbps("280"));
+        assertEquals(10500, HostStreamProfile.parseBitrateMbps("10,5"));
+        assertEquals(500, HostStreamProfile.parseBitrateMbps(" 0.5 "));
+        assertEquals("10", HostStreamProfile.formatBitrateMbps(10000));
+        assertEquals("12.345", HostStreamProfile.formatBitrateMbps(12345));
+        for (String value : new String[] {"0.4", "1000.001", "1.0005", "NaN", ""}) {
+            assertThrows(value, IllegalArgumentException.class, () -> HostStreamProfile.parseBitrateMbps(value));
+        }
+    }
+
+    @Test
     public void invalidRefreshCannotBeSilentlyRoundedOrOverflow() {
         for (String value : new String[] {"59.999", "0", "1000.01", "NaN", "Infinity", "2147483648", ""}) {
             assertThrows(value, IllegalArgumentException.class, () -> HostStreamProfile.parseRefreshRate(value));

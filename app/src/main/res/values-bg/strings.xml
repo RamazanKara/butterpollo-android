@@ -73,7 +73,6 @@
     <string name="audioconf_51surround">5.1 обемен звук</string>
     <string name="videoformat_auto">Автоматично (препоръчително)</string>
     <string name="videoformat_hevcalways">Предпочитане на HEVC</string>
-    <string name="summary_frame_pacing">Посочете как да се балансира забавянето и плавността на видеото</string>
     <string name="title_frame_pacing">Темпо на видео кадрите</string>
     <string name="pacing_balanced">Балансирано</string>
     <string name="check_ports_msg">Проверете защитната стена и правилата за препращане на портове за следния порт или портове:</string>
@@ -184,7 +183,6 @@
     <string name="title_checkbox_enable_pip">Включване на режима за наблюдаване „картина в картината“</string>
     <string name="summary_checkbox_enable_pip">Позволява поточното предаване да бъде наблюдавано (но не и управлявано) докато извършвате други задачи на устройството</string>
     <string name="title_language_list">Език</string>
-    <string name="summary_language_list">Езикът, който да ползва Moonlight</string>
     <string name="title_checkbox_small_icon_mode">Използване на малки обложки</string>
     <string name="summary_checkbox_small_icon_mode">По-малките обложки в списъка с приложения позволяват да се виждат повече приложения едновременно на екрана</string>
     <string name="category_host_settings">Настройки на отдалечения компютър</string>

@@ -65,7 +65,13 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
             prgView.setVisibility(View.INVISIBLE);
         }
 
-        txtView.setText(obj.details.name);
+        if (obj.details.state == ComputerDetails.State.ONLINE &&
+                obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
+            txtView.setText(context.getString(R.string.pc_tap_to_pair, obj.details.name));
+        }
+        else {
+            txtView.setText(obj.details.name);
+        }
         if (obj.details.state == ComputerDetails.State.ONLINE) {
             txtView.setAlpha(1.0f);
         }

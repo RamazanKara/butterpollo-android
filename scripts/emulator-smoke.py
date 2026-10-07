@@ -50,7 +50,8 @@ def find(label, scroll=False):
             adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
             continue
         for node in root.iter("node"):
-            if label in (node.get("text"), node.get("content-desc"), node.get("resource-id")):
+            text = node.get("text") or ""
+            if label in (text, text.split("\n")[0], node.get("content-desc"), node.get("resource-id")):
                 return node
         if scroll:
             area = next((n for n in root.iter("node") if n.get("scrollable") == "true"), None)
@@ -196,7 +197,7 @@ def main():
             find(f"{HOST_NAME} streaming settings")
             profile_number("Width (pixels, 64–16384)", "1920")
             profile_number("Height (pixels, 64–16384)", "1080")
-            profile_number("Refresh rate (1–1000 Hz, up to two decimals)", "59.94")
+            profile_number("Refresh rate (Hz)", "59.94")
             screenshot("09-host-profile")
             tap("android:id/button1")
             prefs("HostStreamProfiles", lambda root: any(
@@ -233,7 +234,7 @@ def main():
             find("Y sends…")
             screenshot("11-controller-choose")
             tap("A")
-            find("Y sends A")
+            find("Sends A")
             screenshot("12-controller-buttons")
             prefs("ControllerButtonMaps", lambda root: any(n.text == "100:96" for n in root),
                   "Controller mapping was not saved")

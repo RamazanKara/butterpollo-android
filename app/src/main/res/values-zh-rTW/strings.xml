@@ -155,7 +155,6 @@
     <string name="toast_reset_osc_success">螢幕控制按鈕已重設為預設值</string>
     <string name="category_ui_settings">使用者介面設定</string>
     <string name="title_language_list"> 語言 </string>
-    <string name="summary_language_list">選擇 Moonlight 顯示的語言</string>
     <string name="title_checkbox_small_icon_mode"> 使用小圖示 </string>
     <string name="summary_checkbox_small_icon_mode">使用小圖示以在螢幕上顯示更多應用程式</string>
     <string name="category_host_settings">主機設定</string>
@@ -234,7 +233,6 @@
     <string name="resolution_1080p">1080P</string>
     <string name="resolution_1440p">1440P</string>
     <string name="title_frame_pacing">視訊影格調步</string>
-    <string name="summary_frame_pacing">指定如何平衡視訊延遲和平滑度</string>
     <string name="pacing_balanced">平衡</string>
     <string name="pacing_smoothness">偏好平滑視訊 (可能顯著提高延遲)</string>
     <string name="pacing_latency">偏好低延遲</string>

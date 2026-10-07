@@ -24,6 +24,7 @@ public final class HostStreamSettings {
         form.setPadding(padding, padding / 2, padding, padding / 2);
         TextView explanation = new TextView(activity);
         explanation.setText(R.string.host_profile_explanation);
+        explanation.setPadding(0, 0, 0, padding / 2);
         form.addView(explanation);
 
         EditText width = addNumber(activity, form, R.string.host_profile_width, Integer.toString(config.width), false);
@@ -31,7 +32,8 @@ public final class HostStreamSettings {
         EditText refresh = addNumber(activity, form, R.string.host_profile_refresh,
                 HostStreamProfile.formatRefreshRate(config.launchRefreshRateX100 == 0 ?
                         config.fps * 100 : config.launchRefreshRateX100), true);
-        EditText bitrate = addNumber(activity, form, R.string.host_profile_bitrate, Integer.toString(config.bitrate), false);
+        EditText bitrate = addNumber(activity, form, R.string.host_profile_bitrate,
+                HostStreamProfile.formatBitrateMbps(config.bitrate), true);
         EditText scale = addNumber(activity, form, R.string.host_profile_scale, Integer.toString(config.virtualDisplayScale), false);
 
         Spinner codec = new Spinner(activity);
@@ -63,7 +65,13 @@ public final class HostStreamSettings {
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             Integer selectedWidth = readNumber(activity, width, 64, 16384);
             Integer selectedHeight = readNumber(activity, height, 64, 16384);
-            Integer selectedBitrate = readNumber(activity, bitrate, 500, 1000000);
+            Integer selectedBitrate = null;
+            try {
+                selectedBitrate = HostStreamProfile.parseBitrateMbps(bitrate.getText().toString());
+                bitrate.setError(null);
+            } catch (IllegalArgumentException e) {
+                bitrate.setError(activity.getString(R.string.host_profile_invalid_bitrate));
+            }
             Integer selectedScale = readNumber(activity, scale, 50, 200);
             Integer selectedRefresh = null;
             try {

@@ -3,7 +3,6 @@
     <string name="summary_reset_osc">Tüm ekran kontrollerini varsayılan boyutu ve pozisyonuna sıfırlar</string>
     <string name="title_checkbox_touchscreen_trackpad">Dokunmatik ekranı trackpad olarak kullan</string>
     <string name="category_input_settings">Girdi Ayarları</string>
-    <string name="summary_language_list">Moonlight için kullanılacak olan dil</string>
     <string name="ip_hint">Ana bilgisayarın IP adresi</string>
     <string name="title_details">Detaylar</string>
     <string name="dialog_title_osc_opacity">Saydamlığı değiştir</string>
@@ -243,7 +242,6 @@
     <string name="fps_120">120 FPS</string>
     <string name="audioconf_stereo">Stereo</string>
     <string name="title_frame_pacing">Video kare ilerleme hızı</string>
-    <string name="summary_frame_pacing">Video gecikmesinin ve akıcılığının nasıl dengeleneceğini belirtin</string>
     <string name="pacing_latency">Düşük gecikmeyi tercih et</string>
     <string name="pacing_balanced">Dengeli</string>
     <string name="videoformat_av1always">AV1 tercih et (Deneysel)</string>

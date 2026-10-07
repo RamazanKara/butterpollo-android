@@ -91,7 +91,6 @@
     <string name="summary_checkbox_xb1_driver">Вмикає вбудований USB драйвер для пристроїв без власної підтримки контролерів Xbox</string>
     <string name="category_ui_settings">Налаштування інтерфейсу</string>
     <string name="title_language_list">Мова</string>
-    <string name="summary_language_list">Мова, яка буде використовуватися в Moonlight</string>
     <string name="title_checkbox_small_icon_mode">Використовувати маленькі іконки</string>
     <string name="summary_checkbox_small_icon_mode">Використовувати маленькі іконки в сітці застосунків, для відображення більшої кількості елементів на екрані</string>
     <string name="category_host_settings">Налаштування хоста</string>
@@ -219,7 +218,6 @@
     <string name="videoformat_auto">Автоматичний (рекомендовано)</string>
     <string name="videoformat_hevcalways">Використовувати HEVC</string>
     <string name="title_frame_pacing">Швидкість кадрів відео</string>
-    <string name="summary_frame_pacing">Укажіть баланс відео затримки та плавності</string>
     <string name="pacing_latency">Перевага найменшій затримці</string>
     <string name="pacing_smoothness">Перевага плавному відео (може значно збільшити затримку)</string>
     <string name="pacing_balanced">Збалансовано</string>

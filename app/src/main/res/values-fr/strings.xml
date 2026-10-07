@@ -170,7 +170,6 @@
     <string name="suffix_osc_opacity">%</string>
     <string name="category_ui_settings">Paramètres de l\'interface utilisateur</string>
     <string name="title_language_list">Langue</string>
-    <string name="summary_language_list">Langue à utiliser pour Moonlight</string>
     <string name="title_checkbox_small_icon_mode">Utiliser des petites icônes</string>
     <string name="summary_checkbox_small_icon_mode">Des icônes plus petites permettent d\'afficher plus d\'applications en même temps</string>
     <string name="category_host_settings">Paramètres de l\'hôte</string>
@@ -228,7 +227,6 @@
     <string name="videoformat_auto">Automatique (recommandé)</string>
     <string name="videoformat_hevcalways">Préférer le HEVC</string>
     <string name="title_frame_pacing">Frame-pacing vidéo</string>
-    <string name="summary_frame_pacing">Spécifiez comment équilibrer latence et fluidité de la vidéo</string>
     <string name="pacing_latency">Préférer une latence plus faible</string>
     <string name="pacing_balanced">Équilibré</string>
     <string name="resolution_720p">720p</string>
