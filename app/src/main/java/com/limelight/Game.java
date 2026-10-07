@@ -65,6 +65,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PersistableBundle;
+import android.preference.PreferenceManager;
 import android.text.InputType;
 import android.util.Rational;
 import android.view.Display;
@@ -97,7 +98,9 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 
 public class Game extends Activity implements SurfaceHolder.Callback, TextureView.SurfaceTextureListener,
@@ -106,9 +109,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
     private int lastButtonState = 0;
 
-    // Only 2 touches are supported
+    // Mouse emulation uses two touches; native touch forwards all pointers.
     private final TouchContext[] touchContextMap = new TouchContext[2];
     private long threeFingerDownTime = 0;
+    private boolean nativeTouchEnabled;
+    private boolean nativeTouchUnsupported;
+    private boolean nativeTouchGestureActive;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -136,6 +142,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean autoEnterPip = false;
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
+    private Thread connectionStopThread;
     private int suppressPipRefCount = 0;
     private AlertDialog streamMenu;
     private boolean hostActionInProgress;
@@ -151,6 +158,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
+    private final Map<Short, Byte> pressedKeys = new HashMap<>();
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
     private boolean waitingForAllModifiersUp = false;
@@ -195,6 +203,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     public static final String EXTRA_HTTPS_PORT = "HttpsPort";
     public static final String EXTRA_APP_NAME = "AppName";
     public static final String EXTRA_APP_ID = "AppId";
+    public static final String EXTRA_APP_UUID = "AppUuid";
     public static final String EXTRA_UNIQUEID = "UniqueId";
     public static final String EXTRA_PC_UUID = "UUID";
     public static final String EXTRA_PC_NAME = "PcName";
@@ -236,7 +245,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 getResources().getString(R.string.conn_establishing_msg), true);
 
         // Read the stream preferences
-        prefConfig = PreferenceConfiguration.readPreferences(this);
+        prefConfig = PreferenceConfiguration.readPreferences(this, getIntent().getStringExtra(EXTRA_PC_UUID));
+        nativeTouchEnabled = !prefConfig.touchscreenTrackpad &&
+                PreferenceManager.getDefaultSharedPreferences(this).getBoolean("checkbox_native_touch", false);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         // Enter landscape unless we're on a square screen
@@ -340,6 +351,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         byte[] derCertData = Game.this.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT);
 
         app = new NvApp(appName != null ? appName : "app", appId, appSupportsHdr);
+        app.setAppUuid(getIntent().getStringExtra(EXTRA_APP_UUID));
 
         X509Certificate serverCert = null;
         try {
@@ -474,6 +486,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(prefConfig.width, prefConfig.height)
                 .setLaunchRefreshRate(prefConfig.fps)
+                .setLaunchRefreshRateX100(prefConfig.launchRefreshRateX100)
                 .setRefreshRate(chosenFrameRate)
                 .setApp(app)
                 .setBitrate(prefConfig.bitrate)
@@ -502,17 +515,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         InputManager inputManager = (InputManager) getSystemService(Context.INPUT_SERVICE);
         inputManager.registerInputDeviceListener(keyboardTranslator, null);
 
-        // Initialize touch contexts
-        for (int i = 0; i < touchContextMap.length; i++) {
-            if (!prefConfig.touchscreenTrackpad) {
-                touchContextMap[i] = new AbsoluteTouchContext(conn, i, streamView);
-            }
-            else {
-                touchContextMap[i] = new RelativeTouchContext(conn, i,
-                        REFERENCE_HORIZ_RES, REFERENCE_VERT_RES,
-                        streamView, prefConfig);
-            }
-        }
+        initializeTouchContexts();
 
         if (prefConfig.onscreenController) {
             // create virtual onscreen controller
@@ -595,7 +598,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         // Set requested orientation for possible new screen size
         setPreferredOrientationForCurrentDisplay();
 
-        if (virtualController != null) {
+        if (virtualController != null && prefConfig.onscreenController) {
             // Refresh layout of OSC for possible new screen size
             virtualController.refreshLayout();
         }
@@ -623,7 +626,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                 // Restore overlays to previous state when leaving PiP
 
-                if (virtualController != null) {
+                if (virtualController != null && prefConfig.onscreenController) {
                     virtualController.show();
                 }
 
@@ -755,6 +758,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+
+        if (!hasFocus) {
+            cancelTouchInput();
+            releaseKeyboardInput();
+            releaseMouseButtons();
+            if (virtualController != null) {
+                virtualController.releaseInput();
+            }
+        }
 
         // We can't guarantee the state of modifiers keys which may have
         // lifted while focus was not on us. Clear the modifier state.
@@ -1218,65 +1230,188 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void showStreamMenu() {
-        if (!foreground || !connected || streamMenu != null || hostActionInProgress) {
+        if (!foreground || !connected || streamMenu != null) {
             return;
         }
         restoreInputAfterMenu = grabbedInput;
+        ComputerDetails details = conn.getHostDetails();
+        ArrayList<String> labels = new ArrayList<>();
+        ArrayList<Runnable> actions = new ArrayList<>();
+        labels.add(getString(R.string.stream_continue));
+        actions.add(() -> {});
+        labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
+        actions.add(this::togglePerformanceOverlay);
+        labels.add(getString(R.string.stream_touch_mode));
+        actions.add(this::showTouchModeDialog);
+        labels.add(getString(R.string.stream_keyboard));
+        actions.add(this::toggleKeyboard);
+        labels.add(getString(prefConfig.onscreenController ? R.string.stream_controls_hide : R.string.stream_controls_show));
+        actions.add(() -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
+        if (prefConfig.onscreenController) {
+            labels.add(getString(R.string.stream_controls_layout));
+            actions.add(this::showControllerLayoutDialog);
+        }
+        labels.add(getString(R.string.stream_reconnect));
+        actions.add(this::reconnectStream);
+        labels.add(getString(R.string.stream_disconnect));
+        actions.add(this::finish);
+        if (details.canWriteClipboard()) {
+            labels.add(getString(R.string.stream_clipboard_send));
+            actions.add(() -> transferClipboard(true));
+        }
+        if (details.canReadClipboard()) {
+            labels.add(getString(R.string.stream_clipboard_receive));
+            actions.add(() -> transferClipboard(false));
+        }
+        if (details.canRunServerCommand(0)) {
+            labels.add(getString(R.string.stream_server_commands));
+            actions.add(() -> showServerCommands(details));
+        }
+        labels.add(getString(R.string.stream_host_status));
+        actions.add(this::refreshHostStatus);
+        if (details.rustHostVersion != null &&
+                details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
+            labels.add(getString(R.string.stream_bitrate));
+            actions.add(this::showBitrateDialog);
+        }
+        showStreamDialog(new AlertDialog.Builder(this)
+                .setTitle(R.string.stream_menu)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    dialog.dismiss();
+                    actions.get(which).run();
+                }).create());
+    }
+
+    private void refreshHostStatus() {
+        if (hostActionInProgress) {
+            return;
+        }
         final int generation = foregroundGeneration;
         hostActionInProgress = true;
         new Thread(() -> {
             try {
                 ComputerDetails details = conn.refreshHostDetails();
                 runOnUiThread(() -> {
-                    if (!foreground || generation != foregroundGeneration || !connected || isFinishing()) {
+                    if (!foreground || generation != foregroundGeneration || !connected || isFinishing() || streamMenu != null) {
                         return;
                     }
-                    ArrayList<String> labels = new ArrayList<>();
-                    ArrayList<Runnable> actions = new ArrayList<>();
-                    labels.add(getString(R.string.stream_continue));
-                    actions.add(() -> {});
-                    labels.add(getString(R.string.stream_disconnect));
-                    actions.add(this::finish);
-                    if (details.canWriteClipboard()) {
-                        labels.add(getString(R.string.stream_clipboard_send));
-                        actions.add(() -> transferClipboard(true));
-                    }
-                    if (details.canReadClipboard()) {
-                        labels.add(getString(R.string.stream_clipboard_receive));
-                        actions.add(() -> transferClipboard(false));
-                    }
-                    if (details.canRunServerCommand(0)) {
-                        labels.add(getString(R.string.stream_server_commands));
-                        actions.add(() -> showServerCommands(details));
-                    }
-                    labels.add(getString(R.string.stream_host_status));
-                    actions.add(() -> showHostStatus(details));
-                    if (details.rustHostVersion != null &&
-                            details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
-                        labels.add(getString(R.string.stream_bitrate));
-                        actions.add(this::showBitrateDialog);
-                    }
-                    showStreamDialog(new AlertDialog.Builder(this)
-                            .setTitle(R.string.stream_menu)
-                            .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                                dialog.dismiss();
-                                actions.get(which).run();
-                            }).create());
+                    showHostStatus(details);
                 });
             } catch (IOException | XmlPullParserException e) {
                 showHostActionError(e, generation);
-                runOnUiThread(() -> {
-                    if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
-                        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_menu)
-                                .setMessage(R.string.stream_status_unavailable)
-                                .setNegativeButton(R.string.stream_continue, null)
-                                .setPositiveButton(R.string.stream_disconnect, (dialog, which) -> finish()).create());
-                    }
-                });
             } finally {
                 runOnUiThread(() -> hostActionInProgress = false);
             }
         }, "Host status").start();
+    }
+
+    private void togglePerformanceOverlay() {
+        prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
+        performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay && !isHidingOverlays ? View.VISIBLE : View.GONE);
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("checkbox_enable_perf_overlay", prefConfig.enablePerfOverlay).apply();
+    }
+
+    private void initializeTouchContexts() {
+        for (int i = 0; i < touchContextMap.length; i++) {
+            touchContextMap[i] = prefConfig.touchscreenTrackpad ?
+                    new RelativeTouchContext(conn, i, REFERENCE_HORIZ_RES, REFERENCE_VERT_RES, streamView, prefConfig) :
+                    new AbsoluteTouchContext(conn, i, streamView);
+        }
+    }
+
+    private void cancelTouchInput() {
+        for (TouchContext context : touchContextMap) {
+            if (context != null) {
+                context.cancelTouch();
+                context.setPointerCount(0);
+            }
+        }
+        if (nativeTouchGestureActive) {
+            conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0, MoonBridge.LI_ROT_UNKNOWN);
+            nativeTouchGestureActive = false;
+        }
+        threeFingerDownTime = 0;
+    }
+
+    private void showTouchModeDialog() {
+        String[] modes = getResources().getStringArray(R.array.stream_touch_modes);
+        int selected = prefConfig.touchscreenTrackpad ? 0 : nativeTouchEnabled ? 2 : 1;
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_touch_mode)
+                .setSingleChoiceItems(modes, selected, (dialog, which) -> {
+                    cancelTouchInput();
+                    prefConfig.touchscreenTrackpad = which == 0;
+                    nativeTouchEnabled = which == 2;
+                    nativeTouchUnsupported = false;
+                    initializeTouchContexts();
+                    PreferenceManager.getDefaultSharedPreferences(this).edit()
+                            .putBoolean("checkbox_touchscreen_trackpad", prefConfig.touchscreenTrackpad)
+                            .putBoolean("checkbox_native_touch", nativeTouchEnabled).apply();
+                    dialog.dismiss();
+                    if (nativeTouchEnabled) {
+                        Toast.makeText(this, R.string.stream_native_touch_help, Toast.LENGTH_LONG).show();
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).create());
+    }
+
+    private void setOnscreenControlsEnabled(boolean enabled) {
+        prefConfig.onscreenController = enabled;
+        if (enabled) {
+            if (virtualController == null) {
+                virtualController = new VirtualController(controllerHandler, (FrameLayout) streamView.getParent(), this);
+            }
+            virtualController.refreshLayout();
+            virtualController.show();
+        } else if (virtualController != null) {
+            virtualController.setControllerMode(VirtualController.ControllerMode.Active);
+            virtualController.hide();
+        }
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("checkbox_show_onscreen_controls", enabled).apply();
+    }
+
+    private void showControllerLayoutDialog() {
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_controls_layout)
+                .setItems(R.array.stream_control_layout_actions, (dialog, which) -> {
+                    VirtualController.ControllerMode[] modes = {
+                            VirtualController.ControllerMode.MoveButtons,
+                            VirtualController.ControllerMode.ResizeButtons,
+                            VirtualController.ControllerMode.Active};
+                    virtualController.setControllerMode(modes[which]);
+                }).setNegativeButton(android.R.string.cancel, null).create());
+    }
+
+    private void reconnectStream() {
+        displayedFailureDialog = true;
+        setInputGrabState(false);
+        stopConnection();
+        final Thread stopping = connectionStopThread;
+        final int generation = foregroundGeneration;
+        spinner = SpinnerDialog.displayDialog(this, getString(R.string.conn_establishing_title),
+                getString(R.string.stream_reconnecting), true);
+        new Thread(() -> {
+            if (stopping != null) {
+                try {
+                    stopping.join();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            runOnUiThread(() -> {
+                if (foreground && generation == foregroundGeneration && !isFinishing()) {
+                    finish();
+                    startActivity(new Intent(getIntent()));
+                }
+            });
+        }, "Stream reconnect").start();
+    }
+
+    private void showReconnectDialog(int title, String message) {
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(message)
+                .setCancelable(false)
+                .setNegativeButton(R.string.stream_disconnect, (dialog, which) -> finish())
+                .setPositiveButton(R.string.stream_reconnect, (dialog, which) -> reconnectStream()).create());
     }
 
     private void transferClipboard(boolean send) {
@@ -1460,6 +1595,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
         else {
+            cancelTouchInput();
+            releaseKeyboardInput();
+            releaseMouseButtons();
+            if (virtualController != null) {
+                virtualController.releaseInput();
+            }
             inputCaptureProvider.disableCapture();
         }
 
@@ -1538,6 +1679,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         showStreamMenu();
                         break;
 
+                    case KeyEvent.KEYCODE_S:
+                        togglePerformanceOverlay();
+                        break;
+
                     // Toggle cursor visibility
                     case KeyEvent.KEYCODE_C:
                         if (!grabbedInput) {
@@ -1569,6 +1714,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 case KeyEvent.KEYCODE_Z:
                 case KeyEvent.KEYCODE_Q:
                 case KeyEvent.KEYCODE_M:
+                case KeyEvent.KEYCODE_S:
                 case KeyEvent.KEYCODE_C:
                     // Remember that a special key combo was activated, so we can consume all key
                     // events until the modifiers come up
@@ -1700,7 +1846,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 return true;
             }
 
-            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event),
+            sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event),
                     keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
         }
 
@@ -1764,7 +1910,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 return (unicodeChar & KeyCharacterMap.COMBINING_ACCENT) == 0 && (unicodeChar & KeyCharacterMap.COMBINING_ACCENT_MASK) != 0;
             }
 
-            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_UP, getModifierState(event),
+            sendKeyboardInput(translated, KeyboardPacket.KEY_UP, getModifierState(event),
                     keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
         }
 
@@ -1785,7 +1931,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         //
         // For other cases of ACTION_MULTIPLE, we will not report those as handled so hopefully
         // they will be passed to us again as regular singular key events.
-        if (event.getKeyCode() != KeyEvent.KEYCODE_UNKNOWN || event.getCharacters() == null) {
+        if (!grabbedInput || event.getKeyCode() != KeyEvent.KEYCODE_UNKNOWN || event.getCharacters() == null) {
             return false;
         }
 
@@ -2306,6 +2452,25 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     return true;
                 }
 
+                if (nativeTouchEnabled && !nativeTouchUnsupported) {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        nativeTouchGestureActive = true;
+                    }
+                    if (!nativeTouchGestureActive) {
+                        return true;
+                    }
+                    if (trySendTouchEvent(view, event)) {
+                        if (event.getActionMasked() == MotionEvent.ACTION_UP ||
+                                event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                            nativeTouchGestureActive = false;
+                        }
+                        return true;
+                    }
+                    nativeTouchGestureActive = false;
+                    nativeTouchUnsupported = true;
+                    Toast.makeText(this, R.string.stream_native_touch_fallback, Toast.LENGTH_LONG).show();
+                }
+
                 // If this is the parent view, we'll offset our coordinates to appear as if they
                 // are relative to the StreamView like our StreamView touch events are.
                 float xOffset, yOffset;
@@ -2337,15 +2502,6 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                     return true;
                 }
-
-                // TODO: Re-enable native touch when have a better solution for handling
-                // cancelled touches from Android gestures and 3 finger taps to activate
-                // the software keyboard.
-                /*if (!prefConfig.touchscreenTrackpad && trySendTouchEvent(view, event)) {
-                    // If this host supports touch events and absolute touch is enabled,
-                    // send it directly as a touch event.
-                    return true;
-                }*/
 
                 TouchContext context = getTouchContext(actionIndex);
                 if (context == null) {
@@ -2546,11 +2702,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             // thread to keep things smooth for the UI. Inside moonlight-common,
             // we prevent another thread from starting a connection before and
             // during the process of stopping this one.
-            new Thread() {
-                public void run() {
-                    conn.stop();
-                }
-            }.start();
+            connectionStopThread = new Thread(conn::stop, "Stop stream");
+            connectionStopThread.start();
         }
     }
 
@@ -2588,7 +2741,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         dialogText += "\n\n" + getResources().getString(R.string.nettest_text_blocked);
                     }
 
-                    Dialog.displayDialog(Game.this, getResources().getString(R.string.conn_error_title), dialogText, true);
+                    stopConnection();
+                    showReconnectDialog(R.string.conn_error_title, dialogText);
                 }
             }
         });
@@ -2666,8 +2820,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                                     MoonBridge.stringifyPortFlags(portFlags, "\n");
                         }
 
-                        Dialog.displayDialog(Game.this, getResources().getString(R.string.conn_terminated_title),
-                                message, true);
+                        showReconnectDialog(R.string.conn_terminated_title, message);
                     }
                     else {
                         finish();
@@ -2996,14 +3149,51 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             if (handleSpecialKeys(keyCode, buttonDown)) {
                 return;
             }
+            if (!grabbedInput) {
+                return;
+            }
 
             if (buttonDown) {
-                conn.sendKeyboardInput(keyMap, KeyboardPacket.KEY_DOWN, getModifierState(keyCode), (byte)0);
+                sendKeyboardInput(keyMap, KeyboardPacket.KEY_DOWN, getModifierState(keyCode), (byte)0);
             }
             else {
-                conn.sendKeyboardInput(keyMap, KeyboardPacket.KEY_UP, getModifierState(keyCode), (byte)0);
+                sendKeyboardInput(keyMap, KeyboardPacket.KEY_UP, getModifierState(keyCode), (byte)0);
             }
         }
+    }
+
+    private void sendKeyboardInput(short key, byte direction, byte modifiers, byte flags) {
+        synchronized (pressedKeys) {
+            if (direction == KeyboardPacket.KEY_DOWN) {
+                pressedKeys.put(key, flags);
+            } else {
+                pressedKeys.remove(key);
+            }
+            conn.sendKeyboardInput(key, direction, modifiers, flags);
+        }
+    }
+
+    private void releaseKeyboardInput() {
+        synchronized (pressedKeys) {
+            for (Map.Entry<Short, Byte> key : pressedKeys.entrySet()) {
+                conn.sendKeyboardInput(key.getKey(), KeyboardPacket.KEY_UP, (byte) 0, key.getValue());
+            }
+            pressedKeys.clear();
+        }
+        modifierFlags = 0;
+    }
+
+    private void releaseMouseButtons() {
+        int[] masks = {MotionEvent.BUTTON_PRIMARY, MotionEvent.BUTTON_SECONDARY, MotionEvent.BUTTON_TERTIARY,
+                MotionEvent.BUTTON_BACK, MotionEvent.BUTTON_FORWARD};
+        byte[] buttons = {MouseButtonPacket.BUTTON_LEFT, MouseButtonPacket.BUTTON_RIGHT, MouseButtonPacket.BUTTON_MIDDLE,
+                MouseButtonPacket.BUTTON_X1, MouseButtonPacket.BUTTON_X2};
+        for (int i = 0; i < masks.length; i++) {
+            if ((lastButtonState & masks[i]) != 0) {
+                conn.sendMouseButtonUp(buttons[i]);
+            }
+        }
+        lastButtonState = 0;
     }
 
     @Override
