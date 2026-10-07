@@ -37,12 +37,15 @@ public class HelpLauncher {
         context.startActivity(i);
     }
 
+    public static final String TROUBLESHOOTING_URL =
+            "https://github.com/RamazanKara/butterpollo-android/blob/main/docs/TROUBLESHOOTING.md";
+
     public static void launchSetupGuide(Context context) {
-        launchUrl(context, "https://github.com/RamazanKara/butterpollo-android#install");
+        launchUrl(context, TROUBLESHOOTING_URL + "#add-and-pair-a-host");
     }
 
     public static void launchTroubleshooting(Context context) {
-        launchUrl(context, "https://github.com/moonlight-stream/moonlight-docs/wiki/Troubleshooting");
+        launchUrl(context, TROUBLESHOOTING_URL);
     }
 
     public static void launchGameStreamEolFaq(Context context) {

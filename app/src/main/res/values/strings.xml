@@ -20,18 +20,11 @@
     <string name="pcview_menu_unpair_pc">Unpair</string>
     <string name="pcview_menu_send_wol">Wake host (Wake-on-LAN)</string>
     <string name="pcview_menu_delete_pc">Delete host</string>
-    <string name="pcview_menu_test_network">Test network connection</string>
     <string name="pcview_menu_details">View details</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
 
     <!-- Network test strings -->
-    <string name="nettest_title_waiting">Testing network connection</string>
-    <string name="nettest_text_waiting">Butterpollo is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
-    <string name="nettest_title_done">Network test complete</string>
-    <string name="nettest_text_success">Your network does not appear to be blocking Butterpollo. If you still can\'t connect, check the firewall on your host PC.\n\nTo stream over the Internet, forward the host\'s ports on your router.</string>
-    <string name="nettest_text_inconclusive">The network test could not be performed because none of Moonlight\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
-    <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Butterpollo. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
-    <string name="nettest_text_blocked">Your device\'s current network connection is blocking Butterpollo. Streaming over the Internet may not work while connected to this network.</string>
+    <string name="nettest_text_blocked">A port check against Moonlight\'s public test server failed, so this network may block outgoing streaming traffic. That mainly affects streaming over the Internet; on a local network, check the PC\'s firewall instead.</string>
 
     <!-- Pair messages -->
     <string name="pairing">Pairing…</string>
@@ -254,8 +247,8 @@
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>
     <string name="summary_setup_guide">View instructions on how to set up your gaming PC for streaming</string>
-    <string name="title_troubleshooting">Troubleshooting guide</string>
-    <string name="summary_troubleshooting">View tips for diagnosing and fixing common streaming issues</string>
+    <string name="title_troubleshooting">Help and troubleshooting</string>
+    <string name="summary_troubleshooting">Pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave</string>
     <string name="title_privacy_policy">Privacy policy</string>
     <string name="summary_privacy_policy">View Moonlight\'s privacy policy</string>
 

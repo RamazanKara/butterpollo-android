@@ -11,10 +11,7 @@
     <string name="ip_hint">IP адрес на отдалечения компютър</string>
     <string name="pcview_menu_send_wol">Изпращане на заявка Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Изтриване на компютъра</string>
-    <string name="pcview_menu_test_network">Тестване на мрежовата връзка</string>
     <string name="pcview_menu_details">Преглед на подробностите</string>
-    <string name="nettest_title_waiting">Извършва се тестване на мрежовата връзка</string>
-    <string name="nettest_title_done">Тестът на мрежата е завършен</string>
     <string name="pairing">Сдвояване…</string>
     <string name="pair_pc_offline">Компютърът е извън линия</string>
     <string name="pair_pc_ingame">Компютърът в момента е в игра. Трябва да затворите играта преди сдвояването.</string>
@@ -46,10 +43,6 @@
     <string name="pcview_menu_header_offline">Извън линия</string>
     <string name="pcview_menu_app_list">Преглед на всички приложения</string>
     <string name="pcview_menu_unpair_pc">Раздвояване</string>
-    <string name="nettest_text_waiting">Moonlight тества мрежовата връзка, за да определи дали някой от необходимите портове не е блокиран.\n\nТова може да отнеме няколко секунди…</string>
-    <string name="nettest_text_success">Вашата мрежа изглежда не блокира Moonlight. Ако все още имате проблеми със свързването, проверете настройките на защитната стена на компютъра си.\n\nАко се опитвате да осъществите достъп през Интернет, инсталирайте „Moonlight Internet Hosting Tool“ на компютъра си и стартирайте включения тестер за достъп през Интернет, за да проверите връзката на компютъра си с Интернет.</string>
-    <string name="nettest_text_inconclusive">Мрежовият тест не може да бъде извършен, защото нито един от сървърите за проверка на връзката на Moonlight не е достъпен. Проверете връзката си с Интернет или опитайте отново по-късно.</string>
-    <string name="nettest_text_failure">Текущата мрежова връзка на устройството изглежда блокира Moonlight. Достъпът през Интернет може да не работи, докато компютърът е свързан към тази мрежа.\n\nСледните мрежови портове са блокирани:\n</string>
     <string name="nettest_text_blocked">Текущата мрежова връзка на устройството блокира Moonlight. Достъпът през Интернет може да не работи, докато компютърът е свързан към тази мрежа.</string>
     <string name="pair_pairing_msg">Моля, въведете следния ПИН на избрания компютър:</string>
     <string name="pair_fail">Неуспешно сдвояване</string>

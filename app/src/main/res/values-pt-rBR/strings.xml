@@ -23,9 +23,6 @@
     <string name="searching_pc">Procurando por PCs rodando o GameStream...
 \n
 \nCertifique-se de que o GameStream esteja ativado nas configurações do SHIELD do GeForce Experience.</string>
-    <string name="nettest_text_success">Sua rede não parece estar bloqueando o Moonlight. Se você ainda tiver problemas para se conectar, verifique as configurações de firewall do seu PC.
-\n
-\nSe você estiver tentando transmitir pela Internet, instale o Moonlight Internet Hosting Tool em seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
     <string name="check_ports_msg">Verifique o firewall e permita a(s) seguinte(s) para porta(s):</string>
     <string name="wol_no_mac">Não foi possível acordar o PC porque não tem um endereço MAC armazenado</string>
     <string name="wol_waking_msg">Pode levar alguns segundos para o seu PC acordar. Se isso não acontecer, verifique se ele está configurado corretamente para Wake-On-LAN.</string>
@@ -66,18 +63,9 @@
     <string name="pcview_menu_app_list">Ver Todos os Jogos</string>
     <string name="pcview_menu_unpair_pc">Desparear</string>
     <string name="pcview_menu_delete_pc">Deletar PC</string>
-    <string name="pcview_menu_test_network">Testar Conexão com a Internet</string>
     <string name="pcview_menu_details">Ver Detalhes</string>
-    <string name="nettest_title_waiting">Testando a Conexão com a Internet</string>
-    <string name="nettest_title_done">Teste de Internet Completo</string>
     <string name="pcview_menu_pair_pc">Parear com o PC</string>
     <string name="pcview_menu_send_wol">Enviar Wake-On-LAN</string>
-    <string name="nettest_text_waiting">O Moonlight está testando a sua conexão de internet para determinar se alguma das portas requeridas estão bloqueadas.\n\nIsso pode levar alguns segundos…</string>
-    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Moonlight estava acessível. Verifique sua conexão com a Internet ou tente novamente mais tarde.</string>
-    <string name="nettest_text_failure">A conexão de rede atual do seu dispositivo parece estar bloqueando o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
-\n
-\nAs seguintes portas de rede estão bloqueadas:
-\n</string>
     <string name="nettest_text_blocked">A conexão de rede atual do seu dispositivo está bloqueando o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
     <string name="pairing">Pareando…</string>
     <string name="pair_pc_offline">Esse computador está indisponível</string>

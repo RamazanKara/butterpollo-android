@@ -15,13 +15,8 @@
     <string name="pcview_menu_unpair_pc">Koppla bort</string>
     <string name="pcview_menu_send_wol">Skicka begäran om Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Radera PC</string>
-    <string name="pcview_menu_test_network">Testa nätverksanslutning</string>
     <string name="pcview_menu_details">Visa detaljer</string>
     <string name="pcview_menu_eol">NVIDIA GameStream upphör att fungera</string>
-    <string name="nettest_title_waiting">Testning av nätverksanslutning</string>
-    <string name="nettest_text_waiting">Moonlight testar din nätverksanslutning för att avgöra om några nödvändiga portar är blockerade.
-\n
-\nDetta kan ta några sekunder…</string>
     <string name="pair_pc_ingame">Datorn är för närvarande i ett spel. Du måste stänga spelet innan fogning.</string>
     <string name="pairing">Fogar…</string>
     <string name="pair_pairing_title">Fogning</string>
@@ -188,15 +183,6 @@
     <string name="pacing_balanced">Balanserad</string>
     <string name="pacing_balanced_alt">Balanserad med FPS-gräns</string>
     <string name="pacing_smoothness">Föredrar smidigast video (kan öka latensen avsevärt)</string>
-    <string name="nettest_title_done">Nätverkstestet fullföljt</string>
-    <string name="nettest_text_failure">Din enhets aktuella nätverksanslutning verkar blockera Moonlight. Streaming via Internet kanske inte fungerar när du är ansluten till det här nätverket.
-\n
-\nFöljande nätverksportar blockerades:
-\n</string>
-    <string name="nettest_text_success">Ditt nätverk verkar inte blockera Moonlight. Om du fortfarande har problem med anslutningen kan du kontrollera datorns brandväggsinställningar.
-\n
-\nOm du försöker streama via Internet installerar du Moonlight Internet Hosting Tool på din dator och kör den medföljande Internet Streaming Tester för att kontrollera datorns Internetanslutning.</string>
-    <string name="nettest_text_inconclusive">Nätverkstestet kunde inte utföras eftersom ingen av Moonlights servrar för anslutningstestning kunde nås. Kontrollera din internetanslutning eller försök igen senare.</string>
     <string name="nettest_text_blocked">Enhetens aktuella nätverksanslutning blockerar Moonlight. Streaming via Internet kanske inte fungerar när du är ansluten till det här nätverket.</string>
     <string name="pair_pc_offline">Dator är offline</string>
     <string name="error_manager_not_running">Tjänsten ComputerManager körs inte. Vänta några sekunder eller starta om programmet.</string>

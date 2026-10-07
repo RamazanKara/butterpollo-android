@@ -176,20 +176,6 @@
     <string name="dialog_title_osc_opacity">透明度</string>
     <string name="suffix_osc_opacity">%</string>
     <string name="summary_osc_opacity">令屏幕按钮变得更透明/更不透明</string>
-    <string name="nettest_text_failure">您设备的当前网络似乎正在阻止Moonlight。连接到该网络时，可能无法通过互联网串流。
-\n
-\n以下网络端口被阻止：
-\n</string>
-    <string name="nettest_text_inconclusive">网络测试无法执行，因为无法连接到Moonlight的连接测试服务器。检查您的互联网连接或稍后再试。</string>
-    <string name="nettest_text_success">您的网络似乎没有屏蔽Moonlight。如果您仍然无法连接，请检查您的电脑的防火墙设置。
-\n
-\n如果您想通过互联网进行流媒体传输，请在您的电脑上安装Moonlight互联网主机工具，并运行附带的互联网流媒体测试器来检查您的电脑的互联网连接。</string>
-    <string name="nettest_title_done">网络测试完成</string>
-    <string name="nettest_text_waiting">Moonlight正在测试你的网络连接，请确保所需端口没有被屏蔽。
-\n
-\n这可能需要几秒钟……</string>
-    <string name="nettest_title_waiting">测试网络连接中</string>
-    <string name="pcview_menu_test_network">测试网络连接</string>
     <string name="pcview_menu_header_unknown">刷新中</string>
     <string name="pcview_menu_header_offline">离线</string>
     <string name="pcview_menu_header_online">在线</string>

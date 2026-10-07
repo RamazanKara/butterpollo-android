@@ -17,19 +17,6 @@
     <string name="pcview_menu_delete_pc">Supprimer le PC</string>
     <string name="pcview_menu_details">Voir les détails</string>
     <!-- Network test strings -->
-    <string name="nettest_title_waiting">Test de la connexion réseau</string>
-    <string name="nettest_text_waiting">Moonlight teste votre connexion réseau pour déterminer si les ports requis sont bloqués.
-\n
-\nCela peut prendre quelques secondes…</string>
-    <string name="nettest_title_done">Test du réseau terminé</string>
-    <string name="nettest_text_success">Votre réseau ne semble pas bloquer Moonlight. Si vous avez encore des difficultés à vous connecter, vérifiez les paramètres du pare-feu de votre PC.
-\n
-\nSi vous essayez de streamer depuis Internet, installez l\'outil Moonlight Internet Hosting Tool sur votre PC et exécutez le testeur de streaming Internet inclus pour vérifier la connexion Internet de votre PC.</string>
-    <string name="nettest_text_inconclusive">Le test réseau n\'a pas pu être effectué car aucun des serveurs de test de connexion de Moonlight n\'était accessible. Vérifiez votre connexion Internet ou réessayez plus tard.</string>
-    <string name="nettest_text_failure">La connexion réseau actuelle de votre appareil semble bloquer Moonlight. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.
-\n
-\nLes ports réseau suivants ont été bloqués :
-\n</string>
     <string name="nettest_text_blocked">La connexion réseau actuelle de votre appareil bloque Moonlight. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.</string>
     <!-- Pair messages -->
     <string name="pairing">Appariement…</string>
@@ -193,7 +180,6 @@
     <string name="summary_enable_post_stream_toast">Affiche un message d’information sur la latence après la fin du stream</string>
     <string name="no_video_received_error">Aucune vidéo reçue de l\'hôte.</string>
     <string name="video_decoder_init_failed">Le décodeur vidéo n\'a pas pu démarrer. Vérifiez que votre appareil supporte la résolution ou la fréquence d\'images choisie.</string>
-    <string name="pcview_menu_test_network">Tester la connection réseau</string>
     <string name="pcview_menu_header_unknown">Actualisation</string>
     <string name="pcview_menu_header_offline">Hors ligne</string>
     <string name="pcview_menu_header_online">En ligne</string>

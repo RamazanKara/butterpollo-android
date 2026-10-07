@@ -162,13 +162,6 @@
     <string name="pair_pc_ingame">A számítógép jelenleg játékban van. A párosítás előtt be kell zárni a játékot.</string>
     <string name="pair_pc_offline">A számítógép nem elérhető</string>
     <string name="nettest_text_blocked">Az eszköz jelenlegi hálózati kapcsolata blokkolja a Moonlight-ot. Előfordulhat, hogy az interneten keresztüli streamelés nem működik, ha csatlakozik ehhez a hálózathoz.</string>
-    <string name="nettest_text_failure">Úgy tűnik, hogy az eszköz jelenlegi hálózati kapcsolata blokkolja a Moonlight-ot. Előfordulhat, hogy az interneten keresztüli streamelés nem működik, ha csatlakozik ehhez a hálózathoz.\n\nA következő hálózati portokat blokkolták:\n</string>
-    <string name="nettest_text_inconclusive">A hálózati tesztet nem sikerült elvégezni, mert a Moonlight egyik kapcsolat tesztelő szervere sem volt elérhető. Ellenőrizd az internetkapcsolatot, vagy próbáld újra később.</string>
-    <string name="nettest_text_success">Úgy tűnik, a hálózatod nem blokkolja a Moonlightot. Ha továbbra is problémáid vannak a csatlakozással, ellenőrizd a számítógép tűzfalbeállításait.\n\nHa az interneten keresztül szeretnél streamelni, telepítsd a Moonlight Internet Hosting Toolt a számítógépedre, és futtassd a mellékelt Internet Streaming Testert a számítógép internetkapcsolatának ellenőrzéséhez.</string>
-    <string name="nettest_title_done">Hálózati kapcsolat tesztelése befejeződött</string>
-    <string name="nettest_text_waiting">A Moonlight teszteli a hálózati kapcsolatot, hogy megállapítsa, nem blokkoltak-e szükséges portokat.\n\nEz eltarthat néhány másodpercig…</string>
-    <string name="pcview_menu_test_network">Hálózati kapcsolat tesztelése</string>
-    <string name="nettest_title_waiting">Hálózati kapcsolat tesztelése</string>
     <string name="pcview_menu_details">Részletek megtekintése</string>
     <string name="pcview_menu_delete_pc">Számítógép törlése</string>
     <string name="pcview_menu_send_wol">Wake-On-LAN kérés küldése</string>
