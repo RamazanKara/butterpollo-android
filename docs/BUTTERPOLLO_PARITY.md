@@ -155,6 +155,11 @@ and `adb devices` was empty afterward. It waited until the previously running em
 The fixture does not pair with a real host, decode a stream, measure a physical panel or certify
 controllers. Earlier counts below belong to historical milestones.
 
+On 2026-10-07 the same script also ran on CI (GitHub-hosted Ubuntu, KVM, Android 35 Google APIs
+x86_64 AVD) through `workflow_dispatch` with a `prerelease_tag`. It now also injects a gamepad Y press,
+maps it to A on **Controller buttons** and checks the stored mapping. That run builds a debug-signed
+arm64-only APK (`-PabiFilters=arm64-v8a`) and publishes it with the screenshots as a GitHub pre-release.
+
 The following still require real Android hardware and a host; passing synthetic tests is insufficient:
 
 1. **Pairing/identity/permissions:** pair two installations with Butterpollo rc.22 and stock
