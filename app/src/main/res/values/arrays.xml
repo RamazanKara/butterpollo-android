@@ -13,6 +13,15 @@
         <item>View streams</item>
         <item>Launch and quit applications</item>
     </string-array>
+    <!-- kbps; the last one is the PyroWave 720p/60 starting point -->
+    <integer-array name="bitrate_presets_kbps" translatable="false">
+        <item>10000</item>
+        <item>20000</item>
+        <item>40000</item>
+        <item>80000</item>
+        <item>150000</item>
+        <item>280000</item>
+    </integer-array>
     <string-array name="resolution_names">
         <item>@string/resolution_360p</item>
         <item>@string/resolution_480p</item>
