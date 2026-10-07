@@ -15,22 +15,8 @@
     <string name="pcview_menu_unpair_pc">Kopplung trennen</string>
     <string name="pcview_menu_send_wol">Wake-On-LAN Anfrage senden</string>
     <string name="pcview_menu_delete_pc">Host löschen</string>
-    <string name="pcview_menu_test_network">Netzwerkverbindung testen</string>
     <string name="pcview_menu_details">Details anzeigen</string>
     <!-- Network test strings -->
-    <string name="nettest_title_waiting">Netzwerkverbindung wird getestet</string>
-    <string name="nettest_text_waiting">Moonlight testet Ihre Netzwerkverbindung, um festzustellen, ob benötigte Ports blockiert sind.
-\n
-\nDies kann einige Sekunden dauern…</string>
-    <string name="nettest_title_done">Netzwerktest abgeschlossen</string>
-    <string name="nettest_text_success">Dein Netzwerk scheint Moonlight nicht zu blockieren. Wenn du weiterhin Probleme mit der Verbindung hast, überprüfe die Firewall-Einstellungen deines Hosts
-\n
-\nWenn du versuchst, über das Internet zu streamen, installiere das Moonlight Internet Hosting Tool auf deinem Host und führe den mitgelieferten Internet-Streaming-Tester aus, um die Internetverbindung des Hosts zu überprüfen.</string>
-    <string name="nettest_text_inconclusive">Der Netzwerktest konnte nicht durchgeführt werden, da keiner der Verbindungstestserver von Moonlight erreichbar war. Überprüfe deine Internetverbindung oder versuche es später noch einmal.</string>
-    <string name="nettest_text_failure">Die aktuelle Netzwerkverbindung deines Geräts scheint Moonlight zu blockieren. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.
-\n
-\nFolgende Netzwerkports wurden blockiert:
-\n</string>
     <string name="nettest_text_blocked">Die aktuelle Netzwerkverbindung deines Geräts blockiert Moonlight. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.</string>
     <!-- Pair messages -->
     <string name="pairing">Koppeln…</string>

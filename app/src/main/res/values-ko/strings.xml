@@ -161,23 +161,9 @@
     <string name="message_decoding_error">이 장치의 비디오 디코더와 호환되지 않아 Moonlight에서 오류가 발생했습니다. 충돌이 계속되면 스트리밍 설정을 조정 해보십시오.</string>
     <string name="title_decoding_error">비디오 디코더 오류</string>
     <string name="nettest_text_blocked">기기의 현재 네트워크가 Moonlight를 차단하고 있습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.</string>
-    <string name="nettest_text_failure">기기의 현재 네트워크가 Moonlight를 차단하는 것 같습니다. 이 네트워크에 연결되어 있으면 인터넷을 통한 스트리밍이 작동하지 않을 수 있습니다.
-\n
-\n차단된 네트워크 포트:
-\n</string>
-    <string name="nettest_text_inconclusive">Moonlight의 테스트 서버에 연결할 수 없기 때문에 네트워크 테스트를 할 수 없습니다. 인터넷 연결을 확인하거나 나중에 다시 시도하십시오.</string>
-    <string name="nettest_text_success">네트워크가 Moonlight를 차단하지 않는 것 같습니다. 여전히 연결에 문제가 있으면 PC의 방화벽 설정을 확인하십시오
-\n
-\n인터넷을 통해 연결하려는 경우 PC에 Moonlight Internet Hosting Tool을 설치하고 Internet Streaming Tester를 실행하여 PC의 인터넷 연결을 확인하십시오.</string>
-    <string name="nettest_title_done">네트워크 연결 테스트 완료</string>
-    <string name="nettest_text_waiting">Moonlight는 필요한 포트가 차단되었는지 확인하기 위해 네트워크 연결을 테스트하고 있습니다.
-\n
-\n잠시 기다려 주세요…</string>
     <string name="pcview_menu_header_unknown">상태 확인중</string>
-    <string name="pcview_menu_test_network">네트워크 연결 테스트</string>
     <string name="pcview_menu_header_offline">오프라인</string>
     <string name="pcview_menu_header_online">온라인</string>
-    <string name="nettest_title_waiting">네트워크 연결을 테스트하는 중</string>
     <string name="pcview_menu_details">PC 세부정보</string>
     <string name="scut_pc_not_found">PC를 찾을 수 없음</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>

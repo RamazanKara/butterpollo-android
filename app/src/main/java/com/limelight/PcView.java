@@ -125,7 +125,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private final static int QUIT_ID = 7;
     private final static int VIEW_DETAILS_ID = 8;
     private final static int FULL_APP_LIST_ID = 9;
-    private final static int TEST_NETWORK_ID = 10;
     private final static int GAMESTREAM_EOL_ID = 11;
     private final static int HOST_SETTINGS_ID = 12;
     private final static int BANDWIDTH_PROBE_ID = 14;
@@ -352,7 +351,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
         // Add a header with PC status details
         menu.clearHeader();
-        String headerTitle = computer.details.name + " - ";
+        String headerTitle = computer.details.name + " · ";
         switch (computer.details.state)
         {
             case ONLINE:
@@ -399,14 +398,14 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             menu.add(Menu.NONE, FULL_APP_LIST_ID, 4, getResources().getString(R.string.pcview_menu_app_list));
         }
 
-        menu.add(Menu.NONE, TEST_NETWORK_ID, 5, getResources().getString(R.string.pcview_menu_test_network));
-        menu.add(Menu.NONE, DELETE_ID, 6, getResources().getString(R.string.pcview_menu_delete_pc));
-        menu.add(Menu.NONE, VIEW_DETAILS_ID, 7,  getResources().getString(R.string.pcview_menu_details));
-        menu.add(Menu.NONE, HOST_SETTINGS_ID, 8, getResources().getString(R.string.host_profile_menu));
+        // Per-PC tools next, then details, and the destructive action last
+        menu.add(Menu.NONE, HOST_SETTINGS_ID, 5, getResources().getString(R.string.host_profile_menu));
         if (computer.details.state == ComputerDetails.State.ONLINE &&
                 computer.details.supportsPyroWaveBandwidthProbe()) {
-            menu.add(Menu.NONE, BANDWIDTH_PROBE_ID, 9, getResources().getString(R.string.bandwidth_probe_title));
+            menu.add(Menu.NONE, BANDWIDTH_PROBE_ID, 6, getResources().getString(R.string.bandwidth_probe_title));
         }
+        menu.add(Menu.NONE, VIEW_DETAILS_ID, 7,  getResources().getString(R.string.pcview_menu_details));
+        menu.add(Menu.NONE, DELETE_ID, 8, getResources().getString(R.string.pcview_menu_delete_pc));
     }
 
     @Override
@@ -761,10 +760,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                 }
                 bandwidthTest = new PyroWaveBandwidthTest(this, computer.details, managerBinder.getUniqueId());
                 bandwidthTest.show();
-                return true;
-
-            case TEST_NETWORK_ID:
-                ServerHelper.doNetworkTest(PcView.this);
                 return true;
 
             case GAMESTREAM_EOL_ID:

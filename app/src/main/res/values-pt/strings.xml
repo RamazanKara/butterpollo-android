@@ -16,21 +16,9 @@
     <string name="pcview_menu_details">Ver Detalhes</string>
     <string name="pair_pairing_title">Pareando</string>
     <string name="pair_fail">Falha no pareamento</string>
-    <string name="nettest_title_waiting">Testar Conexão com a Internet</string>
     <string name="pcview_menu_send_wol">Enviar pedido Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Apagar PC</string>
-    <string name="pcview_menu_test_network">Testar conexão com a Internet</string>
-    <string name="nettest_text_waiting">Moonlight está testando sua conexão com a rede para determinar se o NVIDIA GameStream está bloqueado.
-\n
-\nEste processo pode demorar alguns segundos…</string>
     <string name="pacing_balanced">Balanceado</string>
-    <string name="nettest_text_success">A sua rede não parece estar a bloquear o Moonlight. Se ainda tiver problemas a se conectar, verifique as configurações de firewall do seu PC.
-\n
-\nSe estiver a tentar transmitir pela Internet, instale o Moonlight Internet Hosting Tool no seu PC e execute o Internet Streaming Tester para verificar a conexão com a Internet do seu PC.</string>
-    <string name="nettest_text_failure">A conexão de rede atual do seu aparelho parece estar a bloquear o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.
-\n
-\nAs seguintes portas de rede estão bloqueadas:
-\n</string>
     <string name="nettest_text_blocked">A conexão de rede atual do seu aparelho está a bloquear o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
     <string name="wol_waking_msg">Pode levar alguns segundos até o seu PC acordar. Se isso não acontecer, verifique se ele está configurado corretamente para Wake-On-LAN.</string>
     <string name="wol_fail">Falha ao enviar pacotes Wake-On-LAN</string>
@@ -208,8 +196,6 @@
     <string name="title_video_format">Mudar configurações do HEVC</string>
     <string name="summary_enable_hdr">Transmita HDR quando o jogo e a GPU do PC suportarem. O HDR requer uma GPU da série GTX 1000 ou posterior.</string>
     <string name="title_enable_perf_overlay">Mostrar status de performance durante a transmissão</string>
-    <string name="nettest_title_done">Teste completo da rede</string>
-    <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Moonlight estava acessível. Verifique a sua conexão com a Internet ou tente novamente mais tarde.</string>
     <string name="pairing">A parear…</string>
     <string name="pair_pc_offline">Esse computador está offline</string>
     <string name="pair_pc_ingame">Esse computador está atualmente num jogo. Deve fechar o jogo antes de parear.</string>

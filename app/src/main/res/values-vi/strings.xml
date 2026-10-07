@@ -173,21 +173,7 @@
     <string name="pair_pc_offline">Máy tính đang ngoại tuyến</string>
     <string name="pairing">Đang ghép đôi…</string>
     <string name="nettest_text_blocked">Kết nối mạng hiện tại của thiết bị đang chặn Moonlight. Việc stream qua Internet có thể sẽ không được khi đang kết nối đến mạng này.</string>
-    <string name="nettest_text_failure">Kết nối mạng hiện tại của thiết bị có vẻ là đang chặn Moonlight. Việc stream qua Internet có thể sẽ không được khi đang kết nối đến mạng này.
-\n
-\nCác cổng mạng sau bị chặn:
-\n</string>
-    <string name="nettest_text_inconclusive">Việc thử nghiệm mạng không thể được thực hiện vì không có máy chủ thử nghiệm kết nối nào của Moonlight có thể được kết nối đến. Hãy kiểm tra kết nối Internet của bạn hoặc thử lại sau.</string>
-    <string name="nettest_text_success">Mạng của bạn có vẻ là không chặn Moonlight. Nếu bạn vẫn gặp rắc rối trong việc kết nối, hãy kiểm tra cài đặt tường lửa của PC.
-\n
-\nNếu bạn đang cố stream qua Internet, hãy cài đặt Moonlight Internet Hosting Tool trên PC và chạy Internet Streaming Tester được bao gồm trong đó để kiểm tra kết nối Internet của PC.</string>
-    <string name="nettest_title_done">Thử nghiệm mạng hoàn tất</string>
-    <string name="nettest_text_waiting">Moonlight đang thử nghiệm kết nối mạng của bạn để xác định xem NVIDIA GameStream có bị chặn không.
-\n
-\nViệc này có thể sẽ mất một vài giây…</string>
-    <string name="nettest_title_waiting">Đang thử nghiệm kết nối mạng</string>
     <string name="pcview_menu_details">Xem chi tiết</string>
-    <string name="pcview_menu_test_network">Thử nghiệm kết nối mạng</string>
     <string name="pcview_menu_delete_pc">Xoá PC</string>
     <string name="pcview_menu_send_wol">Gửi yêu cầu Wake-On-LAN</string>
     <string name="pcview_menu_unpair_pc">Huỷ ghép đôi</string>

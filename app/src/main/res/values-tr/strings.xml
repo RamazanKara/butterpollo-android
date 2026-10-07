@@ -20,9 +20,7 @@
     <string name="pair_pairing_title">Eşleştiriliyor</string>
     <string name="pair_pc_offline">Bilgisayar çevrimdışı</string>
     <string name="pairing">Eşleştiriliyor…</string>
-    <string name="nettest_title_waiting">Ağ Bağlantısı Test Ediliyor</string>
     <string name="pcview_menu_details">Ayrıntıları Görüntüle</string>
-    <string name="pcview_menu_test_network">Ağ Bağlantısını Test Et</string>
     <string name="pcview_menu_delete_pc">PC\'yi sil</string>
     <string name="pcview_menu_unpair_pc">Eşleşmeyi kaldır</string>
     <string name="pcview_menu_pair_pc">PC ile eşle</string>
@@ -37,15 +35,6 @@
     <string name="help_loading_title">Yardım</string>
     <string name="scut_invalid_app_id">Tanımlanmış uygulama geçerli değil</string>
     <string name="scut_invalid_uuid">Tanımlanmış bilgisayar geçerli değil</string>
-    <string name="nettest_text_waiting">Moonlight, gerekli bağlantı noktalarının engellenmediğini belirlemek için ağ bağlantınızı test ediyor.
-\n
-\nBu bir kaç saniye sürebilir…</string>
-    <string name="nettest_title_done">Ağ Testi Tamamlandı</string>
-    <string name="nettest_text_inconclusive">Moonlight\'ın bağlantı testi sunucularından hiçbirine erişilemediği için ağ testi gerçekleştirilemedi. İnternet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.</string>
-    <string name="nettest_text_failure">Cihazınızın mevcut ağ bağlantısı Moonlight\'ı engelliyor gibi görünüyor. Bu ağa bağlıyken İnternet üzerinden yayın akışı çalışmayabilir.
-\n
-\nAşağıdaki ağ bağlantı noktaları engellenmiş:
-\n</string>
     <string name="nettest_text_blocked">Cihazınızın mevcut ağ bağlantısı Moonlight\'ı engelliyor. Bu ağa bağlıyken internet üzerinden yayın akışı çalışmayabilir.</string>
     <string name="pair_pc_ingame">Bilgisayar şu anda bir oyunda. Eşleştirmeden önce oyunu kapatmalısınız.</string>
     <string name="pair_pairing_msg">Lütfen hedef bilgisayarda aşağıdaki PIN kodunu girin:</string>
@@ -57,9 +46,6 @@
     <string name="wol_waking_msg">Bilgisayarınızın uyanması birkaç saniye sürebilir. Eğer uyanmazsa, Yerel Ağda Uyandırma için doğru şekilde yapılandırıldığından emin olun.</string>
     <string name="unpair_fail">Eşleşme kaldırılamadı</string>
     <string name="unpair_error">Cihaz eşleştirilmedi</string>
-    <string name="nettest_text_success">Ağınız Moonlight\'ı engelliyor gibi görünmüyor. Bağlanmakta hala sorun yaşıyorsanız, bilgisayarınızın güvenlik duvarı ayarlarını kontrol edin.
-\n
-\nİnternet üzerinden yayın yapmaya çalışıyorsanız, Moonlight İnternet Barındırma Aracını bilgisayarınıza yükleyin ve bilgisayarınızın internet bağlantısını kontrol etmek için birlikte verilen İnternet Akış Test Cihazını çalıştırın.</string>
     <string name="title_checkbox_multi_controller">Oyun kumandası varlığını otomatik algıla</string>
     <string name="summary_checkbox_multi_controller">Bu seçeneğin işaretini kaldırmak, oyun kumandasının her zaman mevcut olmasını sağlar</string>
     <string name="summary_checkbox_vibrate_fallback">Oyun kumandanız desteklemiyorsa, gürültüyü taklit etmek için cihazınızı titreştirir</string>

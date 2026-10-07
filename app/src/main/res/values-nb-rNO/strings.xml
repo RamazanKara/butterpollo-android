@@ -44,7 +44,6 @@
     <string name="pair_pairing_title">Parring</string>
     <string name="pair_pc_ingame">Datamaskinen er for øyeblikket i et spill. Du må lukke spillet før parring.</string>
     <string name="pairing">Parrer …</string>
-    <string name="nettest_title_done">Nettverkstest fullført</string>
     <string name="title_seekbar_deadzone">Dødsonejustering for analogstikke</string>
     <string name="title_checkbox_xb1_driver">Driver for Xbox 360/One USB-spillkontroller</string>
     <string name="title_video_format">Endre HEVC-innstillinger</string>
@@ -111,9 +110,7 @@
     <string name="wol_pc_online">Datamaskinen er tilkoblet</string>
     <string name="pair_incorrect_pin">Feil PIN</string>
     <string name="pair_pc_offline">Datamaskinen er frakoblet</string>
-    <string name="nettest_title_waiting">Testing av nettverkstilkobling</string>
     <string name="pcview_menu_details">Vis detaljer</string>
-    <string name="pcview_menu_test_network">Test nettverkstilkobling</string>
     <string name="pcview_menu_delete_pc">Slett PC</string>
     <string name="pcview_menu_send_wol">Send Wake-On-LAN-forespørsel</string>
     <string name="pcview_menu_app_list">Vis alle programmer</string>
@@ -137,11 +134,6 @@
     <string name="error_404">GFE returnerte en HTTP-404-feil. Forsikre deg om at PC-en kjører et støttet skjermkort. Bruk av fjernskrivebordsprogramvare kan også forårsake denne feilen. Prøv å starte maskinen på ny, eller å reinstallere GFE.</string>
     <string name="error_manager_not_running">ComputerManager-tjenesten kjører ikke. Vent noen sekunder eller start programmet på ny.</string>
     <string name="nettest_text_blocked">Nettverkstilkoblingen på din enhet ser ut til å blokkere Moonlight. Strømming over Internett vil muligens ikke fungere tilkoblet gjennom dette nettverket.</string>
-    <string name="nettest_text_failure">Nettverkstilkoblingen på din enhet ser ut til å blokkere Moonlight. Strømming over Internett vil muligens ikke fungere når tilkoblet gjennom dette nettverket.
-\n
-\nFølgende nettverksporter ble blokkert:
-\n</string>
-    <string name="nettest_text_inconclusive">Nettverkstesten kunne ikke utføres fordi ingen av Moonlight sine tilkoblingstesttjenere kunne nås. Sjekk din tilkobling til Internett og prøv igjen senere.</string>
     <string name="summary_enable_perf_overlay">Viser ytelsesinfo i sanntid under strømming</string>
     <string name="title_enable_perf_overlay">Vis ytelsesstatistikk under strømming</string>
     <string name="summary_enable_hdr">Strøm HDR når spillet og PC-ens skjermkort støtter det. HDR krever GTX 1000-eller nyere.</string>
@@ -182,12 +174,6 @@
     <string name="summary_checkbox_mouse_nav_buttons">Å skru på dette ødelegger for høyreklikking på noen enheter</string>
     <string name="title_checkbox_mouse_nav_buttons">Skru på museknapper for forover og tilbake</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
-    <string name="nettest_text_success">Det ser ikke ut til at nettverket ditt blokkerer Moonlight. Hvis du fremdeles har problemer bør du sjekke PC-ens brannmursinnstillinger.
-\n
-\nHvis du prøver å strømme over Internett, kan du installere Moonlight Internett-vertstjeningsverktøyet på din PC og kjøre den inkluderte Internett-strømmingstesteren for å sjekke PC-ens tilkobling til Internett.</string>
-    <string name="nettest_text_waiting">Moonlight tester din nettverksforbindelse for å fastsette hvorvidt NVIDIA GameStream er blokkert.
-\n
-\nDette kan ta noen sekunder …</string>
     <string name="pcview_menu_unpair_pc">Opphev parring</string>
     <string name="pcview_menu_pair_pc">Parr med PC</string>
     <string name="scut_not_paired">PC ikke parret</string>

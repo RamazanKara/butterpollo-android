@@ -141,13 +141,7 @@
     <string name="scut_invalid_app_id">Podana aplikacja jest niepoprawna</string>
     <string name="scut_invalid_uuid">Podany PC jest niepoprawny</string>
     <string name="pcview_menu_delete_pc">Usuń PC</string>
-    <string name="pcview_menu_test_network">Test połączenia sieciowego</string>
     <string name="pcview_menu_details">Wyświetl szczegóły</string>
-    <string name="nettest_title_done">Test sieci zakończony</string>
-    <string name="nettest_text_failure">Bieżące połączenie sieciowe urządzenia wydaje się blokować Moonlight. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.
-\n
-\nNastępujące porty sieciowe zostały zablokowane:
-\n</string>
     <string name="nettest_text_blocked">Bieżące połączenie sieciowe urządzenia blokuje Moonlight. Przesyłanie strumieniowe przez Internet może nie działać podczas połączenia z tą siecią.</string>
     <string name="pair_pairing_title">Parowanie</string>
     <string name="pair_pc_offline">Komputer jest offline</string>
@@ -226,17 +220,9 @@
     <string name="pcview_menu_pair_pc">Sparuj z PC</string>
     <string name="pcview_menu_unpair_pc">Rozparuj</string>
     <string name="pcview_menu_send_wol">Wyślij żądanie Wake-On-LAN</string>
-    <string name="nettest_text_waiting">Moonlight testuje połączenie sieciowe w celu ustalenia, czy wymagane porty są zablokowane.
-\n
-\nMoże to potrwać kilka sekund…</string>
     <string name="pairing">Parowanie…</string>
     <string name="pair_pc_ingame">Komputer jest obecnie w trakcie gry. Przed sparowaniem należy zamknąć grę.</string>
-    <string name="nettest_text_success">Wygląda na to, że sieć nie blokuje Moonlight. Jeśli nadal masz problemy z połączeniem, sprawdź ustawienia zapory sieciowej na swoim komputerze.
-\n
-\nJeśli próbujesz przesyłać strumieniowo przez Internet, zainstaluj narzędzie Moonlight Internet Hosting Tool na swoim komputerze i uruchom dołączony tester przesyłania strumieniowego przez Internet, aby sprawdzić połączenie internetowe komputera.</string>
     <string name="pcview_menu_eol">Zakończenie usług NVIDIA GameStream</string>
-    <string name="nettest_text_inconclusive">Nie można było wykonać testu sieci ponieważ żaden z serwerów testujących połączenie Moonlight nie był osiągalny. Sprawdź połączenie internetowe lub spróbuj ponownie później.</string>
-    <string name="nettest_title_waiting">Testowanie połączenia sieciowego</string>
     <string name="wol_fail">Nie udało się wysłać pakietów Wake-On-LAN</string>
     <string name="error_manager_not_running">Usługa ComputerManager nie jest uruchomiona. Poczekaj kilka sekund lub uruchom ponownie aplikację.</string>
     <string name="title_decoding_error">Awaria dekodera wideo</string>
