@@ -220,6 +220,33 @@ public class NvConnection {
         return StreamConfiguration.STREAM_CFG_AUTO;
     }
     
+    static int negotiateVideoFormats(int formats, int serverFormats) {
+        int[] clientBits = { MoonBridge.VIDEO_FORMAT_H265_MAIN10, MoonBridge.VIDEO_FORMAT_AV1_MAIN10,
+                MoonBridge.VIDEO_FORMAT_H264_HIGH8_444, MoonBridge.VIDEO_FORMAT_H265_REXT8_444,
+                MoonBridge.VIDEO_FORMAT_H265_REXT10_444, MoonBridge.VIDEO_FORMAT_AV1_HIGH8_444,
+                MoonBridge.VIDEO_FORMAT_AV1_HIGH10_444 };
+        int[] hostBits = { 0x200, 0x20000, 0x40000, 0x80000, 0x100000, 0x200000, 0x400000 };
+        for (int i = 0; i < clientBits.length; i++) {
+            if ((serverFormats & hostBits[i]) == 0) {
+                formats &= ~clientBits[i];
+            }
+        }
+
+        // The native handshake prefers AV1 over HEVC regardless of bit depth/chroma.
+        // Keep it from choosing SDR or 4:2:0 ahead of an available requested format.
+        int preferred = (formats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0 ?
+                MoonBridge.VIDEO_FORMAT_MASK_10BIT : MoonBridge.VIDEO_FORMAT_MASK_YUV444;
+        if ((formats & preferred) != 0) {
+            if ((formats & MoonBridge.VIDEO_FORMAT_MASK_AV1 & preferred) == 0) {
+                formats &= ~MoonBridge.VIDEO_FORMAT_MASK_AV1;
+            }
+            if ((formats & MoonBridge.VIDEO_FORMAT_MASK_H265 & preferred) == 0) {
+                formats &= ~MoonBridge.VIDEO_FORMAT_MASK_H265;
+            }
+        }
+        return formats;
+    }
+
     private boolean startApp() throws XmlPullParserException, IOException
     {
         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
@@ -234,6 +261,10 @@ public class NvConnection {
 
         ComputerDetails details = h.getComputerDetails(serverInfo);
         context.isNvidiaServerSoftware = details.nvidiaServer;
+        NvHTTP.readDisplayCapabilities(context, serverInfo);
+        if (context.streamConfig.getVirtualDisplay() && !context.serverSupportsVirtualDisplay) {
+            context.connListener.displayTransientMessage("Host virtual display unavailable. Using the host display configuration.");
+        }
 
         // May be missing for older servers
         context.serverGfeVersion = h.getGfeVersion(serverInfo);
@@ -245,10 +276,10 @@ public class NvConnection {
 
         context.serverCodecModeSupport = (int)h.getServerCodecModeSupport(serverInfo);
 
-        context.negotiatedHdr = (context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
-        if ((context.serverCodecModeSupport & 0x20200) == 0 && context.negotiatedHdr) {
-            context.connListener.displayTransientMessage("Your PC GPU does not support streaming HDR. The stream will be SDR.");
-            context.negotiatedHdr = false;
+        context.negotiatedVideoFormats = negotiateVideoFormats(context.streamConfig.getSupportedVideoFormats(), context.serverCodecModeSupport);
+        context.negotiatedHdr = (context.negotiatedVideoFormats & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+        if (!context.negotiatedHdr && (context.streamConfig.getSupportedVideoFormats() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
+            context.connListener.displayTransientMessage("No common HDR codec with the host. The stream will be SDR.");
         }
         
         //
@@ -434,7 +465,7 @@ public class NvConnection {
                             context.streamConfig.getRefreshRate(), context.streamConfig.getBitrate(),
                             context.negotiatedPacketSize, context.negotiatedRemoteStreaming,
                             context.streamConfig.getAudioConfiguration().toInt(),
-                            context.streamConfig.getSupportedVideoFormats(),
+                            context.negotiatedVideoFormats,
                             context.streamConfig.getClientRefreshRateX100(),
                             context.riKey.getEncoded(), ib.array(),
                             context.videoCapabilities,

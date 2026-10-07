@@ -6,7 +6,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +40,7 @@ import android.os.SystemClock;
 import android.util.Range;
 import android.view.Choreographer;
 import android.view.Surface;
+import android.widget.Toast;
 
 public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements Choreographer.FrameCallback {
 
@@ -56,6 +56,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private final ArrayList<byte[]> ppsBuffers = new ArrayList<>();
     private boolean submittedCsd;
     private byte[] currentHdrMetadata;
+    private Boolean currentHdrMode;
 
     private int nextInputBufferIndex = -1;
     private ByteBuffer nextInputBuffer;
@@ -126,7 +127,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             flushLatencyCsv();
             double[][] summary = frameLatencyStats.summarize();
             int[] labels = { R.string.latency_receive_input, R.string.latency_input_output,
-                    R.string.latency_output_render, R.string.latency_receive_render };
+                    R.string.latency_output_render, R.string.latency_receive_render,
+                    R.string.latency_host_processing };
             StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
             for (int stage = 0; stage < labels.length; stage++) {
                 text.append('\n').append(context.getString(labels[stage])).append(": ");
@@ -166,7 +168,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int numFramesOut;
 
     private MediaCodecInfo findAvcDecoder() {
-        MediaCodecInfo decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
+        MediaCodecInfo decoder = prefs.enableYuv444 ?
+                MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh444) : null;
+        if (decoder == null) {
+            decoder = MediaCodecHelper.findProbableSafeDecoder("video/avc", MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
+        }
         if (decoder == null) {
             decoder = MediaCodecHelper.findFirstDecoder("video/avc");
         }
@@ -246,7 +252,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // We need HEVC Main profile, so we could pass that constant to findProbableSafeDecoder, however
         // some decoders (at least Qualcomm's Snapdragon 805) don't properly report support
         // for even required levels of HEVC.
-        MediaCodecInfo hevcDecoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/hevc", -1);
+        MediaCodecInfo hevcDecoderInfo = requestedHdr ?
+                MediaCodecHelper.findProbableSafeDecoder("video/hevc", MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10) : null;
+        if (hevcDecoderInfo == null && requestedHdr) {
+            hevcDecoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/hevc", MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus);
+        }
+        if (hevcDecoderInfo == null && prefs.enableYuv444) {
+            hevcDecoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/hevc", MediaCodecInfo.CodecProfileLevel.HEVCProfileMain444);
+        }
+        if (hevcDecoderInfo == null) {
+            hevcDecoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/hevc", -1);
+        }
         if (hevcDecoderInfo != null) {
             if (!MediaCodecHelper.decoderIsWhitelistedForHevc(hevcDecoderInfo)) {
                 LimeLog.info("Found HEVC decoder, but it's not whitelisted - "+hevcDecoderInfo.getName());
@@ -258,6 +274,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 // HDR implies HEVC forced on, since HEVCMain10HDR10 is required for HDR.
                 else if (requestedHdr) {
                     LimeLog.info("Forcing HEVC enabled for HDR streaming");
+                }
+                else if ((getDecoderVideoFormats(hevcDecoderInfo, "video/hevc", false, prefs.enableYuv444) &
+                        MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0) {
+                    LimeLog.info("Using HEVC for requested 4:4:4 streaming");
                 }
                 // > 4K streaming also requires HEVC, so force it on there too.
                 else if (prefs.width > 4096 || prefs.height > 4096) {
@@ -276,19 +296,26 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return hevcDecoderInfo;
     }
 
-    private MediaCodecInfo findAv1Decoder(PreferenceConfiguration prefs) {
-        // For now, don't use AV1 unless explicitly requested
-        if (prefs.videoFormat != PreferenceConfiguration.FormatOption.FORCE_AV1) {
+    private MediaCodecInfo findAv1Decoder(PreferenceConfiguration prefs, boolean requestedHdr) {
+        if (prefs.videoFormat != PreferenceConfiguration.FormatOption.FORCE_AV1 &&
+                !(requestedHdr && prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO)) {
             return null;
         }
 
-        MediaCodecInfo decoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/av01", -1);
+        MediaCodecInfo decoderInfo = requestedHdr ?
+                MediaCodecHelper.findProbableSafeDecoder("video/av01", MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10) : null;
+        if (decoderInfo == null && requestedHdr) {
+            decoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/av01", MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10Plus);
+        }
+        if (decoderInfo == null) {
+            decoderInfo = MediaCodecHelper.findProbableSafeDecoder("video/av01", -1);
+        }
         if (decoderInfo != null) {
             if (!MediaCodecHelper.isDecoderWhitelistedForAv1(decoderInfo)) {
                 LimeLog.info("Found AV1 decoder, but it's not whitelisted - "+decoderInfo.getName());
 
                 // Force HEVC enabled if the user asked for it
-                if (prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1) {
+                if (prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1 || requestedHdr) {
                     LimeLog.info("Forcing AV1 enabled despite non-whitelisted decoder");
                 }
                 // Use AV1 if the HEVC decoder is unable to meet the performance point
@@ -346,7 +373,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             LimeLog.info("No HEVC decoder found");
         }
 
-        av1Decoder = findAv1Decoder(prefs);
+        av1Decoder = findAv1Decoder(prefs, requestedHdr);
         if (av1Decoder != null) {
             LimeLog.info("Selected AV1 decoder: "+av1Decoder.getName());
         }
@@ -411,18 +438,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     public boolean isHevcMain10Hdr10Supported() {
-        if (hevcDecoder == null) {
-            return false;
-        }
-
-        for (MediaCodecInfo.CodecProfileLevel profileLevel : hevcDecoder.getCapabilitiesForType("video/hevc").profileLevels) {
-            if (profileLevel.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10) {
-                LimeLog.info("HEVC decoder "+hevcDecoder.getName()+" supports HEVC Main10 HDR10");
-                return true;
-            }
-        }
-
-        return false;
+        return (getDecoderVideoFormats(hevcDecoder, "video/hevc", true, false) & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
     }
 
     public boolean isAv1Supported() {
@@ -430,18 +446,61 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     public boolean isAv1Main10Supported() {
-        if (av1Decoder == null) {
-            return false;
-        }
+        return (getDecoderVideoFormats(av1Decoder, "video/av01", true, false) & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+    }
 
-        for (MediaCodecInfo.CodecProfileLevel profileLevel : av1Decoder.getCapabilitiesForType("video/av01").profileLevels) {
-            if (profileLevel.profile == MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10) {
-                LimeLog.info("AV1 decoder "+av1Decoder.getName()+" supports AV1 Main 10 HDR10");
-                return true;
+    static int videoFormatsForProfiles(String mime, int[] profiles, boolean hdr, boolean yuv444) {
+        int formats = mime.equals("video/avc") ? MoonBridge.VIDEO_FORMAT_H264 :
+                mime.equals("video/hevc") ? MoonBridge.VIDEO_FORMAT_H265 : MoonBridge.VIDEO_FORMAT_AV1_MAIN8;
+        for (int profile : profiles) {
+            if (mime.equals("video/avc")) {
+                if (yuv444 && profile == MediaCodecInfo.CodecProfileLevel.AVCProfileHigh444) {
+                    formats |= MoonBridge.VIDEO_FORMAT_H264_HIGH8_444;
+                }
+            } else if (mime.equals("video/hevc")) {
+                if (hdr && (profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10 ||
+                        profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus)) {
+                    formats |= MoonBridge.VIDEO_FORMAT_H265_MAIN10;
+                }
+                // API 37 adds this 8-bit profile. Older devices never advertise it.
+                if (yuv444 && profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain444) {
+                    formats |= MoonBridge.VIDEO_FORMAT_H265_REXT8_444;
+                }
+            } else if (hdr && (profile == MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10 ||
+                    profile == MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10Plus)) {
+                formats |= MoonBridge.VIDEO_FORMAT_AV1_MAIN10;
             }
         }
+        return formats;
+    }
 
-        return false;
+    private int getDecoderVideoFormats(MediaCodecInfo decoder, String mime, boolean hdr, boolean yuv444) {
+        if (decoder == null) {
+            return 0;
+        }
+        int baseFormat = videoFormatsForProfiles(mime, new int[0], false, false);
+        if (!hdr && !yuv444) {
+            return baseFormat;
+        }
+        try {
+            MediaCodecInfo.CodecCapabilities caps = decoder.getCapabilitiesForType(mime);
+            int[] profiles = new int[caps.profileLevels.length];
+            for (int i = 0; i < profiles.length; i++) {
+                profiles[i] = caps.profileLevels[i].profile;
+            }
+            return videoFormatsForProfiles(mime, profiles, hdr, yuv444 &&
+                    caps.getVideoCapabilities().areSizeAndRateSupported(prefs.width, prefs.height, prefs.fps));
+        } catch (RuntimeException e) {
+            LimeLog.warning("Cannot query decoder profiles; using SDR 4:2:0: " + e);
+            return baseFormat;
+        }
+    }
+
+    public int getSupportedVideoFormats(boolean hdr) {
+        return MoonBridge.VIDEO_FORMAT_H264 |
+                getDecoderVideoFormats(avcDecoder, "video/avc", false, prefs.enableYuv444) |
+                getDecoderVideoFormats(hevcDecoder, "video/hevc", hdr, prefs.enableYuv444) |
+                getDecoderVideoFormats(av1Decoder, "video/av01", hdr, false);
     }
 
     public int getPreferredColorSpace() {
@@ -483,6 +542,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private MediaFormat createBaseMediaFormat(String mimeType) {
         MediaFormat videoFormat = MediaFormat.createVideoFormat(mimeType, initialWidth, initialHeight);
+        if (this.videoFormat == MoonBridge.VIDEO_FORMAT_H264_HIGH8_444) {
+            videoFormat.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh444);
+        } else if (this.videoFormat == MoonBridge.VIDEO_FORMAT_H265_REXT8_444) {
+            videoFormat.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain444);
+        }
 
         // Avoid setting KEY_FRAME_RATE on Lollipop and earlier to reduce compatibility risk
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -523,33 +587,35 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return videoFormat;
     }
 
+    static ByteBuffer createHdrStaticInfo(byte[] metadata) {
+        if (metadata == null || metadata.length < 24) {
+            return null;
+        }
+        // The wire layout is CTA-861.3 without the type byte, followed by an
+        // optional full-frame luminance field that Android does not accept.
+        ByteBuffer info = ByteBuffer.allocate(25);
+        info.put((byte) 0).put(metadata, 0, 24).rewind();
+        return info;
+    }
+
     private void configureAndStartDecoder(MediaFormat format) {
         // Set HDR metadata if present
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            if (currentHdrMetadata != null) {
-                ByteBuffer hdrStaticInfo = ByteBuffer.allocate(25).order(ByteOrder.LITTLE_ENDIAN);
-                ByteBuffer hdrMetadata = ByteBuffer.wrap(currentHdrMetadata).order(ByteOrder.LITTLE_ENDIAN);
-
-                // Create a HDMI Dynamic Range and Mastering InfoFrame as defined by CTA-861.3
-                hdrStaticInfo.put((byte) 0); // Metadata type
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // RX
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // RY
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // GX
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // GY
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // BX
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // BY
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // White X
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // White Y
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // Max mastering luminance
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // Min mastering luminance
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // Max content luminance
-                hdrStaticInfo.putShort(hdrMetadata.getShort()); // Max frame average luminance
-
-                hdrStaticInfo.rewind();
+            boolean hdr = currentHdrMode != null ? currentHdrMode :
+                    (getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+            format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, hdr ?
+                    MediaFormat.COLOR_TRANSFER_ST2084 : MediaFormat.COLOR_TRANSFER_SDR_VIDEO);
+            format.setInteger(MediaFormat.KEY_COLOR_STANDARD, hdr ? MediaFormat.COLOR_STANDARD_BT2020 :
+                    getPreferredColorSpace() == MoonBridge.COLORSPACE_REC_601 ?
+                            MediaFormat.COLOR_STANDARD_BT601_NTSC : MediaFormat.COLOR_STANDARD_BT709);
+            ByteBuffer hdrStaticInfo = hdr ? createHdrStaticInfo(currentHdrMetadata) : null;
+            if (hdrStaticInfo != null) {
                 format.setByteBuffer(MediaFormat.KEY_HDR_STATIC_INFO, hdrStaticInfo);
             }
             else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 format.removeKey(MediaFormat.KEY_HDR_STATIC_INFO);
+            } else {
+                format.setByteBuffer(MediaFormat.KEY_HDR_STATIC_INFO, null);
             }
         }
 
@@ -627,9 +693,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
 
             // These fixups only apply to H264 decoders
-            needsSpsBitstreamFixup = MediaCodecHelper.decoderNeedsSpsBitstreamRestrictions(selectedDecoderInfo.getName());
-            needsBaselineSpsHack = MediaCodecHelper.decoderNeedsBaselineSpsHack(selectedDecoderInfo.getName());
-            constrainedHighProfile = MediaCodecHelper.decoderNeedsConstrainedHighProfile(selectedDecoderInfo.getName());
+            needsSpsBitstreamFixup = videoFormat == MoonBridge.VIDEO_FORMAT_H264 &&
+                    MediaCodecHelper.decoderNeedsSpsBitstreamRestrictions(selectedDecoderInfo.getName());
+            needsBaselineSpsHack = videoFormat == MoonBridge.VIDEO_FORMAT_H264 &&
+                    MediaCodecHelper.decoderNeedsBaselineSpsHack(selectedDecoderInfo.getName());
+            constrainedHighProfile = videoFormat == MoonBridge.VIDEO_FORMAT_H264 &&
+                    MediaCodecHelper.decoderNeedsConstrainedHighProfile(selectedDecoderInfo.getName());
             isExynos4 = MediaCodecHelper.isExynos4Device();
             if (needsSpsBitstreamFixup) {
                 LimeLog.info("Decoder "+selectedDecoderInfo.getName()+" needs SPS bitstream restrictions fixup");
@@ -727,6 +796,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         int result = initializeDecoder(false);
         if (result == 0) {
+            if (prefs.enableYuv444 && (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) == 0) {
+                activity.runOnUiThread(() -> Toast.makeText(context, R.string.yuv444_fallback, Toast.LENGTH_LONG).show());
+            }
             latencyThread = new HandlerThread("Video - Latency", Process.THREAD_PRIORITY_BACKGROUND);
             latencyThread.start();
             latencyHandler = new Handler(latencyThread.getLooper());
@@ -1375,16 +1447,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // HDR metadata is only supported in Android 7.0 and later, so don't bother
         // restarting the codec on anything earlier than that.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            if (currentHdrMetadata != null && (!enabled || hdrMetadata == null)) {
-                currentHdrMetadata = null;
-            }
-            else if (enabled && hdrMetadata != null && !Arrays.equals(currentHdrMetadata, hdrMetadata)) {
-                currentHdrMetadata = hdrMetadata;
-            }
-            else {
-                // Nothing to do
+            byte[] metadata = enabled && hdrMetadata != null && hdrMetadata.length >= 24 ? hdrMetadata : null;
+            boolean previousMode = currentHdrMode != null ? currentHdrMode :
+                    (getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
+            currentHdrMode = enabled;
+            if (previousMode == enabled && Arrays.equals(currentHdrMetadata, metadata)) {
                 return;
             }
+            currentHdrMetadata = metadata == null ? null : metadata.clone();
 
             // If we reach this point, we need to restart the MediaCodec instance to
             // pick up the HDR metadata change. This will happen on the next input
@@ -1400,12 +1470,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
-    private boolean queueNextInputBuffer(long timestampUs, int codecFlags, int frameNumber, long receiveTimeNs) {
+    private boolean queueNextInputBuffer(long timestampUs, int codecFlags, int frameNumber, long receiveTimeNs, char hostProcessingLatency) {
         boolean codecRecovered;
 
         try {
             if ((codecFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                frameLatencyStats.onDecoderInput(frameNumber, timestampUs, receiveTimeNs, System.nanoTime());
+                frameLatencyStats.onDecoderInput(frameNumber, timestampUs, receiveTimeNs, System.nanoTime(), hostProcessingLatency);
             }
             videoDecoder.queueInputBuffer(nextInputBufferIndex,
                     0, nextInputBuffer.position(),
@@ -1524,12 +1594,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         (float)lastTwo.framesLost / lastTwo.totalFrames * 100)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netlatency,
                         (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
-                if (lastTwo.framesWithHostProcessingLatency > 0) {
-                    sb.append(context.getString(R.string.perf_overlay_hostprocessinglatency,
-                            (float)lastTwo.minHostProcessingLatency / 10,
-                            (float)lastTwo.maxHostProcessingLatency / 10,
-                            (float)lastTwo.totalHostProcessingLatency / 10 / lastTwo.framesWithHostProcessingLatency)).append('\n');
+                sb.append((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0 ? "YUV 4:4:4" : "YUV 4:2:0");
+                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
+                    sb.append(" 10-bit");
                 }
+                sb.append('\n');
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
                 sb.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(sb.toString());
@@ -1546,7 +1615,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // IDR frames require special handling for CSD buffer submission
         if (frameType == MoonBridge.FRAME_TYPE_IDR) {
             // H264 SPS
-            if (decodeUnitType == MoonBridge.BUFFER_TYPE_SPS && (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
+            if (decodeUnitType == MoonBridge.BUFFER_TYPE_SPS && videoFormat == MoonBridge.VIDEO_FORMAT_H264) {
                 numSpsIn++;
 
                 ByteBuffer spsBuf = ByteBuffer.wrap(decodeUnitData);
@@ -1689,7 +1758,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 vpsBuffers.add(naluBuffer);
                 return MoonBridge.DR_OK;
             }
-            // Only the HEVC SPS hits this path (H.264 is handled above)
+            // Preserve HEVC and H.264 4:4:4 SPS data without the 4:2:0 fixups above.
             else if (decodeUnitType == MoonBridge.BUFFER_TYPE_SPS) {
                 numSpsIn++;
 
@@ -1727,7 +1796,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         nextInputBuffer.put(ppsBuffer);
                     }
 
-                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0)) {
+                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, (char) 0)) {
                         return MoonBridge.DR_NEED_IDR;
                     }
 
@@ -1823,7 +1892,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Copy data from our buffer list into the input buffer
         nextInputBuffer.put(decodeUnitData, 0, decodeUnitLength);
 
-        if (!queueNextInputBuffer(timestampUs, codecFlags, frameNumber, receiveTimeNs)) {
+        if (!queueNextInputBuffer(timestampUs, codecFlags, frameNumber, receiveTimeNs, frameHostProcessingLatency)) {
             return MoonBridge.DR_NEED_IDR;
         }
 
@@ -1853,7 +1922,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         savedSps = null;
 
         // Queue the new SPS
-        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0);
+        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, (char) 0);
     }
 
     @Override
