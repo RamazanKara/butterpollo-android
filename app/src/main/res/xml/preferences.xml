@@ -294,6 +294,26 @@
             android:summary="@string/summary_full_range"
             android:defaultValue="false" />
         <CheckBoxPreference
+            android:key="checkbox_yuv444"
+            android:title="@string/title_yuv444"
+            android:summary="@string/summary_yuv444"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_virtual_display"
+            android:title="@string/title_virtual_display"
+            android:summary="@string/summary_virtual_display"
+            android:defaultValue="false" />
+        <com.limelight.preferences.SeekBarPreference
+            android:key="seekbar_virtual_display_scale"
+            android:dependency="checkbox_virtual_display"
+            android:title="@string/title_virtual_display_scale"
+            android:summary="@string/summary_virtual_display_scale"
+            android:defaultValue="100"
+            seekbar:min="50"
+            android:max="200"
+            seekbar:step="5"
+            android:text="%" />
+        <CheckBoxPreference
             android:key="checkbox_enable_perf_overlay"
             android:title="@string/title_enable_perf_overlay"
             android:summary="@string/summary_enable_perf_overlay"

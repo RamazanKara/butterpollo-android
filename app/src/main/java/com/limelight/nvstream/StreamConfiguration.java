@@ -15,6 +15,8 @@ public class StreamConfiguration {
     private int refreshRate;
     private int launchRefreshRate;
     private int clientRefreshRateX100;
+    private boolean virtualDisplay;
+    private int virtualDisplayScale = 100;
     private int bitrate;
     private boolean sops;
     private boolean enableAdaptiveResolution;
@@ -108,6 +110,12 @@ public class StreamConfiguration {
             return this;
         }
 
+        public StreamConfiguration.Builder setVirtualDisplay(boolean enabled, int scale) {
+            config.virtualDisplay = enabled;
+            config.virtualDisplayScale = scale;
+            return this;
+        }
+
         public StreamConfiguration.Builder setAudioConfiguration(MoonBridge.AudioConfiguration audioConfig) {
             config.audioConfiguration = audioConfig;
             return this;
@@ -145,7 +153,7 @@ public class StreamConfiguration {
         this.remote = STREAM_CFG_AUTO;
         this.sops = true;
         this.enableAdaptiveResolution = false;
-        this.audioConfiguration = MoonBridge.AUDIO_CONFIGURATION_STEREO;
+        this.audioConfiguration = new MoonBridge.AudioConfiguration(2, 0x3);
         this.supportedVideoFormats = MoonBridge.VIDEO_FORMAT_H264;
         this.attachedGamepadMask = 0;
     }
@@ -212,6 +220,14 @@ public class StreamConfiguration {
 
     public int getClientRefreshRateX100() {
         return clientRefreshRateX100;
+    }
+
+    public boolean getVirtualDisplay() {
+        return virtualDisplay;
+    }
+
+    public int getVirtualDisplayScale() {
+        return virtualDisplayScale;
     }
 
     public int getColorRange() {

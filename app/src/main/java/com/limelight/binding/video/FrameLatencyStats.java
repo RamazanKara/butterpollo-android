@@ -17,14 +17,14 @@ class FrameLatencyStats {
     private static final long CALLBACK_TIMEOUT_NS = 5000000000L;
     static final String CSV_HEADER = "frame_number,pts_us,receive_ns,decoder_input_ns,decoder_output_ns," +
             "render_ns,release_ns,status,receive_to_input_ms,input_to_output_ms,output_to_render_ms," +
-            "receive_to_render_ms,csv_rows_lost\n";
+            "receive_to_render_ms,csv_rows_lost,host_processing_ms\n";
 
     private final LinkedHashMap<Long, Frame> pending = new LinkedHashMap<>();
     private final HashMap<Integer, Frame> outputs = new HashMap<>();
     private final ArrayDeque<Frame> completed = new ArrayDeque<>();
-    private final long[][] samples = new long[4][WINDOW_SIZE];
-    private final int[] counts = new int[4];
-    private final int[] positions = new int[4];
+    private final long[][] samples = new long[5][WINDOW_SIZE];
+    private final int[] counts = new int[5];
+    private final int[] positions = new int[5];
     private long csvRowsLost;
 
     private static class Frame {
@@ -36,10 +36,11 @@ class FrameLatencyStats {
         long outputNs;
         long renderNs;
         long releaseNs;
+        long hostProcessingNs;
         String status;
     }
 
-    synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long inputNs) {
+    synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long inputNs, char hostProcessingLatency) {
         if (pending.size() == MAX_PENDING) {
             finish(pending.values().iterator().next(), "tracking_overflow");
         }
@@ -48,8 +49,13 @@ class FrameLatencyStats {
         frame.ptsUs = ptsUs;
         frame.receiveNs = receiveNs;
         frame.inputNs = inputNs;
+        // The unsigned wire value is in 100 us units; zero means unavailable.
+        frame.hostProcessingNs = hostProcessingLatency * 100000L;
         pending.put(ptsUs, frame);
         addSample(0, receiveNs, inputNs);
+        if (frame.hostProcessingNs != 0) {
+            addDuration(4, frame.hostProcessingNs);
+        }
     }
 
     synchronized void onDecoderOutput(int index, long ptsUs, long outputNs) {
@@ -126,19 +132,23 @@ class FrameLatencyStats {
         if (startNs == 0 || endNs < startNs) {
             return;
         }
-        samples[stage][positions[stage]] = endNs - startNs;
+        addDuration(stage, endNs - startNs);
+    }
+
+    private void addDuration(int stage, long durationNs) {
+        samples[stage][positions[stage]] = durationNs;
         positions[stage] = (positions[stage] + 1) % WINDOW_SIZE;
         counts[stage] = Math.min(counts[stage] + 1, WINDOW_SIZE);
     }
 
     double[][] summarize() {
-        long[][] snapshot = new long[4][];
+        long[][] snapshot = new long[samples.length][];
         synchronized (this) {
             for (int stage = 0; stage < snapshot.length; stage++) {
                 snapshot[stage] = Arrays.copyOf(samples[stage], counts[stage]);
             }
         }
-        double[][] summary = new double[4][4];
+        double[][] summary = new double[samples.length][4];
         for (int stage = 0; stage < snapshot.length; stage++) {
             long[] values = snapshot[stage];
             summary[stage][0] = values.length;
@@ -175,7 +185,8 @@ class FrameLatencyStats {
                     timestamp(frame.inputNs) + "," + timestamp(frame.outputNs) + "," + timestamp(frame.renderNs) + "," +
                     timestamp(frame.releaseNs) + "," + frame.status + "," +
                     duration(frame.receiveNs, frame.inputNs) + "," + duration(frame.inputNs, frame.outputNs) + "," +
-                    duration(frame.outputNs, frame.renderNs) + "," + duration(frame.receiveNs, frame.renderNs) + "," + lost + "\n");
+                    duration(frame.outputNs, frame.renderNs) + "," + duration(frame.receiveNs, frame.renderNs) + "," + lost + "," +
+                    (frame.hostProcessingNs == 0 ? "" : String.format(Locale.ROOT, "%.6f", frame.hostProcessingNs / 1000000.0)) + "\n");
         }
     }
 
