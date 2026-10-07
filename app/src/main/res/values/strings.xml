@@ -144,6 +144,11 @@
     <string name="title_seekbar_bitrate">Video bitrate</string>
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
+    <string name="dialog_seekbar_bitrate">Higher bitrate gives a sharper picture but needs a faster network. Most local streams look good at 20–80 Mbps; start lower on Wi-Fi. PyroWave needs about 280 Mbps at 720p/60.</string>
+    <string name="seekbar_decrease">Decrease</string>
+    <string name="seekbar_increase">Increase</string>
+    <string name="seekbar_presets">Presets</string>
+    <string name="seekbar_presets_unit">Presets (%1$s)</string>
     <string name="title_checkbox_stretch_video">Stretch video to full screen</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
