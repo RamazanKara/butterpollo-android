@@ -68,6 +68,26 @@ def tap(label, scroll=False):
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
 
 
+def open_host_profile():
+    x1, y1, x2, y2 = bounds(find(HOST_NAME))
+    x, y = str((x1+x2)//2), str((y1+y2)//2)
+    adb("shell", "input", "swipe", x, y, x, y, "1000")
+    tap("Streaming settings for this PC")
+    find(f"{HOST_NAME} streaming settings")
+
+
+def profile_number(label, value):
+    label_bottom = bounds(find(label, scroll=True))[3]
+    fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
+              and bounds(n)[1] >= label_bottom]
+    field = min(fields, key=lambda n: bounds(n)[1])
+    x1, y1, x2, y2 = bounds(field)
+    adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+    adb("shell", "input", "keyevent", "123", *("67" for _ in range(len(field.get("text", "")))))
+    adb("shell", "input", "text", value)
+    adb("shell", "input", "keyevent", "4")
+
+
 def screenshot(name):
     ui = tree()
     png = adb("exec-out", "screencap", "-p", binary=True)
@@ -139,6 +159,7 @@ def main():
             print("Emulator booted; installing debug APK", flush=True)
             adb("install", "-r", str(apk), timeout=90)
             adb("shell", "pm", "clear", PACKAGE)
+            adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
             adb("shell", "svc", "wifi", "disable")
             adb("shell", "svc", "data", "disable")
             adb("reverse", "tcp:47989", f"tcp:{fixture.server_port}")
@@ -154,6 +175,26 @@ def main():
             tap(f"{PACKAGE}:id/addPcButton")
             find(HOST_NAME)
             screenshot("03-host-added")
+            open_host_profile()
+            profile_number("Width (pixels, 64–16384)", "0")
+            tap("Save")
+            find(f"{HOST_NAME} streaming settings")
+            profile_number("Width (pixels, 64–16384)", "1920")
+            profile_number("Height (pixels, 64–16384)", "1080")
+            profile_number("Refresh rate (1–1000 Hz, up to two decimals)", "59.94")
+            screenshot("09-host-profile")
+            tap("Save")
+            profile_xml = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/HostStreamProfiles.xml")
+            profile = next(n for n in ET.fromstring(profile_xml)
+                           if n.get("name") == "00000000-0000-4000-8000-000000000006")
+            assert profile.text.startswith("1920,1080,5994,"), profile.text
+            open_host_profile()
+            find("59.94")
+            find("Prefer YUV 4:4:4", scroll=True)
+            screenshot("10-host-codec-profile")
+            tap("Use global settings")
+            profile_xml = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/HostStreamProfiles.xml")
+            assert not list(ET.fromstring(profile_xml)), "Host profile reset did not clear overrides"
             tap(f"{PACKAGE}:id/settingsButton")
             find("Display")
             screenshot("04-settings")
@@ -189,7 +230,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: manual discovery, settings, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: manual discovery, host profile validation/save/reset, settings, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
