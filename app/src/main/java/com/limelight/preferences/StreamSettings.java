@@ -423,6 +423,10 @@ public class StreamSettings extends Activity {
                 return true;
             });
             findPreference("about_app").setSummary(getString(R.string.summary_about, BuildConfig.VERSION_NAME));
+            findPreference("controller_button_mapping").setOnPreferenceClickListener(preference -> {
+                startActivity(new Intent(getActivity(), ControllerMappingActivity.class));
+                return true;
+            });
             findPreference("export_latency_csv").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {

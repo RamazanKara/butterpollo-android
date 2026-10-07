@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="controller_mapping_title">Controller buttons</string>
+    <string name="controller_mapping_summary">Choose what each button sends, per controller model</string>
+    <string name="controller_mapping_intro">Press a button on your controller to change what it sends. Changes apply from the next stream.</string>
+    <string name="controller_mapping_waiting">Waiting for a button press…</string>
+    <string name="controller_mapping_unnamed">Controller</string>
+    <string name="controller_mapping_none">No changes. Every button sends itself.</string>
+    <string name="controller_mapping_row">%1$s sends %2$s</string>
+    <string name="controller_mapping_choose">%1$s sends…</string>
+    <string name="controller_mapping_default">%1$s (default)</string>
+    <string name="controller_mapping_disabled">Nothing</string>
+    <string name="controller_mapping_reset">Reset this controller</string>
+    <string name="controller_button_left_stick">Left stick click</string>
+    <string name="controller_button_right_stick">Right stick click</string>
+    <string name="controller_button_start">Start</string>
+    <string name="controller_button_select">Select</string>
+    <string name="controller_button_guide">Guide</string>
+    <string name="controller_button_number">Button %1$d</string>
+</resources>

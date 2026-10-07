@@ -727,6 +727,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         context.vendorId = dev.getVendorId();
         context.productId = dev.getProductId();
+        context.buttonMap = ControllerButtonMap.load(activityContext,
+                ControllerButtonMap.deviceKey(context.vendorId, context.productId, devName));
 
         // These aren't always present in the Android key layout files, so they won't show up
         // in our normal InputDevice.hasKeys() probing.
@@ -2333,7 +2335,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return (keyCode == REMAP_CONSUME);
         }
 
-        if (prefConfig.flipFaceButtons) {
+        // A user mapping is keyed by the physical key code and replaces face-button flipping
+        int userTarget = context.buttonMap.map(event.getKeyCode());
+        if (userTarget == ControllerButtonMap.DISABLED) {
+            return true;
+        }
+        else if (userTarget != ControllerButtonMap.UNMAPPED) {
+            keyCode = userTarget;
+        }
+        else if (prefConfig.flipFaceButtons) {
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
@@ -2570,7 +2580,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return (keyCode == REMAP_CONSUME);
         }
 
-        if (prefConfig.flipFaceButtons) {
+        // A user mapping is keyed by the physical key code and replaces face-button flipping
+        int userTarget = context.buttonMap.map(event.getKeyCode());
+        if (userTarget == ControllerButtonMap.DISABLED) {
+            return true;
+        }
+        else if (userTarget != ControllerButtonMap.UNMAPPED) {
+            keyCode = userTarget;
+        }
+        else if (prefConfig.flipFaceButtons) {
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
@@ -2938,6 +2956,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     class InputDeviceContext extends GenericControllerContext {
         public String name;
+        public ControllerButtonMap buttonMap = new ControllerButtonMap();
         public VibratorManager vibratorManager;
         public Vibrator vibrator;
         public boolean quadVibrators;
