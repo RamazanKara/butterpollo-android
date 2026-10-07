@@ -560,8 +560,12 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                         AppObject existingApp = (AppObject) appGridAdapter.getItem(i);
                         if (existingApp.app.getAppId() == app.getAppId()) {
                             // Found the app; update its properties
-                            if (!existingApp.app.getAppName().equals(app.getAppName())) {
-                                existingApp.app.setAppName(app.getAppName());
+                            if (!existingApp.app.getAppName().equals(app.getAppName()) ||
+                                    !existingApp.app.getAppUuid().equals(app.getAppUuid()) ||
+                                    existingApp.app.getHostIndex() != app.getHostIndex() ||
+                                    !existingApp.app.getArtVersion().equals(app.getArtVersion()) ||
+                                    existingApp.app.isHdrSupported() != app.isHdrSupported()) {
+                                existingApp.app = app;
                                 updated = true;
                             }
 
@@ -648,7 +652,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     }
 
     public static class AppObject {
-        public final NvApp app;
+        public NvApp app;
         public boolean isRunning;
         public boolean isHidden;
 

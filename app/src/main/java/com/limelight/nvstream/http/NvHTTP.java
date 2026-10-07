@@ -401,6 +401,7 @@ public class NvHTTP {
 
         details.pairState = getPairState(serverInfo);
         details.runningGameId = getCurrentGame(serverInfo);
+        details.runningGameUuid = getXmlString(serverInfo, "currentgameuuid", false);
         readClientCapabilities(details, serverInfo);
 
         // The MJOLNIR codename was used by GFE but never by any third-party server
@@ -688,6 +689,15 @@ public class NvHTTP {
         return null;
     }
 
+    public NvApp getAppByUuid(String appUuid) throws IOException, XmlPullParserException {
+        for (NvApp app : getAppList()) {
+            if (appUuid.equals(app.getAppUuid())) {
+                return app;
+            }
+        }
+        return null;
+    }
+
     /**
      * Get an app by name
      * NOTE: It is perfectly valid for multiple apps to have the same name,
@@ -750,6 +760,12 @@ public class NvHTTP {
                     app.setAppId(xpp.getText());
                 } else if (currentTag.peek().equals("IsHdrSupported")) {
                     app.setHdrSupported(xpp.getText().equals("1"));
+                } else if (currentTag.peek().equals("UUID")) {
+                    app.setAppUuid(xpp.getText());
+                } else if (currentTag.peek().equals("IDX")) {
+                    app.setHostIndex(xpp.getText());
+                } else if (currentTag.peek().equals("ArtVersion")) {
+                    app.setArtVersion(xpp.getText());
                 }
                 break;
             }
@@ -892,6 +908,10 @@ public class NvHTTP {
         }
 
         return "appid=" + appId +
+            (context.streamConfig.getApp().getAppUuid().isEmpty() ? "" :
+                    "&" + new HttpUrl.Builder().scheme("https").host("host")
+                            .addQueryParameter("appuuid", context.streamConfig.getApp().getAppUuid())
+                            .build().encodedQuery()) +
             "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + launchRate +
             (context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
                     "&virtualDisplay=1&scaleFactor=" + context.streamConfig.getVirtualDisplayScale() : "") +

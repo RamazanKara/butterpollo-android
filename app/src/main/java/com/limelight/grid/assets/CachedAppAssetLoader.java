@@ -372,10 +372,12 @@ public class CachedAppAssetLoader {
     public static class LoaderTuple {
         public final ComputerDetails computer;
         public final NvApp app;
+        public final String cacheKey;
 
         public LoaderTuple(ComputerDetails computer, NvApp app) {
             this.computer = computer;
             this.app = app;
+            this.cacheKey = app.getAssetCacheKey();
         }
 
         @Override
@@ -385,7 +387,7 @@ public class CachedAppAssetLoader {
             }
 
             LoaderTuple other = (LoaderTuple) o;
-            return computer.uuid.equals(other.computer.uuid) && app.getAppId() == other.app.getAppId();
+            return computer.uuid.equals(other.computer.uuid) && cacheKey.equals(other.cacheKey);
         }
 
         @Override

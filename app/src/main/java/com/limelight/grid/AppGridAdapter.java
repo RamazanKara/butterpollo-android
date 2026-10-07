@@ -125,7 +125,7 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         Collections.sort(list, new Comparator<AppView.AppObject>() {
             @Override
             public int compare(AppView.AppObject lhs, AppView.AppObject rhs) {
-                return lhs.app.getAppName().toLowerCase().compareTo(rhs.app.getAppName().toLowerCase());
+                return lhs.app.compareForDisplay(rhs.app);
             }
         });
     }
@@ -152,6 +152,13 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     public void removeApp(AppView.AppObject app) {
         itemList.remove(app);
         allApps.remove(app);
+    }
+
+    @Override
+    public void notifyDataSetChanged() {
+        sortList(allApps);
+        sortList(itemList);
+        super.notifyDataSetChanged();
     }
 
     @Override

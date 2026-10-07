@@ -29,7 +29,7 @@ public class MemoryAssetLoader {
     private static final HashMap<String, SoftReference<ScaledBitmap>> evictionCache = new HashMap<>();
 
     private static String constructKey(CachedAppAssetLoader.LoaderTuple tuple) {
-        return tuple.computer.uuid+"-"+tuple.app.getAppId();
+        return tuple.computer.uuid+"-"+tuple.cacheKey;
     }
 
     public ScaledBitmap loadBitmapFromCache(CachedAppAssetLoader.LoaderTuple tuple) {
