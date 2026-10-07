@@ -193,10 +193,12 @@ public class NvHTTPParityTest {
         }
         assertThrows(org.xmlpull.v1.XmlPullParserException.class, () -> http.getCurrentGame(
                 "<root status_code=\"200\"><state>SUNSHINE_SERVER_BUSY</state><currentgame>bad</currentgame></root>"));
-        for (String version : new String[] {"7.1", "7.x.0.0", "7.1.-1.0"}) {
+        for (String version : new String[] {"7.1", "7.x.0.0", "7.1.-1.0", "7.1.431.-2"}) {
             assertThrows(org.xmlpull.v1.XmlPullParserException.class, () -> http.getServerAppVersionQuad(
                     "<root status_code=\"200\"><appversion>" + version + "</appversion></root>"));
         }
+        assertArrayEquals(new int[] {7, 1, 431, -1}, http.getServerAppVersionQuad(
+                "<root status_code=\"200\"><appversion>7.1.431.-1</appversion></root>"));
     }
 
     @Test

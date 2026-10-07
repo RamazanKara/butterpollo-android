@@ -849,7 +849,8 @@ public class NvHTTP {
         for (int i = 0; i < ret.length; i++) {
             try {
                 ret[i] = Integer.parseInt(serverVersionSplit[i]);
-                if (ret[i] < 0) {
+                // Sunshine-family hosts use -1 as the trailing build number.
+                if (ret[i] < 0 && !(i == 3 && ret[i] == -1)) {
                     throw new NumberFormatException();
                 }
             } catch (NumberFormatException e) {
