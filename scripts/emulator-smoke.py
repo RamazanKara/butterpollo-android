@@ -88,6 +88,19 @@ def profile_number(label, value):
     adb("shell", "input", "keyevent", "4")
 
 
+def prefs(name, check, message):
+    """SharedPreferences.apply() writes asynchronously, so poll briefly before failing."""
+    for _ in range(20):
+        try:
+            root = ET.fromstring(adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{name}.xml"))
+            if check(root):
+                return root
+        except (subprocess.SubprocessError, ET.ParseError):
+            pass
+        time.sleep(0.5)
+    raise AssertionError(message)
+
+
 def screenshot(name):
     ui = tree()
     png = adb("exec-out", "screencap", "-p", binary=True)
@@ -184,17 +197,15 @@ def main():
             profile_number("Refresh rate (1–1000 Hz, up to two decimals)", "59.94")
             screenshot("09-host-profile")
             tap("android:id/button1")
-            profile_xml = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/HostStreamProfiles.xml")
-            profile = next(n for n in ET.fromstring(profile_xml)
-                           if n.get("name") == "00000000-0000-4000-8000-000000000006")
-            assert profile.text.startswith("1920,1080,5994,"), profile.text
+            prefs("HostStreamProfiles", lambda root: any(
+                n.get("name") == "00000000-0000-4000-8000-000000000006" and
+                (n.text or "").startswith("1920,1080,5994,") for n in root), "Host profile was not saved")
             open_host_profile()
             find("59.94")
             find("Prefer YUV 4:4:4", scroll=True)
             screenshot("10-host-codec-profile")
             tap("android:id/button3")
-            profile_xml = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/HostStreamProfiles.xml")
-            assert not list(ET.fromstring(profile_xml)), "Host profile reset did not clear overrides"
+            prefs("HostStreamProfiles", lambda root: not list(root), "Host profile reset did not clear overrides")
             tap(f"{PACKAGE}:id/settingsButton")
             find("Display")
             screenshot("04-settings")
@@ -203,9 +214,9 @@ def main():
             overlay = "Show performance overlay"
             tap(overlay, scroll=True)
             screenshot("06-latency-settings")
-            preferences = adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{PACKAGE}_preferences.xml")
-            assert any(n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true"
-                       for n in ET.fromstring(preferences)), "Overlay preference was not enabled"
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
+                "Overlay preference was not enabled")
             tap("Controller buttons", scroll=True)
             find("Waiting for a button press…")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
@@ -214,8 +225,8 @@ def main():
             tap("A")
             find("Y sends A")
             screenshot("12-controller-buttons")
-            mappings = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/ControllerButtonMaps.xml")
-            assert any(n.text == "100:96" for n in ET.fromstring(mappings)), mappings
+            prefs("ControllerButtonMaps", lambda root: any(n.text == "100:96" for n in root),
+                  "Controller mapping was not saved")
             adb("shell", "input", "keyevent", "4")
             find(overlay)
             adb("shell", "input", "keyevent", "3")
