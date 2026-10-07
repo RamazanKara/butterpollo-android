@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntConsumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -81,6 +82,7 @@ public class NvHTTP {
     public static final int SHORT_CONNECTION_TIMEOUT = 3000;
     public static final int LONG_CONNECTION_TIMEOUT = 5000;
     public static final int READ_TIMEOUT = 7000;
+    public static final int PYROWAVE_BANDWIDTH_PROBE_BYTES = 32 * 1024 * 1024;
 
     // Print URL and content to logcat on debug builds
     private static boolean verbose = BuildConfig.DEBUG;
@@ -421,6 +423,10 @@ public class NvHTTP {
         details.virtualDisplayFrameLimiterEnabled = "1".equals(getXmlString(serverInfo, "VirtualDisplayFrameLimiterEnabled", false));
         details.frameLimiterFpsLimitMilliHz = readUnsignedValue(
                 getXmlString(serverInfo, "FrameLimiterFpsLimitMilliHz", false), Integer.MAX_VALUE);
+        details.pyroWaveHostLinkMbps = readUnsignedValue(
+                getXmlString(serverInfo, "PyroWaveHostLinkMbps", false), Integer.MAX_VALUE);
+        details.pyroWaveBandwidthProbeBytes = (int) readUnsignedValue(
+                getXmlString(serverInfo, "PyroWaveBandwidthProbeBytes", false), PYROWAVE_BANDWIDTH_PROBE_BYTES);
 
         XmlPullParser parser = XmlPullParserFactory.newInstance().newPullParser();
         parser.setInput(new StringReader(serverInfo));
@@ -542,6 +548,49 @@ public class NvHTTP {
         cancelled = true;
         for (Call call : pendingCalls) {
             call.cancel();
+        }
+    }
+
+    public double probePyroWaveBandwidth(ComputerDetails details, IntConsumer progress) throws IOException {
+        if (serverCert == null || !details.supportsPyroWaveBandwidthProbe()) {
+            throw new IOException("This paired host does not advertise the bandwidth test");
+        }
+        OkHttpClient client = httpClientLongConnectTimeout.newBuilder()
+                .callTimeout(30, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build();
+        long startedNs = System.nanoTime();
+        try (ResponseBody response = openHttpConnection(client, getHttpsUrl(true), "pyrowave-bandwidth-probe")) {
+            readBandwidthProbe(response, details.pyroWaveBandwidthProbeBytes, progress);
+        }
+        return details.pyroWaveBandwidthProbeBytes * 8000.0 / Math.max(1, System.nanoTime() - startedNs);
+    }
+
+    static void readBandwidthProbe(ResponseBody response, int expectedBytes, IntConsumer progress) throws IOException {
+        if (expectedBytes <= 0 || expectedBytes > PYROWAVE_BANDWIDTH_PROBE_BYTES ||
+                (response.contentLength() != -1 && response.contentLength() != expectedBytes)) {
+            throw new IOException("Unexpected bandwidth test size");
+        }
+        MediaType type = response.contentType();
+        if (type == null || !"application".equals(type.type()) || !"octet-stream".equals(type.subtype())) {
+            throw new IOException("Unexpected bandwidth test content type");
+        }
+        InputStream input = response.byteStream();
+        byte[] buffer = new byte[64 * 1024];
+        int total = 0;
+        int previousPercent = -1;
+        int count;
+        while ((count = input.read(buffer, 0, Math.min(buffer.length, expectedBytes - total + 1))) != -1) {
+            total += count;
+            if (total > expectedBytes) {
+                throw new IOException("Bandwidth test exceeded advertised size");
+            }
+            int percent = (int) (total * 100L / expectedBytes);
+            if (percent != previousPercent) {
+                progress.accept(percent);
+                previousPercent = percent;
+            }
+        }
+        if (total != expectedBytes) {
+            throw new IOException("Bandwidth test ended before advertised size");
         }
     }
 

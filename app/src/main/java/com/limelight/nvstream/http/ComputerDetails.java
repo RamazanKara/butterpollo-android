@@ -93,6 +93,13 @@ public class ComputerDetails {
     public boolean frameLimiterEnabled;
     public boolean virtualDisplayFrameLimiterEnabled;
     public long frameLimiterFpsLimitMilliHz;
+    public long pyroWaveHostLinkMbps;
+    public int pyroWaveBandwidthProbeBytes;
+
+    public boolean supportsPyroWaveBandwidthProbe() {
+        return rustHostVersion != null && pairState == PairingManager.PairState.PAIRED &&
+                pyroWaveBandwidthProbeBytes == NvHTTP.PYROWAVE_BANDWIDTH_PROBE_BYTES;
+    }
 
     public boolean hasPermission(int mask) {
         // Hosts without Apollo permissions retain their existing behavior.
@@ -199,6 +206,8 @@ public class ComputerDetails {
         this.frameLimiterEnabled = details.frameLimiterEnabled;
         this.virtualDisplayFrameLimiterEnabled = details.virtualDisplayFrameLimiterEnabled;
         this.frameLimiterFpsLimitMilliHz = details.frameLimiterFpsLimitMilliHz;
+        this.pyroWaveHostLinkMbps = details.pyroWaveHostLinkMbps;
+        this.pyroWaveBandwidthProbeBytes = details.pyroWaveBandwidthProbeBytes;
     }
 
     private static void appendIfKnown(StringBuilder str, String label, Object value) {
