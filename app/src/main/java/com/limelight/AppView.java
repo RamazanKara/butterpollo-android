@@ -398,7 +398,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         menu.setHeaderTitle(selectedApp.app.getAppName());
 
         if (lastRunningAppId != 0) {
-            if (lastRunningAppId == selectedApp.app.getAppId()) {
+            if (selectedApp.isRunning) {
                 menu.add(Menu.NONE, START_OR_RESUME_ID, 1, getResources().getString(R.string.applist_menu_resume));
                 menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit))
                         .setEnabled(computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
@@ -410,7 +410,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         }
 
         // Only show the hide checkbox if this is not the currently running app or it's already hidden
-        if (lastRunningAppId != selectedApp.app.getAppId() || selectedApp.isHidden) {
+        if (!selectedApp.isRunning || selectedApp.isHidden) {
             MenuItem hideAppItem = menu.add(Menu.NONE, HIDE_APP_ID, 3, getResources().getString(R.string.applist_menu_hide_app));
             hideAppItem.setCheckable(true);
             hideAppItem.setChecked(selectedApp.isHidden);
@@ -519,11 +519,11 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
                     // There can only be one or zero apps running.
                     if (existingApp.isRunning &&
-                            existingApp.app.getAppId() == details.runningGameId) {
+                            existingApp.app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
                         // This app was running and still is, so we're done now
                         return;
                     }
-                    else if (existingApp.app.getAppId() == details.runningGameId) {
+                    else if (existingApp.app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
                         // This app wasn't running but now is
                         existingApp.isRunning = true;
                         updated = true;

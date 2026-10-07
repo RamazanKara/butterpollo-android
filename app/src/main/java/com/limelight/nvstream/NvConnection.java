@@ -379,12 +379,15 @@ public class NvConnection {
 
         if (!app.getAppUuid().isEmpty()) {
             // Resolve stale shortcut IDs before the host's ID-or-UUID lookup can select another app.
-            NvApp currentApp = h.getAppByUuid(app.getAppUuid());
-            if (currentApp == null) {
-                context.connListener.displayMessage("This app is no longer available on the host. Refresh its app list.");
-                return false;
+            if (app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
+                app.setAppId(details.runningGameId);
+            } else {
+                NvApp currentApp = details.hasPermission(ComputerDetails.PERMISSION_LIST) ?
+                        h.getAppByUuid(app.getAppUuid()) : null;
+                // Known UUIDs can still be launched without List permission; control tiles also
+                // appear and disappear with ownership. Zero leaves identity resolution to the host.
+                app.setAppId(currentApp == null ? 0 : currentApp.getAppId());
             }
-            app.setAppId(currentApp.getAppId());
         }
         
         // If the client did not provide an exact app ID, do a lookup with the applist
