@@ -26,11 +26,17 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
   host library order and versioned artwork updates.
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
-- Butterpollo branding and display, latency, and codec settings groups; conservative 720p/60,
-  automatic codec selection and low-latency decoding defaults.
+- Settings split into Video, Latency, Input, Host and App screens with a title bar, a summary of the
+  current stream setup, and **Reset all settings** (keeps paired PCs, per-PC settings and the
+  on-screen control layout). Conservative 720p/60, automatic codec and low-latency decoding defaults.
+- A bitrate dialog built for LAN rates: logarithmic slider, -/+ fine steps and presets from 10 Mbps
+  to the 280 Mbps PyroWave starting point.
+- A short, skippable pairing guide on first launch (also behind the **?** button), and readable
+  host details with **Copy debug info** for support reports.
 
 See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
-findings, supported host extras and known limits.
+findings, supported host extras and known limits. Having trouble? See [troubleshooting](docs/TROUBLESHOOTING.md)
+for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave requirements.
 
 ## Install
 
@@ -91,12 +97,17 @@ Screenshots go to `docs/screenshots/` (half size, palette PNG when Pillow is ins
 The emulator is stopped in a `finally` block. The fixture does not pair or stream; overlay timings
 remain unavailable. The debug overlay activity is absent from release builds.
 
-The smoke test also validates per-PC profile input, saving, reopening and resetting to global settings.
+The smoke test also walks the pairing guide, the one-time PIN and host details dialogs, per-PC profile
+input, saving, reopening and resetting, the settings screens, the bitrate dialog and Reset all settings.
 These are emulator captures, not evidence of hardware decoding or a live host connection.
 
-| Per-PC streaming settings | Codec and colour profile | Performance overlay |
+| Settings | Bitrate | Per-PC streaming settings |
 | --- | --- | --- |
-| ![Per-PC custom resolution and refresh](docs/screenshots/09-host-profile.png) | ![Per-PC codec and colour options](docs/screenshots/10-host-codec-profile.png) | ![Latency overlay with unavailable fixture timings](docs/screenshots/07-latency-overlay.png) |
+| ![Top-level settings with the current stream setup](docs/screenshots/04-settings.png) | ![Bitrate dialog with slider, fine steps and presets](docs/screenshots/06-bitrate.png) | ![Per-PC resolution, refresh and bitrate](docs/screenshots/09-host-profile.png) |
+
+| Pairing guide | Host details | Performance overlay |
+| --- | --- | --- |
+| ![First-run pairing guide](docs/screenshots/01-launch.png) | ![Host details with Copy debug info](docs/screenshots/15-host-details.png) | ![Latency overlay with unavailable fixture timings](docs/screenshots/07-latency-overlay.png) |
 
 ## Upstream Moonlight
 

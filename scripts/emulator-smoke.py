@@ -71,18 +71,26 @@ def tap(label, scroll=False):
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
 
 
-def open_host_profile():
+def host_menu(item):
     x1, y1, x2, y2 = bounds(find(HOST_NAME))
     x, y = str((x1+x2)//2), str((y1+y2)//2)
     adb("shell", "input", "swipe", x, y, x, y, "1000")
-    tap("Streaming settings for this PC")
+    tap(item)
+
+
+def open_host_profile():
+    host_menu("Streaming settings for this PC")
     find(f"{HOST_NAME} streaming settings")
 
 
 def profile_number(label, value):
-    label_bottom = bounds(find(label, scroll=True))[3]
+    # Width and height share a row and are found by their content description
     fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
-              and bounds(n)[1] >= label_bottom]
+              and n.get("content-desc") == label]
+    if not fields:
+        label_bottom = bounds(find(label, scroll=True))[3]
+        fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
+                  and bounds(n)[1] >= label_bottom]
     field = min(fields, key=lambda n: bounds(n)[1])
     x1, y1, x2, y2 = bounds(field)
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
@@ -131,6 +139,7 @@ class HostFixture(http.server.BaseHTTPRequestHandler):
           <PairStatus>0</PairStatus><currentgame>0</currentgame>
           <state>SUNSHINE_SERVER_FREE</state><HttpsPort>47984</HttpsPort>
           <ServerCodecModeSupport>197377</ServerCodecModeSupport>
+          <RustHostVersion>2.0.0</RustHostVersion>
         </root>'''.encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/xml")
@@ -182,8 +191,9 @@ def main():
             adb("logcat", "-c")
             adb("shell", "input", "keyevent", "82")
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
-            find(f"{PACKAGE}:id/manuallyAddPc")
+            find("Connect to your PC")
             screenshot("01-launch")
+            tap("android:id/button1")
             tap(f"{PACKAGE}:id/manuallyAddPc")
             tap(f"{PACKAGE}:id/hostTextView")
             adb("shell", "input", "text", "127.0.0.1:47989")
@@ -191,44 +201,73 @@ def main():
             tap(f"{PACKAGE}:id/addPcButton")
             find(HOST_NAME)
             screenshot("03-host-added")
+            host_menu("Pair with one-time PIN")
+            find("One-time PIN")
+            screenshot("16-otp-pairing")
+            tap("android:id/button2")
+            host_menu("View details")
+            find("Butterpollo 2.0.0")
+            screenshot("15-host-details")
+            tap("android:id/button1")
             open_host_profile()
-            profile_number("Width (pixels, 64–16384)", "0")
+            find("This PC uses your global settings. Save to give it its own.")
+            profile_number("Width", "0")
             tap("android:id/button1")
             find(f"{HOST_NAME} streaming settings")
-            profile_number("Width (pixels, 64–16384)", "1920")
-            profile_number("Height (pixels, 64–16384)", "1080")
+            profile_number("Width", "1920")
+            profile_number("Height", "1080")
             profile_number("Refresh rate (Hz)", "59.94")
+            profile_number("Bitrate (Mbps)", "45.5")
             screenshot("09-host-profile")
             tap("android:id/button1")
             prefs("HostStreamProfiles", lambda root: any(
                 n.get("name") == "00000000-0000-4000-8000-000000000006" and
-                (n.text or "").startswith("1920,1080,5994,") for n in root), "Host profile was not saved")
+                (n.text or "").startswith("1920,1080,5994,45500,") for n in root), "Host profile was not saved")
             open_host_profile()
+            find("This PC has its own settings. Use global settings to remove them.")
             find("59.94")
             find("Prefer YUV 4:4:4", scroll=True)
             screenshot("10-host-codec-profile")
             tap("android:id/button3")
             prefs("HostStreamProfiles", lambda root: not list(root), "Host profile reset did not clear overrides")
             tap(f"{PACKAGE}:id/settingsButton")
-            find("Display")
+            find("Reset all settings")
             screenshot("04-settings")
+            tap("Video and display")
+            find("Display")
+            screenshot("05-video-settings")
+            tap("Video bitrate")
+            tap("80")
+            tap("Increase")
+            find("81 Mbps")
+            screenshot("06-bitrate")
+            tap("android:id/button1")
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "81000" for n in root),
+                "Bitrate was not stored in kbps")
+            adb("shell", "input", "keyevent", "4")
+            find("1280×720 · 60 FPS · 81 Mbps · Automatic")
+            tap("Latency and diagnostics")
             find("Android low-latency mode", scroll=True)
-            screenshot("05-latency-controls")
             overlay = "Show performance overlay"
             tap(overlay, scroll=True)
-            screenshot("06-latency-settings")
+            screenshot("13-latency-settings")
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
                 "Overlay preference was not enabled")
             adb("shell", "input", "keyevent", "3")
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find(overlay)
+            tap("Navigate up")
+            tap("App and about")
             find("Butterpollo Android", scroll=True)
-            screenshot("09-settings-about")
+            screenshot("14-settings-about")
             summary = next((n.get("text", "") for n in tree().iter("node")
                             if "Moonlight" in n.get("text", "")), "")
             assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
-            tap("Controller buttons", scroll="up")
+            tap("Navigate up")
+            tap("Controllers, touch and mouse")
+            tap("Controller buttons", scroll=True)
             find("Waiting for a button press…")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
             find("Y sends…")
@@ -240,6 +279,15 @@ def main():
                   "Controller mapping was not saved")
             adb("shell", "input", "keyevent", "4")
             find("Controller buttons")
+            tap("Navigate up")
+            tap("Reset all settings")
+            tap("android:id/button1")
+            find("1280×720 · 60 FPS · 10 Mbps · Automatic")
+            prefs(f"{PACKAGE}_preferences", lambda root: not any(
+                n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
+                "Reset kept the overlay setting")
+            prefs("ControllerButtonMaps", lambda root: any(n.text == "100:96" for n in root),
+                  "Reset removed the controller mapping")
             adb("shell", "input", "keyevent", "4")
             find(HOST_NAME)
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
@@ -256,7 +304,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: manual discovery, host profile validation/save/reset, settings, controller mapping, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, bitrate, controller mapping, reset, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
