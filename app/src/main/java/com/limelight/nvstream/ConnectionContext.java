@@ -20,12 +20,15 @@ public class ConnectionContext {
     public String serverAppVersion;
     public String serverGfeVersion;
     public int serverCodecModeSupport;
+    public boolean serverSupportsVirtualDisplay;
+    public boolean serverSupportsFractionalRefreshRate;
 
     // This is the sessionUrl0 tag from /resume and /launch
     public String rtspSessionUrl;
     
     public int negotiatedWidth, negotiatedHeight;
     public boolean negotiatedHdr;
+    public int negotiatedVideoFormats;
 
     public int negotiatedRemoteStreaming;
     public int negotiatedPacketSize;

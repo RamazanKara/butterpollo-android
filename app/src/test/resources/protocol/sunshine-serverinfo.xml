@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root status_code="200">
+  <hostname>Sunshine fixture</hostname><appversion>7.1.431.-1</appversion><GfeVersion>3.23.0.74</GfeVersion>
+  <PairStatus>1</PairStatus><currentgame>0</currentgame><state>SUNSHINE_SERVER_FREE</state>
+  <ServerCodecModeSupport>197377</ServerCodecModeSupport>
+</root>

@@ -201,9 +201,7 @@ public class NvHTTP {
     }
     
     public NvHTTP(ComputerDetails.AddressTuple address, int httpsPort, String uniqueId, X509Certificate serverCert, LimelightCryptoProvider cryptoProvider) throws IOException {
-        // Use the same UID for all Moonlight clients so we can quit games
-        // started by other Moonlight clients.
-        this.uniqueId = "0123456789ABCDEF";
+        this.uniqueId = uniqueId;
 
         this.serverCert = serverCert;
 
@@ -258,7 +256,7 @@ public class NvHTTP {
                 currentTag.pop();
                 break;
             case (XmlPullParser.TEXT):
-                if (currentTag.peek().equals(tagname)) {
+                if (!currentTag.isEmpty() && currentTag.peek().equals(tagname)) {
                     return xpp.getText();
                 }
                 break;
@@ -410,7 +408,7 @@ public class NvHTTP {
         }
     }
 
-    private HttpUrl getCompleteUrl(HttpUrl baseUrl, String path, String query) {
+    HttpUrl getCompleteUrl(HttpUrl baseUrl, String path, String query) {
         return baseUrl.newBuilder()
                 .addPathSegment(path)
                 .query(query)
@@ -655,6 +653,9 @@ public class NvHTTP {
                 }
                 break;
             case (XmlPullParser.TEXT):
+                if (!currentTag.contains("App")) {
+                    break;
+                }
                 NvApp app = appList.getLast();
                 if (currentTag.peek().equals("AppTitle")) {
                     app.setAppName(xpp.getText());
@@ -706,16 +707,16 @@ public class NvHTTP {
 
     String executePairingCommand(String additionalArguments, boolean enableReadTimeout) throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(enableReadTimeout ? httpClientLongConnectTimeout : httpClientLongConnectNoReadTimeout,
-                baseUrlHttp, "pair", "devicename=roth&updateState=1&" + additionalArguments);
+                baseUrlHttp, "pair", "devicename=" + java.net.URLEncoder.encode(android.os.Build.MODEL, "UTF-8") + "&updateState=1&" + additionalArguments);
     }
 
     String executePairingChallenge() throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(httpClientLongConnectTimeout, getHttpsUrl(true),
-                "pair", "devicename=roth&updateState=1&phrase=pairchallenge");
+                "pair", "devicename=" + java.net.URLEncoder.encode(android.os.Build.MODEL, "UTF-8") + "&updateState=1&phrase=pairchallenge");
     }
 
     public void unpair() throws IOException {
-        openHttpConnectionToString(httpClientLongConnectTimeout, baseUrlHttp, "unpair");
+        openHttpConnectionToString(httpClientLongConnectTimeout, serverCert != null ? getHttpsUrl(true) : baseUrlHttp, "unpair");
     }
     
     public InputStream getBoxArt(NvApp app) throws IOException {
@@ -754,13 +755,27 @@ public class NvHTTP {
         return new String(hexChars);
     }
     
-    public boolean launchApp(ConnectionContext context, String verb, int appId, boolean enableHdr) throws IOException, XmlPullParserException {
+    public static void readDisplayCapabilities(ConnectionContext context, String serverInfo) throws IOException, XmlPullParserException {
+        String capable = getXmlString(serverInfo, "VirtualDisplayCapable", false);
+        String ready = getXmlString(serverInfo, "VirtualDisplayDriverReady", false);
+        context.serverSupportsVirtualDisplay = ("true".equalsIgnoreCase(capable) || "1".equals(capable)) &&
+                !"false".equalsIgnoreCase(ready) && !"0".equals(ready);
+        context.serverSupportsFractionalRefreshRate = getXmlString(serverInfo, "RustHostVersion", false) != null;
+    }
+
+    static String getLaunchQuery(ConnectionContext context, int appId, boolean enableHdr) {
         // Using an FPS value over 60 causes SOPS to default to 720p60,
         // so force it to 0 to ensure the correct resolution is set. We
         // used to use 60 here but that locked the frame rate to 60 FPS
         // on GFE 3.20.3.
         int fps = context.isNvidiaServerSoftware && context.streamConfig.getLaunchRefreshRate() > 60 ?
                 0 : context.streamConfig.getLaunchRefreshRate();
+        String launchRate = Integer.toString(fps);
+        int refreshX100 = context.streamConfig.getClientRefreshRateX100();
+        if (context.serverSupportsFractionalRefreshRate && refreshX100 > 0 &&
+                (refreshX100 + 50) / 100 == fps) {
+            launchRate = String.format(java.util.Locale.ROOT, "%.2f", refreshX100 / 100.0);
+        }
 
         boolean enableSops = context.streamConfig.getSops();
         if (context.isNvidiaServerSoftware) {
@@ -777,9 +792,10 @@ public class NvHTTP {
             }
         }
 
-        String xmlStr = openHttpConnectionToString(httpClientLongConnectNoReadTimeout, getHttpsUrl(true), verb,
-            "appid=" + appId +
-            "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + fps +
+        return "appid=" + appId +
+            "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + launchRate +
+            (context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
+                    "&virtualDisplay=1&scaleFactor=" + context.streamConfig.getVirtualDisplayScale() : "") +
             "&additionalStates=1&sops=" + (enableSops ? 1 : 0) +
             "&rikey="+bytesToHex(context.riKey.getEncoded()) +
             "&rikeyid="+context.riKeyId +
@@ -788,8 +804,12 @@ public class NvHTTP {
             "&surroundAudioInfo=" + context.streamConfig.getAudioConfiguration().getSurroundAudioInfo() +
             "&remoteControllersBitmap=" + context.streamConfig.getAttachedGamepadMask() +
             "&gcmap=" + context.streamConfig.getAttachedGamepadMask() +
-            "&gcpersist="+(context.streamConfig.getPersistGamepadsAfterDisconnect() ? 1 : 0) +
-            MoonBridge.getLaunchUrlQueryParameters());
+            "&gcpersist="+(context.streamConfig.getPersistGamepadsAfterDisconnect() ? 1 : 0);
+    }
+
+    public boolean launchApp(ConnectionContext context, String verb, int appId, boolean enableHdr) throws IOException, XmlPullParserException {
+        String xmlStr = openHttpConnectionToString(httpClientLongConnectNoReadTimeout, getHttpsUrl(true), verb,
+                getLaunchQuery(context, appId, enableHdr) + MoonBridge.getLaunchUrlQueryParameters());
         if ((verb.equals("launch") && !getXmlString(xmlStr, "gamesession", true).equals("0") ||
                 (verb.equals("resume") && !getXmlString(xmlStr, "resume", true).equals("0")))) {
             // sessionUrl0 will be missing for older GFE versions

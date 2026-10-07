@@ -308,6 +308,14 @@
     <string name="latency_input_output">Decoder input → output</string>
     <string name="latency_output_render">Decoder output → render</string>
     <string name="latency_receive_render">Receive → render</string>
+    <string name="latency_host_processing">Host processing</string>
+    <string name="title_yuv444">Prefer YUV 4:4:4</string>
+    <string name="summary_yuv444">Full chroma when both decoder and host support it. Falls back to 4:2:0; HDR takes priority.</string>
+    <string name="yuv444_fallback">Using YUV 4:2:0: no compatible 4:4:4 format for this stream.</string>
+    <string name="title_virtual_display">Request host virtual display</string>
+    <string name="summary_virtual_display">Use the selected resolution and frame rate on Butterpollo or Apollo. Host per-device and per-app policies still apply.</string>
+    <string name="title_virtual_display_scale">Host render scale</string>
+    <string name="summary_virtual_display_scale">100% requests exact stream pixels. Other values scale host render dimensions, not desktop text size.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>
     <string name="latency_unavailable">N/A (no observed samples)</string>
     <string name="title_export_latency_csv">Export latency CSV</string>
