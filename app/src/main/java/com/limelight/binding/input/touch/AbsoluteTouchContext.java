@@ -220,6 +220,9 @@ public class AbsoluteTouchContext implements TouchContext {
 
     @Override
     public void cancelTouch() {
+        if (cancelled) {
+            return;
+        }
         cancelled = true;
 
         // Cancel the timers

@@ -304,6 +304,9 @@ public class RelativeTouchContext implements TouchContext {
 
     @Override
     public void cancelTouch() {
+        if (cancelled) {
+            return;
+        }
         cancelled = true;
 
         // Cancel the drag timer
