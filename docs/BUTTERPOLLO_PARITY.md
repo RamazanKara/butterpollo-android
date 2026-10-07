@@ -1,22 +1,24 @@
-# Butterpollo Android parity — milestones 3–5
+# Butterpollo Android parity — milestone 7
 
-Initially audited on 2026-10-07 at `f144a731`; milestone 5 rechecked the client extras against a
-fresh shallow, unmodified checkout of
-[Butterpollo `f06e72c73c1960665d031d27f8dad02202bca56e`](https://github.com/RamazanKara/Butterpollo/tree/f06e72c73c1960665d031d27f8dad02202bca56e).
+Re-audited on 2026-10-08 against the read-only host checkout at
+[Butterpollo `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Butterpollo/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
+Remote HEAD was [rc.22 `3e264545e75d5da238b150dfca214825f7a4a1ec`](https://github.com/RamazanKara/Butterpollo/tree/3e264545e75d5da238b150dfca214825f7a4a1ec);
+the [comparison](https://github.com/RamazanKara/Butterpollo/compare/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b...3e264545e75d5da238b150dfca214825f7a4a1ec)
+contains release/version documentation only, with no protocol changes. The host checkout was not changed.
 The current Rust host is authoritative; the retained C++ implementation is historical.
 “Supported” below means implemented protocol paths, not a real-device streaming certification.
 
 | Capability | Host support | Client status |
 | --- | --- | --- |
 | Discovery, addresses, ports, wake | mDNS, IPv4/IPv6, `hostname`, `LocalIP`, `mac`, `HttpsPort`, `ExternalPort` | Existing discovery, manual addresses, port handling and Wake-on-LAN. |
-| Pairing and device identity | PIN/certificate pairing, `PairStatus`, host `uniqueid`; device UUID bound to certificate | Existing pairing and certificate pinning. Now sends the persisted installation ID instead of a shared constant, the Android model as device name, and authenticated HTTPS unpair when paired. |
-| One-time PIN, device permissions | OTP via admin API; `Permission`, per-device enable and access masks | Butterpollo-labelled PIN pairing. Unsigned permission masks displayed and refreshed before host actions; denied viewing/quit and input-disabled sessions explained. Missing fields preserve stock behavior; malformed masks grant nothing. OTP entry remains unimplemented; use ordinary PIN pairing. |
-| App list and artwork | `/applist`, `/appasset`; `AppTitle`, `ID`, `IsHdrSupported`, `UUID`, `IDX`, `ArtVersion`, permission-filtered entries | Existing ID-based launch, HDR hint and cover download; fixed parsing of whitespace/text outside app entries. UUID launch, host ordering and artwork version invalidation are deferred Apollo extras. Unknown fields remain compatible. |
-| Launch, resume, quit and ownership | `/launch`, `/resume`, `/cancel`, `currentgame`, `currentgameuuid`, `state`, `gamesession`, `sessionUrl0` | Back / Ctrl+Alt+Shift+M opens the stream menu. Pause disconnects without `/cancel`; the host app keeps running and selecting it again uses `/resume`. View or launch permission allows viewing. Display parameters apply to launch/resume alike. UUID ownership UI remains unimplemented. |
-| Per-app/per-device settings | Host merges stream/input/display/encoder overrides, prep/undo commands, `APOLLO_*` environment | Applied by host on normal client launches. Editing profiles is an authenticated web-console operation, not `/applist`; native management deferred. |
+| Pairing and device identity | PIN/certificate pairing, `PairStatus`, host `uniqueid`; device UUID bound to certificate | Persistent installation ID, Android model name, certificate pinning and authenticated HTTPS unpair. Installation ID, private key and client certificate are excluded from backup/device transfer so a restored installation pairs independently. Same-install updates preserve identity. |
+| One-time PIN, device permissions | OTP creation via admin API, `otpauth` pairing; `Permission`, per-device enable and access masks | Host context menu accepts the generated four-digit PIN and passphrase; masked, transient fields and a timed pairing request. Ordinary PIN pairing remains available. Unsigned permission masks are displayed and refreshed before host actions; missing fields preserve stock behavior, malformed masks grant nothing. |
+| App list and artwork | `/applist`, `/appasset`; `AppTitle`, `ID`, `IsHdrSupported`, `UUID`, `IDX`, `ArtVersion`, permission-filtered entries | UUID-aware launch/resume and shortcuts, host index ordering with alphabetical fallback, live metadata updates, and artwork version/identity keys for memory, disk, pending loads and TV posters. Unknown fields remain compatible. Unchanged host artwork tokens cannot signal changed covers. |
+| Launch, resume, quit and ownership | `/launch`, `/resume`, `/cancel`, `currentgame`, `currentgameuuid`, `state`, `gamesession`, `sessionUrl0` | Back / Ctrl+Alt+Shift+M opens a local stream menu immediately. Disconnect preserves the host app; reconnect waits for teardown and creates a fresh stream. Running-app UUID matching avoids numeric-ID reuse mistakes. View or launch permission allows viewing. Role-specific ownership/confirmation UI remains incomplete. |
+| Per-host, per-app and per-device settings | Client launch parameters; host merges stream/input/display/encoder overrides, prep/undo commands, `APOLLO_*` environment | Local per-host stream profiles now save custom dimensions, refresh, bitrate, render scale, virtual display, HDR/range/chroma and codec choice. Host app/device policy applies normally. Editing the host's profiles, permissions or app settings requires its separate authenticated administration API; no native admin editor. |
 | Per-device virtual display | `VirtualDisplayCapable`, `VirtualDisplayDriverReady`, `virtualDisplay=1`; certificate-derived stable display identity | New opt-in request, sent only when advertised and driver not reported unavailable; otherwise a notice and host policy fallback. Shared/off/layout/forced-output policy stays host controlled. |
-| Native resolution and render scale | `mode=WIDTHxHEIGHTxRATE`, SDP viewport, `scaleFactor` | Existing native portrait/landscape/fullscreen choices pass their exact dimensions. New 50–200% host render scale, default 100%. Stream viewport is unchanged by render scale. |
-| High/fractional refresh | Integer/decimal launch rate, SDP `maxFPS`, `clientRefreshRateX100` | High rates remain uncapped on Sunshine-family hosts. Butterpollo receives the selected display's fractional rate to 0.01 Hz when it matches the requested FPS; other hosts retain integer launch syntax. |
+| Native resolution and render scale | `mode=WIDTHxHEIGHTxRATE`, SDP viewport, `scaleFactor` | Native portrait/landscape/fullscreen choices and per-host custom dimensions. Per-host render scale accepts 50–200%, default 100%, with the virtual-display request. Stream viewport is unchanged by render scale. |
+| High/fractional refresh | Integer/decimal launch rate, SDP `maxFPS`, `clientRefreshRateX100` | Per-host explicit refresh to 0.01 Hz is sent to Butterpollo. Without an override, matching panel refresh still supplies fractional precision. Sunshine/Apollo retain integer launch syntax; configured high rates remain available subject to device capability. |
 | Desktop DPI, layout, mode overrides | Host `dd_virtual_display_scale`, per-device `display_mode`, layouts, HDR profiles, retained displays | Host configured; no client DPI field. `scaleFactor` scales render pixels, **not** Android density or Windows text size. Host/app overrides can supersede requested geometry/rate. |
 | H.264 / HEVC / AV1 SDR | `ServerCodecModeSupport`, RTSP codec markers | Existing hardware MediaCodec paths and software-decoder exclusions retained. Stock Sunshine/Apollo/GFE fallback retained. |
 | HEVC / AV1 HDR10 | Main10 flags, launch `hdrMode`, SDP `dynamicRangeMode`; ten-bit BT.2020/PQ | Negotiates a common HDR codec, preferring HDR over a higher-priority SDR codec. Requires HDR10 display and HDR-capable decoder. HDR10+ decoder profiles also qualify for static HDR10; no dynamic HDR10+ claim. Auto can discover AV1 for HDR. |
@@ -28,26 +30,162 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Capture/encode/frame-age breakdown | Detailed timing in host diagnostics/web API; not separately carried in standard video packets | Not fabricated from processing duration; admin telemetry UI deferred. |
 | Audio | Opus stereo, 5.1, 7.1, quality/channel-map negotiation, local playback, encryption | Existing audio negotiation/playback. Endpoint selection remains host configured. |
 | Transport and recovery | RTSP/encrypted RTSP, UDP video/audio, reliable encrypted control, FEC, keyframe recovery, optional reference invalidation, ping/connect-data extensions, QoS | Existing pinned moonlight-common-c `874ac954` handles these. Slice/reference negotiation and milestone 2 latency controls retained. |
-| Keyboard/mouse/touch/pen | Standard input plus `x-ss-general.featureFlags` pen/touch bit | Existing keyboard, mouse, stylus and protocol capability fallback. Native finger-touch dispatch remains disabled upstream in favor of touch-as-mouse; deferred input UX. |
-| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Existing controller arrival/touch/motion/battery and rumble/trigger/LED paths. Host exposes one touchpad; DualSense adaptive effects/secondary-pad extensions are not exposed by this client's core and are deferred. |
+| Keyboard/mouse/touch/pen | Standard input plus `x-ss-general.featureFlags` pen/touch bit | Hardware/soft keyboards, captured/absolute mouse and stylus retained. Stream menu selects trackpad, direct touch-as-mouse or native multi-touch with capability fallback; native gestures send cancel-all on focus/mode changes. Keyboard/OSC cleanup and explicit soft-keyboard access added. |
+| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Existing Android/vendor mappings, face-button swap, deadzone, multiple-controller and feedback paths retained. OSC can be shown/hidden and its move/resize/save editor opened in-stream. Arbitrary per-controller remapping and DualSense adaptive/secondary-touchpad extensions remain unimplemented. |
 | Frame limiter and VRR | `FrameLimiterSupported`, `FrameLimiterEnabled`, `VirtualDisplayFrameLimiterEnabled`, `FrameLimiterFpsLimitMilliHz`; `vrr` aliases and SDP `vrrLowLatency`, 1000 Hz virtual mode | Stream menu reports manual/virtual limiter state and fractional configured cap (zero means stream rate). Host defaults and selected Android pacing apply. Nonary VRR is not negotiated: this MediaCodec client has no equivalent variable-cadence presentation path. Fixed-rate high refresh does not claim VRR. |
-| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Butterpollo stream-menu adjustment uses kbps and displays the applied host cap; current-session only, with refreshed view/launch permission. Other hosts retain startup bitrate selection. Client automatic bitrate control is not implemented. |
+| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Manual runtime adjustment plus opt-in per-host automatic bitrate for ordinary codecs on Butterpollo. Sustained network loss/poor status lowers bitrate; healthy recent video recovers slowly within the applied cap. Manual change disables automation. PyroWave and stock Sunshine/Apollo keep manual/startup behavior. No automatic codec/resolution switch. |
 | Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Tiles can be listed by existing app parser; role-specific lifecycle/confirmation UI deferred. Not claimed as full remote-session support. |
 | Clipboard and server commands | Permission-scoped text `/actions/clipboard`, advertised `ServerCommand` names | Explicit foreground text send/receive over paired HTTPS with direction permissions, UTF-8, 1 MiB limit and no content logging. Commands use reliable encrypted control type `0x3000`, original 8-bit index and host-specific payload size; confirmation, permission refresh and one-second spacing. Host enforces app restrictions; no execution acknowledgment exists. |
-| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Vulkan decoder/presentation port, including ten-bit HDR and 4:4:4. Explicit PyroWave codec + SurfaceView only, runtime feature/surface checks and a completed warm-up before advertising. Exact `186f0393` bitstream and ordinary packet-container transport; HEVC/AV1/H.264 fallback retained. Adaptive records, bandwidth probing and real-device certification remain unimplemented/unverified. See milestone 4b. |
-| Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Standard version/codec checks retained; Rust version gates decimal launch rates. Local diagnostics ignored safely. |
+| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Explicit per-host/global codec choice, Vulkan HDR/4:4:4 SurfaceView output and runtime/warm-up gates retained. Paired host menu now offers a cancellable 32 MiB HTTP bandwidth test. Exact `186f0393` ordinary packet transport only; adaptive records and real-device certification remain open. Current bitrate ceilings cannot meet the host's recommended 4K60 quality target. |
+| Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Accepts the current host's `7.1.431.-1` trailing build sentinel while rejecting other malformed negatives. Rust version gates decimal launch rates. Loopback-only diagnostics ignored safely. |
+| Android integration and overlay | Android launcher/PiP and existing stream telemetry | Wake-on-LAN, pinned app shortcuts, TV channels and PiP retained. Overlay toggles immediately from the stream menu or Ctrl+Alt+Shift+S. Shortcut intents carry app UUID; native touch uses the menu for soft-keyboard access. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
 
-Source: host [protocol handlers](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/rust/host/src/nvhttp.rs),
-[RTSP](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/rust/core/src/rtsp.rs),
-[display policy](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/rust/host/src/display_session.rs),
-[HDR layout](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/rust/core/src/hdr.rs),
-[compatibility audit](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/rust/PARITY.md),
-and [admin API](https://github.com/RamazanKara/Butterpollo/blob/f144a731b1e82a790b918600ffdc73aed7273080/docs/api.md).
+Source: host [protocol handlers](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/nvhttp.rs),
+[RTSP](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/rtsp.rs),
+[display policy](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/display_session.rs),
+[HDR layout](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/hdr.rs),
+[compatibility audit](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/PARITY.md),
+and [admin API](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/docs/api.md).
 Android limits: [codec profiles](https://developer.android.com/reference/android/media/MediaCodecInfo.CodecProfileLevel)
 and [MediaFormat HDR/color keys](https://developer.android.com/reference/android/media/MediaFormat).
 
-## Milestone 5: extras and packaging
+## Milestone 7: client features and current limits
+
+This round prioritizes per-host stream setup, usable in-stream controls, recovery, network adaptation
+and the advertised pairing/library extensions. It does not establish complete Butterpollo parity.
+Capabilities in the table describe source implementation; the real-device checks below are still required.
+
+### Comparison with the requested clients
+
+The comparison was checked against the projects' primary documentation on 2026-10-08. Their feature
+lists describe their own products; the Butterpollo column is based on this repository's code.
+
+| Reference | Relevant baseline | Butterpollo Android status |
+| --- | --- | --- |
+| [Moonlight Android input guide](https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide#keyboardmousegamepad-input-options) and [source](https://github.com/moonlight-stream/moonlight-android) | Android controller mappings, direct/trackpad mouse emulation, external keyboards/mice and shortcut controls. | These inherited paths remain. Multiple pads use the existing 16-slot client mask, subject to host/driver limits; no claim that 16 physical pads were tested. Existing Wi-Fi locks, Wake-on-LAN, pinned shortcuts, TV channels, OSC layout storage and PiP remain. The stream menu now makes touch mode, OSC editing, keyboard, overlay and reconnect easy to reach. |
+| [Artemis Android feature list](https://github.com/ClassicOldSong/moonlight-android#features) | Custom resolutions/bitrates, mouse-mode switching, a game menu, virtual displays, server commands and clipboard; additional custom virtual buttons, external-monitor and desktop-use tools. | Per-host dimensions/refresh/bitrate, native touch, a local menu, virtual-display requests and existing manual clipboard/server commands cover the principal streaming overlaps. General custom virtual-button bindings/import/export, pan/zoom, dedicated external-monitor workflows and SBS 3D are not added. |
+| [Moonlight-qt feature list](https://github.com/moonlight-stream/moonlight-qt#features) | H.264/HEVC/AV1, HDR/4:4:4, surround sound, multi-touch, gamepad feedback/motion, captured/direct mouse and system shortcuts. | Ordinary codecs/HDR/audio/input follow Android's decoder, display and input capabilities. Native multi-touch is enabled with a host capability fallback. Ctrl+Alt+Shift+S toggles the performance overlay. Android's supported standard 4:4:4 profiles remain narrower than desktop decoders; unsupported formats fall back. |
+
+The inherited controller mappings include Android-standard and vendor-specific mappings, face-button
+swap, deadzone controls and multi-controller mode. An arbitrary button/axis mapping editor is still
+missing. OSC editing moves/resizes existing controls and saves their layout; it does not create
+arbitrary keyboard/mouse macro buttons. Native multi-touch forwards finger pointers; the stream menu
+opens the soft keyboard so three fingers remain available to the host. Mouse-emulation modes retain
+their existing three-finger keyboard gesture.
+
+### What the new paths do
+
+- Long-press a PC and open **Streaming settings for this PC** to save a local profile keyed by host UUID.
+  Reset restores global preferences. Values cover width/height, refresh to two decimal places, bitrate,
+  render scale, codec including PyroWave, virtual display, HDR, full range and 4:4:4. Saving a profile
+  does not change the host's administrator settings. Hardware checks and host policy can still reject
+  or override the request; accepted input ranges are not decoder/display capability guarantees.
+- The host's explicit fractional rate wins over Android panel matching on Butterpollo. Sunshine and
+  Apollo continue receiving rounded integer launch rates. Render scale is sent with an available
+  virtual-display request; it changes host render pixels, not Android density or desktop DPI.
+- The local stream menu opens without waiting for host HTTP. Overlay, touch mode, keyboard, OSC,
+  move/resize/save layout, reconnect and disconnect are available there. Reconnect stops and joins
+  the old connection before starting a new activity/session; it does not quit the host application.
+  Transport errors offer reconnect. Touch cancellation and input release prevent the new menu paths
+  from leaving emulated input held; hardware/OEM behavior still needs the checks below.
+- Automatic bitrate is opt-in and saved per host, available on Butterpollo with ordinary codecs.
+  It samples recent video/network loss and common-c poor-connection status once per second, waits
+  through transient bad samples, reduces by 20% no faster than every five seconds, then increases
+  slowly after 15 healthy seconds. It respects the host's applied cap, pauses decisions during menu
+  interaction/other host actions and disables itself after a request failure or a manual bitrate
+  change. It changes bitrate only, never resolution, frame rate or codec. It is disabled for PyroWave,
+  whose quality needs a different bitrate policy. Startup preferences remain the next stream's baseline.
+- On a paired capable PC, **Test PyroWave bandwidth** asks before downloading 32 MiB over pinned HTTPS.
+  It reports measured HTTP throughput and the advertised host link speed, has a 30-second total
+  timeout, and cancels when leaving the screen. It does not alter stream settings. HTTP throughput
+  includes request overhead and does not certify UDP loss, FEC headroom or sustained streaming.
+- **Pair with one-time PIN** accepts the host-generated four-digit PIN and chosen passphrase.
+  The host's three-minute expiry applies. The request sends SHA-256 of PIN + uppercase salt hex +
+  UTF-8 passphrase as `otpauth`; the normal certificate challenge still authenticates the pair.
+  The client does not save these fields or log pairing URLs. Generating an OTP and granting device
+  permissions remain administrator tasks on the host.
+- App UUIDs travel through launcher shortcuts and launch/resume requests. A refreshed app list
+  resolves changed numeric IDs; running UUID matching and UUID-only host resolution preserve known
+  shortcuts when List permission is unavailable. `IDX` orders apps when supplied, and artwork cache
+  keys include app UUID and opaque `ArtVersion`. The current Rust host emits the numeric app ID as
+  its artwork token: replacing a cover without changing that token remains a host-side signalling gap.
+- Android backup/device transfer excludes the client certificate, private key and installation ID.
+  A restored installation therefore pairs again; a normal update of the same installation keeps its
+  identity. Permission displays and action-time refresh remain independent of these local profiles.
+
+### Remaining work and protocol boundaries
+
+| Gap | Evidence and boundary |
+| --- | --- |
+| Virtual-display layouts, sharing/disable policy, DPI and retained displays | `display_session.rs` reads `virtual_display_mode`, `display_mode` and `virtual_display_layout` from paired-device extras, app extras or host configuration. Only `virtualDisplay`, `mode` and `scaleFactor` are client launch options here. Sending invented layout/DPI parameters would have no effect. Requesting no virtual display does not override a host/app forced display policy. Configure exclusive/extended/primary layouts and desktop scale in the host console. |
+| Editing host or per-app/per-device settings and permissions | `/api/config`, `/api/apps`, `/api/clients/update`, `/api/clients/display-layout` and HDR-profile APIs require separate administrator authentication. Pairing certificates do not grant that access. Host overrides already apply during ordinary launches; a native admin UI/credential store is not implemented. |
+| Detailed capture/encode/frame-age telemetry | The video short header carries one processing duration. Capture/encode breakdown, host warnings and broader diagnostics belong to authenticated host telemetry. The overlay/CSV reports available processing avg/p95/p99 and never infers encode-only or end-to-end time by subtracting unrelated clocks. A native admin telemetry view remains open. |
+| VRR | No equivalent variable-cadence Android presentation path is implemented, so Nonary `vrr`/`vrrLowLatency` is not requested. Fixed high refresh and fractional display requests are supported separately. Host frame-limiter state is displayed, not changed into a client VRR mode. |
+| PyroWave transport and 4K quality | Ordinary `186f0393` packet containers work through the implemented path; adaptive record/FEC negotiation remains absent. The host's [quality policy](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/pyrowave.rs) recommends about 277 Mbps at 720p60, 399 Mbps at 1080p60 and 1593 Mbps at 4K60. This client's startup profile ceiling is 1000 Mbps and the host runtime endpoint caps at 500 Mbps: recommended-quality 4K60 is not covered. Higher bitrate/record transport needs further work, not a claim that Android GPUs cannot decode it. |
+| Remote Monitor, Remote Input and control-tile lifecycle | Stable synthetic IDs/UUIDs can be listed and sent. Host [role handling](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/stream.rs) emits no video for InputOnly, so the normal Android video watchdog cannot provide a usable dedicated input-only session. Dedicated role lifecycle/ownership UI is missing. Terminate/disconnect and replacement confirmation use XML status 410, currently surfaced as a start message/error rather than a dedicated action-success/confirmation flow. Remote Monitor's persistence/rejoin behavior is unverified. |
+| Arbitrary controller mapping and advanced feedback | Existing Android/vendor maps, swap/deadzone/multiple-pad options are available; a user-defined per-device button/axis remapper is not. DualSense adaptive effects and secondary-touchpad extensions are outside the pinned client's exposed input core. |
+| Other Artemis desktop conveniences | Arbitrary virtual-button bindings/import/export, automatic clipboard sync, view pan/zoom, external-monitor-specific UI and SBS 3D remain absent. Manual foreground text clipboard is intentional current behavior. No claim of every Artemis feature being reproduced. |
+| Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain their normal startup bitrate. PyroWave-specific adaptation and automatic resolution/codec switching remain unimplemented. |
+
+### Current verification scope and real-device checklist
+
+The local checks cover profile validation/round-trips, fractional/stock-host query behavior,
+UUID/order/artwork identity, the trailing version sentinel, OTP hashing/request mode, bandwidth
+streaming/cancellation boundaries and the automatic-bitrate state machine, alongside existing native
+protocol/decoder tests. Before rebasing, `assembleNonRootDebug` passed for all four ordinary-codec ABIs,
+`testNonRootDebugUnitTest` passed 82 tests with zero failures/errors/skips, and `lintNonRootDebug`
+reported zero errors and 203 warnings (including two AV1 spelling warnings). The native
+`pyrowave_frame_test` assertions passed with GCC 16.1. These runs used Windows/JDK 17 and Gradle
+`--no-daemon --max-workers=2`; they do not certify a stream or real device.
+
+`scripts/emulator-smoke.py` uses synthetic host responses and exercises discovery/settings/profile
+UI and the production overlay layout. It does not pair with a real host, decode a stream, measure
+a physical panel or certify controllers. The milestone 7 emulator run and post-rebase verification
+are still pending at this record; earlier counts below belong to historical milestones.
+
+The following still require real Android hardware and a host; passing synthetic tests is insufficient:
+
+1. **Pairing/identity/permissions:** pair two installations with Butterpollo rc.22 and stock
+   Sunshine/Apollo; verify distinct host device/display identities, upgrades, restore-to-new-device,
+   unpair/re-pair and certificate rejection. Exercise correct, wrong and expired OTP/passphrase,
+   ordinary PIN pairing, permissions disabled/re-enabled/revoked mid-session, and View/Launch without
+   List when opening a saved app shortcut. Check that pairing secrets are absent from logs/backups.
+2. **Profiles/library:** save different dimensions/refresh/codec/HDR/range/chroma/scale on two hosts,
+   reset one, and reconnect/launch through pinned shortcuts. Reorder/rename/remove apps, change IDs
+   while retaining UUIDs, reuse an old numeric ID for another UUID, update artwork versions, and
+   check running badges, cache refresh and Android TV poster/shortcut behavior.
+3. **Display policy:** request portrait/native/custom sizes and 59.94/60/90/119.88/120/144/240 Hz where
+   supported; inspect actual host output mode, client pacing, edge cropping and odd-dimension rounding.
+   Test 100%/150% render scale, missing virtual driver, forced host/app/device overrides, layouts,
+   display restoration and concurrent clients. Verify stock hosts keep compatible integer requests.
+4. **Codecs/colour/PyroWave:** test H.264, HEVC, AV1 and explicit PyroWave, including unsupported codec,
+   32-bit/API/Vulkan and TextureView fallbacks. Use HDR10 panels on Adreno and Mali/Immortalis for
+   ten-bit ramps, fine 4:4:4 text, full/limited range, BT.2020/PQ, metadata changes/removal, HDR toggles,
+   host ten-bit SDR, surface replacement and sustained thermal runs. Validate actual swapchain/decoder
+   formats and completed-frame timing; no mobile PyroWave performance number is established here.
+5. **Network adaptation/probe:** test wired and Wi-Fi routes with controlled loss/congestion/recovery,
+   host caps, stale/no-video periods, rapid manual/automatic switches, permission revocation and
+   disconnect during a request. Confirm bitrate reduces/recovers without oscillation or overlap and
+   that PyroWave/stock hosts never acquire automatic control. Run/cancel/background/timeout the
+   bandwidth test, distinguish link speed from HTTP throughput, and compare with sustained UDP behavior.
+6. **Input:** connect at least two physical USB/Bluetooth controllers, test slot order/hotplug,
+   standard/vendor mappings, face swap, sticks/deadzones, triggers, rumble, motion, battery and LEDs.
+   Test OSC show/hide, move/resize/save, rotation and held-button release. Exercise native multi-touch,
+   cancellation at Android edge gestures, unsupported-host fallback, trackpad/direct mouse gestures,
+   stylus, USB/Bluetooth keyboards, non-QWERTY keys, AltGr/modifiers, IME Unicode, captured/absolute
+   mice and focus/menu transitions without stuck keys/buttons. Root/evdev paths need separate hardware.
+7. **Lifecycle/integration:** toggle overlay via menu and Ctrl+Alt+Shift+S; disconnect/resume/reconnect
+   during startup, active video, HTTP actions and network loss. Verify the host app is preserved and
+   no duplicate session, stale dialog, orphan decoder or accidental `/cancel` occurs. Exercise PiP
+   entry/exit, Home/Back, rotation, screen lock, surface recreation, Android TV navigation, launcher
+   shortcuts and Wake-on-LAN from actual sleep/offline states; check OEM background restrictions.
+8. **Timing/audio/host actions:** compare processing avg/p95/p99 and CSV with host logs under sustained
+   frame load, missing timing and loss; client render callbacks are not physical scanout. Test stereo,
+   5.1/7.1 and route/encryption options, Unicode/empty/oversized clipboard with independent permissions,
+   and server commands with reordered/empty/high indices, host app restrictions and disconnect.
+
+## Milestone 5: extras and packaging (historical record)
 
 The latest host was cloned with `git clone --depth 1` outside this checkout and was only read.
 Sources: [HTTP/permissions/clipboard/bitrate](https://github.com/RamazanKara/Butterpollo/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/nvhttp.rs),
@@ -111,7 +249,10 @@ Milestone 5 real-device checks, in addition to the earlier streaming checklist b
 - Disconnect and resume the same running game, including background/foreground and rotation.
   Verify the game stays running and no unintended `/cancel` occurs.
 
-## Milestone 4b: Vulkan decoder port
+## Milestone 4b: Vulkan decoder port (historical implementation record)
+
+The implementation notes and measurements in this section describe that milestone. The current
+feature status, newer verification and remaining work are recorded in milestone 7 above.
 
 The second attempt ports the Android renderer from
 [joemossjr16/artemis-android-pyrowave `387d3a5c`](https://github.com/joemossjr16/artemis-android-pyrowave/tree/387d3a5ce1e3df8d4a4d29eec5b81a7b904926a5).
@@ -455,7 +596,7 @@ Before enabling PyroWave, real-device testing must cover:
   GPU work; report GPU timestamp duration separately. Present submission is not scanout. Repeat on a
   capable software implementation for correctness, but do not infer phone timing from software or desktop GPU results.
 
-## Verification and hardware follow-up
+## Milestone 4 verification and hardware follow-up (historical record)
 
 Passed for the milestone 4 exclusion/audit change: `testNonRootDebugUnitTest` (30 tests, no failures),
 `assembleNonRootDebug` (ARM64), and `lintNonRootDebug` (zero errors, 194 warnings),
