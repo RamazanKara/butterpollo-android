@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stream_auto_bitrate_enable">Enable automatic bitrate</string>
+    <string name="stream_auto_bitrate_disable">Disable automatic bitrate</string>
+    <string name="stream_auto_bitrate_help">Bitrate adapts to network loss, up to your selected bitrate and the host cap. Saved for this PC. Setting a bitrate manually disables adaptation.</string>
+    <string name="stream_auto_bitrate_failed">Automatic bitrate stopped because the host rejected or could not apply an update. You can enable it again from the stream menu.</string>
+    <string name="stream_auto_bitrate_status">Automatic bitrate: %1$d kbps</string>
+    <string name="stream_bitrate_busy">A host update is still in progress. Try again in a moment.</string>
+</resources>

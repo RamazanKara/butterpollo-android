@@ -18,6 +18,7 @@ import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
 import com.limelight.nvstream.NvConnection;
+import com.limelight.nvstream.AdaptiveBitrateController;
 import com.limelight.nvstream.NvConnectionListener;
 import com.limelight.nvstream.StreamConfiguration;
 import com.limelight.nvstream.http.ComputerDetails;
@@ -63,6 +64,8 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.preference.PreferenceManager;
@@ -151,6 +154,26 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean restoreInputAfterMenu;
     private boolean restoreInputOnResume;
     private int currentBitrate;
+    private AdaptiveBitrateController adaptiveBitrate;
+    private boolean poorConnection;
+    private final Handler bitrateHandler = new Handler(Looper.getMainLooper());
+    private final Runnable updateBitrate = new Runnable() {
+        @Override
+        public void run() {
+            if (!connected || adaptiveBitrate == null) {
+                return;
+            }
+            if (!hostActionInProgress && streamMenu == null) {
+                long now = SystemClock.uptimeMillis();
+                int target = adaptiveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now),
+                        poorConnection, decoderRenderer.getNetworkFrameLossPercent());
+                if (target != 0) {
+                    applyAdaptiveBitrate(target, adaptiveBitrate);
+                }
+            }
+            bitrateHandler.postDelayed(this, 1000);
+        }
+    };
     private String pcName;
     private String appName;
     private NvApp app;
@@ -1067,6 +1090,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        bitrateHandler.removeCallbacks(updateBitrate);
 
         if (controllerHandler != null) {
             controllerHandler.destroy();
@@ -1273,6 +1297,21 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
             labels.add(getString(R.string.stream_bitrate));
             actions.add(this::showBitrateDialog);
+            if (supportsAdaptiveBitrate()) {
+                labels.add(getString(adaptiveBitrate == null ? R.string.stream_auto_bitrate_enable :
+                        R.string.stream_auto_bitrate_disable));
+                actions.add(() -> {
+                    boolean enable = adaptiveBitrate == null;
+                    if (!enable || !hostActionInProgress) {
+                        setAdaptiveBitrateEnabled(enable);
+                        if (enable) {
+                            Toast.makeText(this, R.string.stream_auto_bitrate_help, Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
         }
         showStreamDialog(new AlertDialog.Builder(this)
                 .setTitle(R.string.stream_menu)
@@ -1552,9 +1591,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         Toast.makeText(this, R.string.stream_bitrate_invalid, Toast.LENGTH_LONG).show();
                         return;
                     }
+                    if (hostActionInProgress) {
+                        Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     if (!foreground || !connected || hostActionInProgress) {
                         return;
                     }
+                    setAdaptiveBitrateEnabled(false);
                     hostActionInProgress = true;
                     final int generation = foregroundGeneration;
                     new Thread(() -> {
@@ -1573,6 +1617,56 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         }
                     }, "Stream bitrate").start();
                 }).create());
+    }
+
+    private boolean supportsAdaptiveBitrate() {
+        ComputerDetails details = conn.getHostDetails();
+        return details.rustHostVersion != null &&
+                details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH) &&
+                (decoderRenderer.getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0;
+    }
+
+    private void setAdaptiveBitrateEnabled(boolean enabled) {
+        getSharedPreferences("AdaptiveBitrate", MODE_PRIVATE).edit()
+                .putBoolean(getIntent().getStringExtra(EXTRA_PC_UUID), enabled).apply();
+        bitrateHandler.removeCallbacks(updateBitrate);
+        adaptiveBitrate = null;
+        if (enabled) {
+            int ceiling = Math.min(500000, Math.max(prefConfig.bitrate, currentBitrate));
+            int initial = Math.min(ceiling, currentBitrate);
+            adaptiveBitrate = new AdaptiveBitrateController(ceiling, initial, SystemClock.uptimeMillis());
+            // Obtain the host's applied cap before using it as the controller's starting point.
+            applyAdaptiveBitrate(initial, adaptiveBitrate);
+            bitrateHandler.postDelayed(updateBitrate, 1000);
+        }
+    }
+
+    private void applyAdaptiveBitrate(int target, AdaptiveBitrateController controller) {
+        hostActionInProgress = true;
+        new Thread(() -> {
+            try {
+                int applied = conn.setBitrate(target);
+                runOnUiThread(() -> {
+                    if (connected && !isFinishing()) {
+                        currentBitrate = applied;
+                        if (adaptiveBitrate == controller) {
+                            controller.applied(target, applied, SystemClock.uptimeMillis());
+                        }
+                    }
+                });
+            } catch (IOException | XmlPullParserException e) {
+                runOnUiThread(() -> {
+                    if (adaptiveBitrate == controller) {
+                        setAdaptiveBitrateEnabled(false);
+                        if (foreground && connected && !isFinishing()) {
+                            Toast.makeText(this, R.string.stream_auto_bitrate_failed, Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            } finally {
+                runOnUiThread(() -> hostActionInProgress = false);
+            }
+        }, "Automatic bitrate").start();
     }
 
     private void showHostActionError(Exception error, int generation) {
@@ -2688,6 +2782,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void stopConnection() {
+        bitrateHandler.removeCallbacks(updateBitrate);
+        adaptiveBitrate = null;
         if (connecting || connected) {
             connecting = connected = false;
             updatePipAutoEnter();
@@ -2835,6 +2931,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                poorConnection = connectionStatus == MoonBridge.CONN_STATUS_POOR;
                 if (prefConfig.disableWarnings) {
                     return;
                 }
@@ -2875,6 +2972,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                 connected = true;
                 connecting = false;
+                currentBitrate = prefConfig.bitrate;
+                if (supportsAdaptiveBitrate() && getSharedPreferences("AdaptiveBitrate", MODE_PRIVATE)
+                        .getBoolean(getIntent().getStringExtra(EXTRA_PC_UUID), false)) {
+                    setAdaptiveBitrateEnabled(true);
+                }
                 updatePipAutoEnter();
 
                 if (!conn.getHostDetails().hasPermission(ComputerDetails.PERMISSION_INPUT)) {
@@ -3217,7 +3319,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                performanceOverlayView.setText(text);
+                performanceOverlayView.setText(adaptiveBitrate == null ? text : text + "\n" +
+                        getString(R.string.stream_auto_bitrate_status, currentBitrate));
             }
         });
     }
