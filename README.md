@@ -3,12 +3,26 @@
 Butterpollo Android is a latency-focused client for [Butterpollo](https://github.com/RamazanKara/Butterpollo),
 based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibility.
 
+- Per-PC custom resolution, fractional refresh, bitrate, render scale, virtual-display, HDR,
+  colour-range and codec profiles. Long-press a PC and select **Streaming settings for this PC**.
+- Trackpad, direct mouse and native multi-touch modes, with a live on-screen gamepad layout editor.
+- Multiple USB/Bluetooth controllers with device mappings, feedback and motion where supported;
+  hardware keyboard/mouse input, Wake-on-LAN, pinned app shortcuts and picture-in-picture.
+- An instant stream menu for input modes, keyboard, overlay, disconnect and reconnect.
+  **Ctrl+Alt+Shift+S** toggles the performance overlay; **Ctrl+Alt+Shift+M** opens the menu.
+- Opt-in automatic bitrate for Butterpollo H.264/HEVC/AV1 streams, saved per PC, with loss-driven
+  reductions, gradual recovery and host-cap handling. Manual bitrate selection disables it.
 - Per-frame latency overlay/CSV and configurable Android low-latency controls.
 - Native-resolution, high-refresh virtual-display requests with host render scale.
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
 - Experimental PyroWave is an explicit codec choice on compatible Vulkan devices; Auto keeps H.264/HEVC/AV1.
   PyroWave needs a fast LAN and much higher bitrate (about 280 Mbps to start at 720p/60).
-- Host processing avg/p95/p99 beside client latency, and persistent per-device identity.
+- A cancellable, explicitly started PyroWave bandwidth test for compatible paired Butterpollo hosts
+  downloads 32 MiB and reports HTTPS throughput and the host link speed.
+- Host processing avg/p95/p99 beside client latency, and persistent per-device identity that is
+  excluded from Android backups/device transfer. Restored installations need fresh pairing.
+- Ordinary PIN or host-generated one-time PIN/passphrase pairing; UUID-aware app shortcuts,
+  host library order and versioned artwork updates.
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
 - Butterpollo branding and display, latency, and codec settings groups; conservative 720p/60,
@@ -75,6 +89,13 @@ and checks the production latency overlay layout in a debug-only screen, includi
 Screenshots go to `docs/screenshots/` (half size, palette PNG when Pillow is installed); UI dumps and logcat go to `app/build/emulator-smoke/`.
 The emulator is stopped in a `finally` block. The fixture does not pair or stream; overlay timings
 remain unavailable. The debug overlay activity is absent from release builds.
+
+The smoke test also validates per-PC profile input, saving, reopening and resetting to global settings.
+These are emulator captures, not evidence of hardware decoding or a live host connection.
+
+| Per-PC streaming settings | Codec and colour profile | Performance overlay |
+| --- | --- | --- |
+| ![Per-PC custom resolution and refresh](docs/screenshots/09-host-profile.png) | ![Per-PC codec and colour options](docs/screenshots/10-host-codec-profile.png) | ![Latency overlay with unavailable fixture timings](docs/screenshots/07-latency-overlay.png) |
 
 ## Upstream Moonlight
 
