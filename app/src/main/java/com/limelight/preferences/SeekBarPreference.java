@@ -171,9 +171,11 @@ public class SeekBarPreference extends DialogPreference
         sliderRow.setOrientation(LinearLayout.HORIZONTAL);
         sliderRow.setGravity(Gravity.CENTER_VERTICAL);
         Button minus = smallButton("−");
+        minus.setTextSize(22);
         minus.setContentDescription(context.getString(R.string.seekbar_decrease));
         minus.setOnClickListener(v -> showDialogValue(nudge(dialogValue, false, logScale, stepSize, minValue, maxValue)));
         Button plus = smallButton("+");
+        plus.setTextSize(22);
         plus.setContentDescription(context.getString(R.string.seekbar_increase));
         plus.setOnClickListener(v -> showDialogValue(nudge(dialogValue, true, logScale, stepSize, minValue, maxValue)));
 
