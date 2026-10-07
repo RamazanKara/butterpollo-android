@@ -6,7 +6,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Per-frame latency overlay/CSV and configurable Android low-latency controls.
 - Native-resolution, high-refresh virtual-display requests with host render scale.
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
-- PyroWave remains disabled; PyroWave-capable hosts use the existing HEVC/AV1/H.264 negotiation.
+- Experimental PyroWave is an explicit codec choice on compatible Vulkan devices; Auto keeps H.264/HEVC/AV1.
+  PyroWave needs a fast LAN and much higher bitrate (about 280 Mbps to start at 720p/60).
 - Host processing avg/p95/p99 beside client latency, and persistent per-device identity.
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
@@ -32,9 +33,8 @@ findings, supported host extras and known limits.
    does not confirm its execution. **Pause stream / disconnect** leaves the host application running;
    select the same app to resume. It does not suspend the game process.
 
-Tag builds (`v*`) attach `butterpollo-unsigned.apk` to
-[GitHub Releases](https://github.com/RamazanKara/butterpollo-android/releases). **Unsigned APKs cannot
-be installed directly.** To sign one yourself, put JDK 17 and Android SDK Build Tools on your PATH:
+Local release builds produce an unsigned APK. **Unsigned APKs cannot be installed directly.**
+Copy it to `butterpollo-unsigned.apk`, then put JDK 17 and Android SDK Build Tools on your PATH:
 
 ```sh
 keytool -genkeypair -keystore butterpollo.keystore -alias butterpollo -keyalg RSA -keysize 3072 -validity 10000
@@ -58,14 +58,23 @@ On Windows, use PowerShell and the Windows toolchains:
 ```powershell
 git submodule update --init --recursive --jobs 2
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-.\gradlew.bat --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:testNonRootDebugUnitTest
+.\gradlew.bat --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:lintNonRootDebug :app:testNonRootDebugUnitTest
 ```
 
 The debug APK is `app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk`. Use
 `:app:assembleNonRootRelease` for the unsigned release APK under `app/build/outputs/apk/nonRoot/release/`.
 On Linux/macOS use `bash gradlew` with the same arguments. Native compilation and unit test forks
-are capped at two. GitHub Actions builds debug on pushes to `main` and manual dispatch, and release
-on `v*` tags. Protocol fixtures are synthetic; the parity document lists required real-device checks.
+are capped at two. The single GitHub Actions job builds debug, runs lint, unit tests and native parser
+tests on pushes to `main` and manual dispatch. It does not publish releases. Protocol fixtures are
+synthetic; the parity document lists required real-device checks.
+
+After building debug, run `python scripts/emulator-smoke.py` with Python 3, the SDK above and the
+`sunset` Android 35 AVD installed. It refuses to start alongside another emulator, uses a headless,
+disposable AVD session, installs the APK, manually adds a loopback server-info fixture, opens settings
+and checks the production latency overlay layout in a debug-only screen, including rotation.
+Screenshots go to `docs/screenshots/`; UI dumps and logcat go to `app/build/emulator-smoke/`.
+The emulator is stopped in a `finally` block. The fixture does not pair or stream; overlay timings
+remain unavailable. The debug overlay activity is absent from release builds.
 
 ## Upstream Moonlight
 
