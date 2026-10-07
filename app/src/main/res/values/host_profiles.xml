@@ -2,29 +2,33 @@
 <resources>
     <string name="host_profile_menu">Streaming settings for this PC</string>
     <string name="host_profile_title">%1$s streaming settings</string>
-    <string name="host_profile_explanation">Used for this PC from the next stream. Host settings can override these. PyroWave needs a wired LAN and about 280 Mbps at 720p/60.</string>
-    <string name="host_profile_width">Width (pixels, 64–16384)</string>
-    <string name="host_profile_height">Height (pixels, 64–16384)</string>
+    <string name="host_profile_status_global">This PC uses your global settings. Save to give it its own.</string>
+    <string name="host_profile_status_custom">This PC has its own settings. Use global settings to remove them.</string>
+    <string name="host_profile_explanation">Applies from the next stream. Host display layout and device or app policies still apply. Fractional refresh rates need a Butterpollo host; other hosts round to whole Hz. HDR, color options and codecs need compatible hardware. PyroWave needs about 280 Mbps at 720p/60.</string>
+    <string name="host_profile_resolution">Resolution (width × height)</string>
+    <string name="host_profile_width">Width</string>
+    <string name="host_profile_height">Height</string>
+    <string name="host_profile_match_screen">Use this screen</string>
     <string name="host_profile_refresh">Refresh rate (Hz)</string>
     <string name="host_profile_bitrate">Bitrate (Mbps)</string>
-    <string name="host_profile_scale">Host render scale (50–200%)</string>
-    <string name="host_profile_codec">Preferred codec</string>
-    <string name="host_profile_virtual_display">Request a virtual display</string>
-    <string name="host_profile_hdr">Prefer HDR10</string>
-    <string name="host_profile_full_range">Full color range</string>
+    <string name="host_profile_scale">Host render scale (%)</string>
+    <string name="host_profile_codec">Video codec</string>
+    <string name="host_profile_virtual_display">Host virtual display</string>
+    <string name="host_profile_hdr">HDR</string>
+    <string name="host_profile_full_range">Full-range video</string>
     <string name="host_profile_yuv444">Prefer YUV 4:4:4</string>
     <string name="host_profile_save">Save</string>
     <string name="host_profile_reset">Use global settings</string>
     <string name="host_profile_saved">PC streaming settings saved</string>
     <string name="host_profile_reset_done">This PC now uses global streaming settings</string>
     <string name="host_profile_invalid_number">Enter a whole number from %1$d to %2$d</string>
-    <string name="host_profile_invalid_bitrate">Enter 0.5–1000 Mbps</string>
     <string name="host_profile_invalid_refresh">Enter 1–1000 Hz with at most two decimal places</string>
+    <string name="host_profile_invalid_bitrate">Enter 0.5–1000 Mbps</string>
     <string-array name="host_profile_codecs">
-        <item>Automatic (H.264 / HEVC / AV1)</item>
+        <item>Automatic</item>
         <item>Prefer AV1</item>
         <item>Prefer HEVC</item>
         <item>H.264</item>
-        <item>Prefer PyroWave (experimental)</item>
+        <item>PyroWave (experimental)</item>
     </string-array>
 </resources>

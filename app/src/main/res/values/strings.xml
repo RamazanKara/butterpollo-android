@@ -353,12 +353,12 @@
     <string name="stream_permissions_unknown">This host does not advertise per-device permissions.</string>
     <string name="stream_permission_allowed">Allowed</string>
     <string name="stream_permission_denied">Denied</string>
-    <string name="stream_permissions_help">Manage this device in the host web console. The host enforces permissions and application-specific restrictions.</string>
+    <string name="stream_permissions_help">Change these in the host web console under Devices. The host enforces them, along with any app-specific limits.</string>
     <string name="stream_input_denied">Host input is disabled for this device. Open the stream menu to review its permissions.</string>
     <string name="stream_bitrate">Adjust stream bitrate</string>
-    <string name="stream_bitrate_help">Bitrate in kbps for this session only. The host may cap the requested value. Automatic bitrate adjustment is not enabled.</string>
-    <string name="stream_bitrate_invalid">Enter a bitrate between 1 and 500000 kbps</string>
-    <string name="stream_bitrate_applied">Host applied %1$d kbps</string>
+    <string name="stream_bitrate_help">Bitrate in Mbps for this session only. The host may cap it. Setting it turns off automatic bitrate.</string>
+    <string name="stream_bitrate_invalid">Enter a bitrate from 0.5 to 500 Mbps</string>
+    <string name="stream_bitrate_applied">Host applied %1$.1f Mbps</string>
     <string name="stream_enabled">On</string>
     <string name="stream_disabled">Off</string>
     <string name="stream_limiter_status">Host frame limiter: %1$s\nVirtual-display automatic limiter: %2$s\nConfigured limit: %3$s</string>

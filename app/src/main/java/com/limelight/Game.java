@@ -102,6 +102,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Map;
 
@@ -1261,38 +1262,21 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         ComputerDetails details = conn.getHostDetails();
         ArrayList<String> labels = new ArrayList<>();
         ArrayList<Runnable> actions = new ArrayList<>();
+        // Everyday controls first, host tools next, and leaving the stream last
         labels.add(getString(R.string.stream_continue));
         actions.add(() -> {});
-        labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
-        actions.add(this::togglePerformanceOverlay);
-        labels.add(getString(R.string.stream_touch_mode));
-        actions.add(this::showTouchModeDialog);
         labels.add(getString(R.string.stream_keyboard));
         actions.add(this::toggleKeyboard);
+        labels.add(getString(R.string.stream_touch_mode));
+        actions.add(this::showTouchModeDialog);
         labels.add(getString(prefConfig.onscreenController ? R.string.stream_controls_hide : R.string.stream_controls_show));
         actions.add(() -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
         if (prefConfig.onscreenController) {
             labels.add(getString(R.string.stream_controls_layout));
             actions.add(this::showControllerLayoutDialog);
         }
-        labels.add(getString(R.string.stream_reconnect));
-        actions.add(this::reconnectStream);
-        labels.add(getString(R.string.stream_disconnect));
-        actions.add(this::finish);
-        if (details.canWriteClipboard()) {
-            labels.add(getString(R.string.stream_clipboard_send));
-            actions.add(() -> transferClipboard(true));
-        }
-        if (details.canReadClipboard()) {
-            labels.add(getString(R.string.stream_clipboard_receive));
-            actions.add(() -> transferClipboard(false));
-        }
-        if (details.canRunServerCommand(0)) {
-            labels.add(getString(R.string.stream_server_commands));
-            actions.add(() -> showServerCommands(details));
-        }
-        labels.add(getString(R.string.stream_host_status));
-        actions.add(this::refreshHostStatus);
+        labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
+        actions.add(this::togglePerformanceOverlay);
         if (details.rustHostVersion != null &&
                 details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
             labels.add(getString(R.string.stream_bitrate));
@@ -1313,6 +1297,24 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 });
             }
         }
+        if (details.canWriteClipboard()) {
+            labels.add(getString(R.string.stream_clipboard_send));
+            actions.add(() -> transferClipboard(true));
+        }
+        if (details.canReadClipboard()) {
+            labels.add(getString(R.string.stream_clipboard_receive));
+            actions.add(() -> transferClipboard(false));
+        }
+        if (details.canRunServerCommand(0)) {
+            labels.add(getString(R.string.stream_server_commands));
+            actions.add(() -> showServerCommands(details));
+        }
+        labels.add(getString(R.string.stream_host_status));
+        actions.add(this::refreshHostStatus);
+        labels.add(getString(R.string.stream_reconnect));
+        actions.add(this::reconnectStream);
+        labels.add(getString(R.string.stream_disconnect));
+        actions.add(this::finish);
         showStreamDialog(new AlertDialog.Builder(this)
                 .setTitle(R.string.stream_menu)
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> {
@@ -1550,10 +1552,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             status.append(getString(R.string.stream_permissions_unknown));
         } else {
             String[] names = getResources().getStringArray(R.array.host_permission_names);
-            int[] masks = {1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12,
-                    ComputerDetails.PERMISSION_CLIPBOARD_SET, ComputerDetails.PERMISSION_CLIPBOARD_READ,
-                    ComputerDetails.PERMISSION_SERVER_COMMAND, ComputerDetails.PERMISSION_LIST,
-                    ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH, ComputerDetails.PERMISSION_LAUNCH};
+            int[] masks = ComputerDetails.PERMISSION_DISPLAY_MASKS;
             for (int i = 0; i < names.length; i++) {
                 status.append(names[i]).append(": ").append(getString(details.hasPermission(masks[i]) ?
                         R.string.stream_permission_allowed : R.string.stream_permission_denied)).append('\n');
@@ -1574,8 +1573,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     private void showBitrateDialog() {
         EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setText(Integer.toString(currentBitrate == 0 ? prefConfig.bitrate : currentBitrate));
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setText(BigDecimal.valueOf(currentBitrate == 0 ? prefConfig.bitrate : currentBitrate, 3)
+                .stripTrailingZeros().toPlainString());
         input.selectAll();
         showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_bitrate)
                 .setMessage(R.string.stream_bitrate_help).setView(input)
@@ -1583,11 +1583,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     final int kbps;
                     try {
-                        kbps = Integer.parseInt(input.getText().toString());
-                        if (kbps <= 0 || kbps > 500000) {
+                        kbps = new BigDecimal(input.getText().toString().trim().replace(',', '.'))
+                                .movePointRight(3).intValueExact();
+                        if (kbps < 500 || kbps > 500000) {
                             throw new NumberFormatException();
                         }
-                    } catch (NumberFormatException e) {
+                    } catch (NumberFormatException | ArithmeticException e) {
                         Toast.makeText(this, R.string.stream_bitrate_invalid, Toast.LENGTH_LONG).show();
                         return;
                     }
@@ -1607,7 +1608,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                             runOnUiThread(() -> {
                                 currentBitrate = applied;
                                 if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
-                                    Toast.makeText(this, getString(R.string.stream_bitrate_applied, applied), Toast.LENGTH_LONG).show();
+                                    Toast.makeText(this, getString(R.string.stream_bitrate_applied, applied / 1000.0), Toast.LENGTH_LONG).show();
                                 }
                             });
                         } catch (IOException | XmlPullParserException e) {
@@ -3319,7 +3320,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             @Override
             public void run() {
                 performanceOverlayView.setText(adaptiveBitrate == null ? text : text + "\n" +
-                        getString(R.string.stream_auto_bitrate_status, currentBitrate));
+                        getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0));
             }
         });
     }
