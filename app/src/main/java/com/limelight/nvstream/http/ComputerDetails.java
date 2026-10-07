@@ -199,6 +199,12 @@ public class ComputerDetails {
         this.frameLimiterFpsLimitMilliHz = details.frameLimiterFpsLimitMilliHz;
     }
 
+    private static void appendIfKnown(StringBuilder str, String label, Object value) {
+        if (value != null) {
+            str.append(label).append(value).append("\n");
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder str = new StringBuilder();
@@ -206,11 +212,12 @@ public class ComputerDetails {
         str.append("State: ").append(state).append("\n");
         str.append("Active Address: ").append(activeAddress).append("\n");
         str.append("UUID: ").append(uuid).append("\n");
-        str.append("Local Address: ").append(localAddress).append("\n");
-        str.append("Remote Address: ").append(remoteAddress).append("\n");
-        str.append("IPv6 Address: ").append(ipv6Address).append("\n");
-        str.append("Manual Address: ").append(manualAddress).append("\n");
-        str.append("MAC Address: ").append(macAddress).append("\n");
+        // Skip addresses the host never reported instead of printing "null"
+        appendIfKnown(str, "Local Address: ", localAddress);
+        appendIfKnown(str, "Remote Address: ", remoteAddress);
+        appendIfKnown(str, "IPv6 Address: ", ipv6Address);
+        appendIfKnown(str, "Manual Address: ", manualAddress);
+        appendIfKnown(str, "MAC Address: ", macAddress);
         str.append("Pair State: ").append(pairState).append("\n");
         str.append("Running Game ID: ").append(runningGameId).append("\n");
         str.append("HTTPS Port: ").append(httpsPort).append("\n");

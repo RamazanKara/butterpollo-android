@@ -29,18 +29,17 @@
             android:layout_centerHorizontal="true">
             <ProgressBar
                 android:id="@+id/pcs_loading"
-                android:layout_width="75dp"
-                android:layout_height="75dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_centerHorizontal="true"
                 android:indeterminate="true"/>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_toRightOf="@+id/pcs_loading"
-                android:layout_toEndOf="@+id/pcs_loading"
-                android:layout_marginLeft="10dp"
-                android:layout_marginStart="10dp"
-                android:layout_centerVertical="true"
-                android:textAppearance="?android:attr/textAppearanceLarge"
+                android:layout_below="@+id/pcs_loading"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="16dp"
+                android:textAppearance="?android:attr/textAppearanceMedium"
                 android:gravity="center"
                 android:text="@string/searching_pc"/>
         </RelativeLayout>
@@ -49,6 +48,7 @@
 
     <ImageButton
         android:id="@+id/settingsButton"
+        android:contentDescription="@string/settings"
         android:layout_width="70dp"
         android:layout_height="65dp"
         android:cropToPadding="false"
@@ -62,6 +62,7 @@
 
     <ImageButton
         android:id="@+id/helpButton"
+        android:contentDescription="@string/help"
         android:layout_width="70dp"
         android:layout_height="65dp"
         android:cropToPadding="false"
@@ -75,6 +76,7 @@
     
     <ImageButton
         android:id="@+id/manuallyAddPc"
+        android:contentDescription="@string/title_add_pc"
         android:layout_width="70dp"
         android:layout_height="65dp"
         android:cropToPadding="false"
