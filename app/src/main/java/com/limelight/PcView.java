@@ -25,6 +25,7 @@ import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
+import com.limelight.utils.PyroWaveBandwidthTest;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.UiHelper;
@@ -69,6 +70,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private RelativeLayout noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
+    private PyroWaveBandwidthTest bandwidthTest;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
     private final ServiceConnection serviceConnection = new ServiceConnection() {
@@ -126,6 +128,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private final static int TEST_NETWORK_ID = 10;
     private final static int GAMESTREAM_EOL_ID = 11;
     private final static int HOST_SETTINGS_ID = 12;
+    private final static int BANDWIDTH_PROBE_ID = 14;
     private final static int OTP_PAIR_ID = 13;
 
     private void initializeViews() {
@@ -323,6 +326,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         super.onPause();
 
         inForeground = false;
+        if (bandwidthTest != null) {
+            bandwidthTest.cancel();
+            bandwidthTest = null;
+        }
         stopComputerUpdates(false);
     }
 
@@ -396,6 +403,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         menu.add(Menu.NONE, DELETE_ID, 6, getResources().getString(R.string.pcview_menu_delete_pc));
         menu.add(Menu.NONE, VIEW_DETAILS_ID, 7,  getResources().getString(R.string.pcview_menu_details));
         menu.add(Menu.NONE, HOST_SETTINGS_ID, 8, getResources().getString(R.string.host_profile_menu));
+        if (computer.details.state == ComputerDetails.State.ONLINE &&
+                computer.details.supportsPyroWaveBandwidthProbe()) {
+            menu.add(Menu.NONE, BANDWIDTH_PROBE_ID, 9, getResources().getString(R.string.bandwidth_probe_title));
+        }
     }
 
     @Override
@@ -738,6 +749,18 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
             case HOST_SETTINGS_ID:
                 HostStreamSettings.show(this, computer.details.uuid, computer.details.name);
+                return true;
+
+            case BANDWIDTH_PROBE_ID:
+                if (managerBinder == null) {
+                    Toast.makeText(this, R.string.error_manager_not_running, Toast.LENGTH_LONG).show();
+                    return true;
+                }
+                if (bandwidthTest != null) {
+                    bandwidthTest.cancel();
+                }
+                bandwidthTest = new PyroWaveBandwidthTest(this, computer.details, managerBinder.getUniqueId());
+                bandwidthTest.show();
                 return true;
 
             case TEST_NETWORK_ID:

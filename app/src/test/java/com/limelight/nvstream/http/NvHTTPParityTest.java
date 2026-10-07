@@ -269,6 +269,63 @@ public class NvHTTPParityTest {
     }
 
     @Test
+    public void bandwidthProbeRequiresPairingAndBoundedAdvertisedCapability() throws Exception {
+        ComputerDetails details = new ComputerDetails();
+        for (String bytes : new String[] {"0", "-1", "33554433", "bad", "33554432"}) {
+            NvHTTP.readClientCapabilities(details, "<root status_code=\"200\"><RustHostVersion>test</RustHostVersion>" +
+                    "<PyroWaveHostLinkMbps>2500</PyroWaveHostLinkMbps><PyroWaveBandwidthProbeBytes>" +
+                    bytes + "</PyroWaveBandwidthProbeBytes></root>");
+            details.pairState = PairingManager.PairState.NOT_PAIRED;
+            assertFalse(details.supportsPyroWaveBandwidthProbe());
+            details.pairState = PairingManager.PairState.PAIRED;
+            assertEquals(bytes.equals("33554432"), details.supportsPyroWaveBandwidthProbe());
+            assertEquals(2500, new ComputerDetails(details).pyroWaveHostLinkMbps);
+        }
+        NvHTTP client = http();
+        assertThrows(java.io.IOException.class, () -> client.probePyroWaveBandwidth(details, percent -> {}));
+        NvHTTP.readClientCapabilities(details, "<root status_code=\"200\"/>");
+        assertFalse(details.supportsPyroWaveBandwidthProbe());
+        assertEquals(0, details.pyroWaveHostLinkMbps);
+    }
+
+    @Test
+    public void bandwidthProbeStreamsBoundedChunksAndReportsProgress() throws Exception {
+        java.util.List<Integer> progress = new java.util.ArrayList<>();
+        try (ResponseBody response = ResponseBody.create(new byte[128 * 1024], MediaType.get("application/octet-stream"))) {
+            NvHTTP.readBandwidthProbe(response, 128 * 1024, progress::add);
+        }
+        assertEquals(java.util.Arrays.asList(50, 100), progress);
+    }
+
+    @Test
+    public void bandwidthProbeRejectsErrorPagesAndAdvertisedLengthMismatch() throws Exception {
+        try (ResponseBody error = ResponseBody.create("error", MediaType.get("application/xml"));
+             ResponseBody wrongLength = ResponseBody.create(new byte[20], MediaType.get("application/octet-stream"))) {
+            assertThrows(java.io.IOException.class, () -> NvHTTP.readBandwidthProbe(error, 5, percent -> {}));
+            assertThrows(java.io.IOException.class, () -> NvHTTP.readBandwidthProbe(wrongLength, 10, percent -> {}));
+            assertThrows(java.io.IOException.class, () -> NvHTTP.readBandwidthProbe(wrongLength, 33554433, percent -> {}));
+        }
+    }
+
+    @Test
+    public void bandwidthProbeRejectsTruncatedAndOversizedChunkedBodies() throws Exception {
+        for (int length : new int[] {9, 10, 11}) {
+            Buffer source = new Buffer().write(new byte[length]);
+            try (ResponseBody response = new ResponseBody() {
+                @Override public MediaType contentType() { return MediaType.get("application/octet-stream"); }
+                @Override public long contentLength() { return -1; }
+                @Override public okio.BufferedSource source() { return source; }
+            }) {
+                if (length == 10) {
+                    NvHTTP.readBandwidthProbe(response, 10, percent -> {});
+                } else {
+                    assertThrows(java.io.IOException.class, () -> NvHTTP.readBandwidthProbe(response, 10, percent -> {}));
+                }
+            }
+        }
+    }
+
+    @Test
     public void runtimeBitrateUsesKbpsAndReportsTheHostAppliedCap() throws Exception {
         NvHTTP http = http();
         OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain -> {

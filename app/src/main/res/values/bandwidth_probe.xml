@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bandwidth_probe_title">Test PyroWave bandwidth</string>
+    <string name="bandwidth_probe_confirmation">Download 32 MiB from this paired PC to measure HTTP throughput. This uses network data and may affect other streams. No streaming settings will change.</string>
+    <string name="bandwidth_probe_start">Start test</string>
+    <string name="bandwidth_probe_running">Measuring HTTP throughput… The transfer stops after 30 seconds. Leave this screen or tap Cancel to stop.</string>
+    <string name="bandwidth_probe_result">Observed HTTP throughput: %1$.1f Mbps</string>
+    <string name="bandwidth_probe_link">Host network link: %1$d Mbps</string>
+    <string name="bandwidth_probe_limits">This includes request overhead and is not a guarantee of UDP streaming quality. Leave headroom for audio and recovery data. PyroWave quality targets at 60 FPS are about 277 Mbps at 720p, 399 Mbps at 1080p and 1593 Mbps at 4K. If the network is slower, use HEVC or AV1.</string>
+    <string name="bandwidth_probe_failed">The bandwidth test could not finish: %1$s</string>
+</resources>
