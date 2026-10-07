@@ -68,8 +68,11 @@ lists describe their own products; the Butterpollo column is based on this repos
 | [Moonlight-qt feature list](https://github.com/moonlight-stream/moonlight-qt#features) | H.264/HEVC/AV1, HDR/4:4:4, surround sound, multi-touch, gamepad feedback/motion, captured/direct mouse and system shortcuts. | Ordinary codecs/HDR/audio/input follow Android's decoder, display and input capabilities. Native multi-touch is enabled with a host capability fallback. Ctrl+Alt+Shift+S toggles the performance overlay. Android's supported standard 4:4:4 profiles remain narrower than desktop decoders; unsupported formats fall back. |
 
 The inherited controller mappings include Android-standard and vendor-specific mappings, face-button
-swap, deadzone controls and multi-controller mode. An arbitrary button/axis mapping editor is still
-missing. OSC editing moves/resizes existing controls and saves their layout; it does not create
+swap, deadzone controls and multi-controller mode. **Settings → Controller buttons** remaps digital
+buttons per controller model (USB vendor/product ID, or name when IDs are missing): press a button,
+then pick A/B/X/Y, bumpers, stick clicks, Start, Select, Guide or nothing. A mapping replaces
+face-button flipping for that button and applies from the next stream. D-pad, analog triggers and
+stick axes are not remappable, and controllers claimed by the built-in Xbox USB driver bypass it. OSC editing moves/resizes existing controls and saves their layout; it does not create
 arbitrary keyboard/mouse macro buttons. Native multi-touch forwards finger pointers; the stream menu
 opens the soft keyboard so three fingers remain available to the host. Mouse-emulation modes retain
 their existing three-finger keyboard gesture.
@@ -128,7 +131,7 @@ their existing three-finger keyboard gesture.
 | VRR | No equivalent variable-cadence Android presentation path is implemented, so Nonary `vrr`/`vrrLowLatency` is not requested. Fixed high refresh and fractional display requests are supported separately. Host frame-limiter state is displayed, not changed into a client VRR mode. |
 | PyroWave transport and 4K quality | Ordinary `186f0393` packet containers work through the implemented path; adaptive record/FEC negotiation remains absent. The host's [quality policy](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/pyrowave.rs) recommends about 277 Mbps at 720p60, 399 Mbps at 1080p60 and 1593 Mbps at 4K60. This client's startup profile ceiling is 1000 Mbps and the host runtime endpoint caps at 500 Mbps: recommended-quality 4K60 is not covered. Higher bitrate/record transport needs further work, not a claim that Android GPUs cannot decode it. |
 | Remote Monitor, Remote Input and control-tile lifecycle | Stable synthetic IDs/UUIDs can be listed and sent. Host [role handling](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/stream.rs) emits no video for InputOnly, so the normal Android video watchdog cannot provide a usable dedicated input-only session. Dedicated role lifecycle/ownership UI is missing. Terminate/disconnect and replacement confirmation use XML status 410, currently surfaced as a start message/error rather than a dedicated action-success/confirmation flow. Remote Monitor's persistence/rejoin behavior is unverified. |
-| Arbitrary controller mapping and advanced feedback | Existing Android/vendor maps, swap/deadzone/multiple-pad options are available; a user-defined per-device button/axis remapper is not. DualSense adaptive effects and secondary-touchpad extensions are outside the pinned client's exposed input core. |
+| Axis mapping and advanced feedback | Per-model digital button remapping is available; D-pad, trigger and stick-axis remapping is not, nor is remapping for controllers on the built-in Xbox USB driver. DualSense adaptive effects and secondary-touchpad extensions are outside the pinned client's exposed input core. |
 | Other Artemis desktop conveniences | Arbitrary virtual-button bindings/import/export, automatic clipboard sync, view pan/zoom, external-monitor-specific UI and SBS 3D remain absent. Manual foreground text clipboard is intentional current behavior. No claim of every Artemis feature being reproduced. |
 | Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain their normal startup bitrate. PyroWave-specific adaptation and automatic resolution/codec switching remain unimplemented. |
 
@@ -178,7 +181,8 @@ The following still require real Android hardware and a host; passing synthetic 
    that PyroWave/stock hosts never acquire automatic control. Run/cancel/background/timeout the
    bandwidth test, distinguish link speed from HTTP throughput, and compare with sustained UDP behavior.
 6. **Input:** connect at least two physical USB/Bluetooth controllers, test slot order/hotplug,
-   standard/vendor mappings, face swap, sticks/deadzones, triggers, rumble, motion, battery and LEDs.
+   standard/vendor mappings, face swap, Settings → Controller buttons (remap, disable, reset, two
+   different models, a mapped button held across the stream menu), sticks/deadzones, triggers, rumble, motion, battery and LEDs.
    Test OSC show/hide, move/resize/save, rotation and held-button release. Exercise native multi-touch,
    cancellation at Android edge gestures, unsupported-host fallback, trackpad/direct mouse gestures,
    stylus, USB/Bluetooth keyboards, non-QWERTY keys, AltGr/modifiers, IME Unicode, captured/absolute
