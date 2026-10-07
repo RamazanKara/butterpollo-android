@@ -25,6 +25,7 @@ import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
+import com.limelight.utils.HostDetailsDialog;
 import com.limelight.utils.PyroWaveBandwidthTest;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
@@ -38,6 +39,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
+import android.graphics.Typeface;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
@@ -58,6 +60,7 @@ import android.widget.ImageButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 
@@ -129,6 +132,8 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private final static int HOST_SETTINGS_ID = 12;
     private final static int BANDWIDTH_PROBE_ID = 14;
     private final static int OTP_PAIR_ID = 13;
+    private final static String FIRST_RUN_PREFS = "FirstRun";
+    private final static String PAIRING_GUIDE_SHOWN = "pairing_guide_shown";
 
     private void initializeViews() {
         setContentView(R.layout.activity_pc_view);
@@ -167,7 +172,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         helpButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                HelpLauncher.launchSetupGuide(PcView.this);
+                showPairingGuide();
             }
         });
 
@@ -253,6 +258,22 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         pcGridAdapter = new PcGridAdapter(this, PreferenceConfiguration.readPreferences(this));
 
         initializeViews();
+
+        // Explain adding and pairing once; the help button shows it again
+        if (!getSharedPreferences(FIRST_RUN_PREFS, MODE_PRIVATE).getBoolean(PAIRING_GUIDE_SHOWN, false)) {
+            getSharedPreferences(FIRST_RUN_PREFS, MODE_PRIVATE).edit().putBoolean(PAIRING_GUIDE_SHOWN, true).apply();
+            showPairingGuide();
+        }
+    }
+
+    private void showPairingGuide() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.guide_title)
+                .setMessage(R.string.guide_text)
+                .setPositiveButton(R.string.guide_done, null)
+                .setNeutralButton(R.string.guide_troubleshooting,
+                        (dialog, which) -> HelpLauncher.launchTroubleshooting(PcView.this))
+                .show();
     }
 
     private void startComputerUpdates() {
@@ -424,19 +445,19 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         LinearLayout fields = new LinearLayout(this);
         fields.setOrientation(LinearLayout.VERTICAL);
         int padding = (int) (24 * getResources().getDisplayMetrics().density);
-        fields.setPadding(padding, 0, padding, 0);
+        fields.setPadding(padding, padding / 3, padding, 0);
         EditText pin = new EditText(this);
-        pin.setHint(R.string.pair_otp_pin);
+        pin.setId(View.generateViewId());
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         pin.setFilters(new InputFilter[] {new InputFilter.LengthFilter(4)});
         pin.setSaveEnabled(false);
-        fields.addView(pin);
+        addLabeledField(fields, R.string.pair_otp_pin, pin);
         EditText passphrase = new EditText(this);
-        passphrase.setHint(R.string.pair_otp_passphrase);
+        passphrase.setId(View.generateViewId());
         passphrase.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         passphrase.setSingleLine(true);
         passphrase.setSaveEnabled(false);
-        fields.addView(passphrase);
+        addLabeledField(fields, R.string.pair_otp_passphrase, passphrase);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.pair_otp_title)
                 .setMessage(R.string.pair_otp_help)
@@ -463,6 +484,16 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             passphrase.getText().clear();
         });
         dialog.show();
+    }
+
+    private void addLabeledField(LinearLayout fields, int label, EditText field) {
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setLabelFor(field.getId());
+        fields.addView(title);
+        // Password input types switch to a monospace font; keep the dialog's font
+        field.setTypeface(Typeface.DEFAULT);
+        fields.addView(field);
     }
 
     private void doPair(final ComputerDetails computer, final String oneTimePin, final String passphrase) {
@@ -743,7 +774,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                 return true;
 
             case VIEW_DETAILS_ID:
-                Dialog.displayDialog(PcView.this, getResources().getString(R.string.title_details), computer.details.toString(), false);
+                HostDetailsDialog.show(PcView.this, computer.details);
                 return true;
 
             case HOST_SETTINGS_ID:
