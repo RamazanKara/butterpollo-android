@@ -27,13 +27,58 @@ import static org.junit.Assert.*;
 
 public class NvHTTPParityTest {
     private NvHTTP http() throws java.io.IOException {
-        return new NvHTTP(new ComputerDetails.AddressTuple("192.0.2.1", 47989), 47984,
+        return http("192.0.2.1", 47989);
+    }
+
+    private NvHTTP http(String address, int port) throws java.io.IOException {
+        return new NvHTTP(new ComputerDetails.AddressTuple(address, port), 47984,
                 "1234567890abcdef", null, new LimelightCryptoProvider() {
             public X509Certificate getClientCertificate() { return null; }
             public PrivateKey getClientPrivateKey() { return null; }
             public byte[] getPemEncodedClientCertificate() { return new byte[0]; }
             public String encodeBase64String(byte[] data) { return ""; }
         });
+    }
+
+    @Test
+    public void cancellingAStreamAbortsAnIncompleteHttpBodyAndPreventsLaterRequests() throws Exception {
+        java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch headersSent = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch finish = new java.util.concurrent.CountDownLatch(1);
+        try (java.net.ServerSocket server = new java.net.ServerSocket(0, 1,
+                java.net.InetAddress.getLoopbackAddress())) {
+            NvHTTP http = http(server.getInetAddress().getHostAddress(), server.getLocalPort());
+            java.util.concurrent.Future<?> host = workers.submit(() -> {
+                try (java.net.Socket socket = server.accept()) {
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+                    while (!reader.readLine().isEmpty()) { }
+                    socket.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n" +
+                            "Content-Type: application/xml\r\n\r\n<root").getBytes(StandardCharsets.US_ASCII));
+                    socket.getOutputStream().flush();
+                    headersSent.countDown();
+                    finish.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            java.util.concurrent.Future<String> response = workers.submit(() -> http.getServerInfo(true));
+            try {
+                assertTrue(headersSent.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                http.cancelPendingRequests();
+                java.util.concurrent.ExecutionException failure = assertThrows(
+                        java.util.concurrent.ExecutionException.class,
+                        () -> response.get(2, java.util.concurrent.TimeUnit.SECONDS));
+                assertTrue(failure.getCause() instanceof java.io.IOException);
+                assertThrows(java.io.IOException.class, () -> http.getServerInfo(true));
+            } finally {
+                finish.countDown();
+            }
+            host.get(2, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            finish.countDown();
+            workers.shutdownNow();
+        }
     }
 
     private ComputerDetails capabilities(String xml) throws Exception {
@@ -127,6 +172,39 @@ public class NvHTTPParityTest {
             assertFalse(details.canRunServerCommand(0));
             assertFalse(details.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
         }
+    }
+
+    @Test
+    public void malformedHostNumbersUseCheckedErrorsOrOptionalFieldDefaults() throws Exception {
+        NvHTTP http = http();
+        for (String status : new String[] {"", "garbage", "4294967496", "-4294967096"}) {
+            String xml = "<root status_code=\"" + status + "\"><appversion>7.1.2.3</appversion></root>";
+            assertThrows(HostHttpResponseException.class, () -> http.getServerVersion(xml));
+        }
+        for (String value : new String[] {"-1", "65536", "garbage"}) {
+            String xml = "<root status_code=\"200\"><HttpsPort>" + value +
+                    "</HttpsPort><ExternalPort>" + value + "</ExternalPort></root>";
+            assertEquals(47984, http.getHttpsPort(xml));
+            assertEquals(47989, http.getExternalPort(xml));
+        }
+        for (String value : new String[] {"-1", "4294967296", "garbage"}) {
+            assertEquals(0, http.getServerCodecModeSupport("<root status_code=\"200\"><ServerCodecModeSupport>" +
+                    value + "</ServerCodecModeSupport></root>"));
+        }
+        assertThrows(org.xmlpull.v1.XmlPullParserException.class, () -> http.getCurrentGame(
+                "<root status_code=\"200\"><state>SUNSHINE_SERVER_BUSY</state><currentgame>bad</currentgame></root>"));
+        for (String version : new String[] {"7.1", "7.x.0.0", "7.1.-1.0"}) {
+            assertThrows(org.xmlpull.v1.XmlPullParserException.class, () -> http.getServerAppVersionQuad(
+                    "<root status_code=\"200\"><appversion>" + version + "</appversion></root>"));
+        }
+    }
+
+    @Test
+    public void stockUnsignedErrorStatusKeepsItsAudioDiagnostic() {
+        HostHttpResponseException error = assertThrows(HostHttpResponseException.class,
+                () -> NvHTTP.getXmlString("<root status_code=\"4294967295\" status_message=\"Invalid\"/>",
+                        "appversion", true));
+        assertEquals(418, error.getErrorCode());
     }
 
     @Test
@@ -247,6 +325,35 @@ public class NvHTTPParityTest {
     }
 
     @Test
+    public void failedPairingUsesHttpBeforeRegistrationWhilePairedUnpairUsesHttps() throws Exception {
+        NvHTTP http = http();
+        javax.net.ssl.TrustManagerFactory factory = javax.net.ssl.TrustManagerFactory.getInstance(
+                javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+        factory.init((java.security.KeyStore) null);
+        for (javax.net.ssl.TrustManager manager : factory.getTrustManagers()) {
+            if (manager instanceof javax.net.ssl.X509TrustManager) {
+                http.setServerCert(((javax.net.ssl.X509TrustManager) manager).getAcceptedIssuers()[0]);
+                break;
+            }
+        }
+        java.util.List<String> schemes = new java.util.ArrayList<>();
+        java.lang.reflect.Field field = NvHTTP.class.getDeclaredField("httpClientLongConnectTimeout");
+        field.setAccessible(true);
+        field.set(http, new OkHttpClient.Builder().addInterceptor(chain -> {
+            schemes.add(chain.request().url().scheme());
+            assertEquals("/unpair", chain.request().url().encodedPath());
+            assertEquals("1234567890abcdef", chain.request().url().queryParameter("uniqueid"));
+            return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK").body(ResponseBody.create(
+                            "<root status_code=\"200\"><unpaired>1</unpaired></root>",
+                            MediaType.get("application/xml"))).build();
+        }).build());
+        http.cancelPairing();
+        http.unpair();
+        assertEquals(java.util.Arrays.asList("http", "https"), schemes);
+    }
+
+    @Test
     public void pyrowaveServerCapabilitiesRemainSeparateFromLaunchHdr() throws Exception {
         ConnectionContext context = context("butterpollo-serverinfo.xml");
         String server = fixture("butterpollo-serverinfo.xml");
@@ -343,6 +450,23 @@ public class NvHTTPParityTest {
         HttpUrl query = query(context, false);
         assertEquals("1968x2184x0", query.queryParameter("mode"));
         assertEquals("0", query.queryParameter("sops"));
+    }
+
+    @Test
+    public void stockLaunchRetainsSurroundAudioControllerAndEncryptionParameters() throws Exception {
+        ConnectionContext context = context("sunshine-serverinfo.xml");
+        context.streamConfig = new StreamConfiguration.Builder().setLaunchRefreshRate(60)
+                .setAudioConfiguration(new com.limelight.nvstream.jni.MoonBridge.AudioConfiguration(6, 0x3F))
+                .enableLocalAudioPlayback(true).setAttachedGamepadMask(5)
+                .setPersistGamepadsAfterDisconnect(true).build();
+        HttpUrl query = query(context, false);
+        assertEquals("1", query.queryParameter("localAudioPlayMode"));
+        assertEquals(Integer.toString((0x3F << 16) | 6), query.queryParameter("surroundAudioInfo"));
+        assertEquals("5", query.queryParameter("remoteControllersBitmap"));
+        assertEquals("5", query.queryParameter("gcmap"));
+        assertEquals("1", query.queryParameter("gcpersist"));
+        assertEquals("00000000000000000000000000000000", query.queryParameter("rikey"));
+        assertEquals("-123", query.queryParameter("rikeyid"));
     }
 
     @Test

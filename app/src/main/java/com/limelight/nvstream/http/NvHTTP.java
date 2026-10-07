@@ -27,6 +27,9 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 import java.util.Stack;
 import java.util.UUID;
+import java.util.Set;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
@@ -54,6 +57,7 @@ import com.limelight.nvstream.http.PairingManager.PairState;
 import com.limelight.nvstream.jni.MoonBridge;
 
 import okhttp3.ConnectionPool;
+import okhttp3.Call;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -61,9 +65,14 @@ import okhttp3.RequestBody;
 import okhttp3.MediaType;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okio.BufferedSource;
+import okio.ForwardingSource;
+import okio.Okio;
 
 
 public class NvHTTP {
+    private final Set<Call> pendingCalls = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private volatile boolean cancelled;
     private String uniqueId;
     private PairingManager pm;
 
@@ -287,7 +296,16 @@ public class NvHTTP {
         // 0xFFFFFFFF, which will cause Integer.parseInt() to throw a NumberFormatException due
         // to exceeding Integer.MAX_VALUE. We'll get the desired error code of -1 by just casting
         // the resulting long into an int.
-        int statusCode = (int)Long.parseLong(xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_code"));
+        int statusCode;
+        try {
+            long value = Long.parseLong(xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_code"));
+            if (value < Integer.MIN_VALUE || value > 0xFFFFFFFFL) {
+                throw new NumberFormatException();
+            }
+            statusCode = (int) value;
+        } catch (NumberFormatException e) {
+            throw new HostHttpResponseException(500, "Malformed status code in host response");
+        }
         if (statusCode != 200) {
             String statusMsg = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_message");
             if (statusCode == -1 && "Invalid".equals(statusMsg)) {
@@ -470,13 +488,41 @@ public class NvHTTP {
         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
         Request.Builder builder = new Request.Builder().url(completeUrl);
         Request request = (content == null ? builder.get() : builder.post(content)).build();
-        Response response = performAndroidTlsHack(client).newCall(request).execute();
+        Call call = performAndroidTlsHack(client).newCall(request);
+        pendingCalls.add(call);
+        if (cancelled) {
+            call.cancel();
+        }
+        Response response;
+        try {
+            response = call.execute();
+        } catch (IOException | RuntimeException e) {
+            pendingCalls.remove(call);
+            throw e;
+        }
 
         ResponseBody body = response.body();
         
         if (response.isSuccessful()) {
-            return body;
+            // Keep cancellation effective until the caller finishes reading the body.
+            BufferedSource source = Okio.buffer(new ForwardingSource(body.source()) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        pendingCalls.remove(call);
+                    }
+                }
+            });
+            return new ResponseBody() {
+                @Override public MediaType contentType() { return body.contentType(); }
+                @Override public long contentLength() { return body.contentLength(); }
+                @Override public BufferedSource source() { return source; }
+            };
         }
+
+        pendingCalls.remove(call);
         
         // Unsuccessful, so close the response body
         if (body != null) {
@@ -491,15 +537,23 @@ public class NvHTTP {
         }
     }
 
+    public void cancelPendingRequests() {
+        cancelled = true;
+        for (Call call : pendingCalls) {
+            call.cancel();
+        }
+    }
+
     private String openHttpConnectionToString(OkHttpClient client, HttpUrl baseUrl, String path) throws IOException {
         return openHttpConnectionToString(client, baseUrl, path, null);
     }
 
     private String openHttpConnectionToString(OkHttpClient client, HttpUrl baseUrl, String path, String query) throws IOException {
         try {
-            ResponseBody resp = openHttpConnection(client, baseUrl, path, query);
-            String respString = resp.string();
-            resp.close();
+            String respString;
+            try (ResponseBody resp = openHttpConnection(client, baseUrl, path, query)) {
+                respString = resp.string();
+            }
 
             if (verbose && !path.equals("serverinfo")) {
                 LimeLog.info(getCompleteUrl(baseUrl, path, query)+" -> "+respString);
@@ -534,21 +588,13 @@ public class NvHTTP {
     public long getMaxLumaPixelsH264(String serverInfo) throws XmlPullParserException, IOException {
         // MaxLumaPixelsH264 wasn't present on old GFE versions
         String str = getXmlString(serverInfo, "MaxLumaPixelsH264", false);
-        if (str != null) {
-            return Long.parseLong(str);
-        } else {
-            return 0;
-        }
+        return readUnsignedValue(str, Long.MAX_VALUE);
     }
     
     public long getMaxLumaPixelsHEVC(String serverInfo) throws XmlPullParserException, IOException {
         // MaxLumaPixelsHEVC wasn't present on old GFE versions
         String str = getXmlString(serverInfo, "MaxLumaPixelsHEVC", false);
-        if (str != null) {
-            return Long.parseLong(str);
-        } else {
-            return 0;
-        }
+        return readUnsignedValue(str, Long.MAX_VALUE);
     }
 
     // Possible meaning of bits
@@ -562,11 +608,7 @@ public class NvHTTP {
     public long getServerCodecModeSupport(String serverInfo) throws XmlPullParserException, IOException {
         // ServerCodecModeSupport wasn't present on old GFE versions
         String str = getXmlString(serverInfo, "ServerCodecModeSupport", false);
-        if (str != null) {
-            return Long.parseLong(str);
-        } else {
-            return 0;
-        }
+        return readUnsignedValue(str, 0xFFFFFFFFL);
     }
     
     public String getGpuType(String serverInfo) throws XmlPullParserException, IOException {
@@ -594,7 +636,11 @@ public class NvHTTP {
         // has the semantics that its name would indicate. To contain the effects of this change as much
         // as possible, we'll force the current game to zero if the server isn't in a streaming session.
         if (getXmlString(serverInfo, "state", true).endsWith("_SERVER_BUSY")) {
-            return Integer.parseInt(getXmlString(serverInfo, "currentgame", true));
+            try {
+                return Integer.parseInt(getXmlString(serverInfo, "currentgame", true));
+            } catch (NumberFormatException e) {
+                throw new XmlPullParserException("Malformed current game ID", null, e);
+            }
         }
         else {
             return 0;
@@ -603,11 +649,9 @@ public class NvHTTP {
 
     public int getHttpsPort(String serverInfo) {
         try {
-            return Integer.parseInt(getXmlString(serverInfo, "HttpsPort", true));
-        } catch (XmlPullParserException e) {
-            e.printStackTrace();
-            return DEFAULT_HTTPS_PORT;
-        } catch (IOException e) {
+            int port = Integer.parseInt(getXmlString(serverInfo, "HttpsPort", true));
+            return port > 0 && port <= 65535 ? port : DEFAULT_HTTPS_PORT;
+        } catch (XmlPullParserException | IOException | NumberFormatException e) {
             e.printStackTrace();
             return DEFAULT_HTTPS_PORT;
         }
@@ -617,11 +661,12 @@ public class NvHTTP {
         // This is an extension which is not present in GFE. It is present for Sunshine to be able
         // to support dynamic HTTP WAN ports without requiring the user to manually enter the port.
         try {
-            return Integer.parseInt(getXmlString(serverInfo, "ExternalPort", true));
+            int port = Integer.parseInt(getXmlString(serverInfo, "ExternalPort", true));
+            return port > 0 && port <= 65535 ? port : baseUrlHttp.port();
         } catch (XmlPullParserException e) {
             // Expected on non-Sunshine servers
             return baseUrlHttp.port();
-        } catch (IOException e) {
+        } catch (IOException | NumberFormatException e) {
             e.printStackTrace();
             return baseUrlHttp.port();
         }
@@ -760,6 +805,11 @@ public class NvHTTP {
     public void unpair() throws IOException {
         openHttpConnectionToString(httpClientLongConnectTimeout, serverCert != null ? getHttpsUrl(true) : baseUrlHttp, "unpair");
     }
+
+    void cancelPairing() throws IOException {
+        // Pinning the server certificate precedes registration of our client certificate.
+        openHttpConnectionToString(httpClientLongConnectTimeout, baseUrlHttp, "unpair");
+    }
     
     public InputStream getBoxArt(NvApp app) throws IOException {
         ResponseBody resp = openHttpConnection(httpClientLongConnectTimeout, getHttpsUrl(true), "appasset", "appid=" + app.getAppId() + "&AssetType=2&AssetIdx=0");
@@ -773,15 +823,22 @@ public class NvHTTP {
     public int[] getServerAppVersionQuad(String serverInfo) throws XmlPullParserException, IOException {
         String serverVersion = getServerVersion(serverInfo);
         if (serverVersion == null) {
-            throw new IllegalArgumentException("Missing server version field");
+            throw new XmlPullParserException("Missing server version field");
         }
         String[] serverVersionSplit = serverVersion.split("\\.");
         if (serverVersionSplit.length != 4) {
-            throw new IllegalArgumentException("Malformed server version field: "+serverVersion);
+            throw new XmlPullParserException("Malformed server version field: "+serverVersion);
         }
         int[] ret = new int[serverVersionSplit.length];
         for (int i = 0; i < ret.length; i++) {
-            ret[i] = Integer.parseInt(serverVersionSplit[i]);
+            try {
+                ret[i] = Integer.parseInt(serverVersionSplit[i]);
+                if (ret[i] < 0) {
+                    throw new NumberFormatException();
+                }
+            } catch (NumberFormatException e) {
+                throw new XmlPullParserException("Malformed server version field: " + serverVersion, null, e);
+            }
         }
         return ret;
     }

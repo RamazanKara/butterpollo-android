@@ -140,7 +140,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private AlertDialog streamMenu;
     private boolean hostActionInProgress;
     private boolean foreground;
+    private int foregroundGeneration;
     private boolean restoreInputAfterMenu;
+    private boolean restoreInputOnResume;
     private int currentBitrate;
     private String pcName;
     private String appName;
@@ -1082,11 +1084,20 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     protected void onResume() {
         super.onResume();
         foreground = true;
+        if (restoreInputOnResume && connected) {
+            setInputGrabState(true);
+        }
+        restoreInputOnResume = false;
     }
 
     @Override
     protected void onPause() {
         foreground = false;
+        foregroundGeneration++;
+        if (streamMenu != null) {
+            restoreInputOnResume = restoreInputAfterMenu;
+            streamMenu.dismiss();
+        }
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -1207,16 +1218,17 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void showStreamMenu() {
-        if (!connected || streamMenu != null || hostActionInProgress) {
+        if (!foreground || !connected || streamMenu != null || hostActionInProgress) {
             return;
         }
         restoreInputAfterMenu = grabbedInput;
+        final int generation = foregroundGeneration;
         hostActionInProgress = true;
         new Thread(() -> {
             try {
                 ComputerDetails details = conn.refreshHostDetails();
                 runOnUiThread(() -> {
-                    if (!foreground || !connected || isFinishing()) {
+                    if (!foreground || generation != foregroundGeneration || !connected || isFinishing()) {
                         return;
                     }
                     ArrayList<String> labels = new ArrayList<>();
@@ -1252,9 +1264,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                             }).create());
                 });
             } catch (IOException | XmlPullParserException e) {
-                showHostActionError(e);
+                showHostActionError(e, generation);
                 runOnUiThread(() -> {
-                    if (foreground && connected && !isFinishing()) {
+                    if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
                         showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_menu)
                                 .setMessage(R.string.stream_status_unavailable)
                                 .setNegativeButton(R.string.stream_continue, null)
@@ -1274,7 +1286,13 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         String text = null;
         if (send) {
-            ClipData clip = clipboard.getPrimaryClip();
+            final ClipData clip;
+            try {
+                clip = clipboard.getPrimaryClip();
+            } catch (RuntimeException e) {
+                showHostActionError(e, foregroundGeneration);
+                return;
+            }
             if (clip == null || clip.getItemCount() == 0 || clip.getItemAt(0).getText() == null) {
                 Toast.makeText(this, R.string.stream_clipboard_empty, Toast.LENGTH_SHORT).show();
                 return;
@@ -1282,6 +1300,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             text = clip.getItemAt(0).getText().toString();
         }
         final String outgoing = text;
+        final int generation = foregroundGeneration;
         hostActionInProgress = true;
         new Thread(() -> {
             try {
@@ -1290,7 +1309,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 }
                 String incoming = send ? null : conn.getClipboard();
                 runOnUiThread(() -> {
-                    if (!foreground || !connected || isFinishing() || !hasWindowFocus()) {
+                    if (!foreground || generation != foregroundGeneration || !connected || isFinishing() || !hasWindowFocus()) {
                         return;
                     }
                     if (!send) {
@@ -1303,7 +1322,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         try {
                             clipboard.setPrimaryClip(clip);
                         } catch (RuntimeException e) {
-                            showHostActionError(e);
+                            showHostActionError(e, generation);
                             return;
                         }
                     }
@@ -1311,7 +1330,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                             Toast.LENGTH_SHORT).show();
                 });
             } catch (IOException | XmlPullParserException e) {
-                showHostActionError(e);
+                showHostActionError(e, generation);
             } finally {
                 runOnUiThread(() -> hostActionInProgress = false);
             }
@@ -1327,21 +1346,22 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                             .setMessage(R.string.stream_command_confirm)
                             .setNegativeButton(android.R.string.cancel, null)
                             .setPositiveButton(R.string.stream_command_run, (confirmation, which) -> {
-                                if (!connected || hostActionInProgress) {
+                                if (!foreground || !connected || hostActionInProgress) {
                                     return;
                                 }
                                 hostActionInProgress = true;
+                                final int generation = foregroundGeneration;
                                 new Thread(() -> {
                                     try {
                                         boolean sent = conn.sendServerCommand(index, names[index]);
                                         runOnUiThread(() -> {
-                                            if (foreground && connected && !isFinishing()) {
+                                            if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
                                                 Toast.makeText(this, sent ? R.string.stream_command_sent : R.string.stream_command_failed,
                                                         Toast.LENGTH_LONG).show();
                                             }
                                         });
                                     } catch (IOException | XmlPullParserException e) {
-                                        showHostActionError(e);
+                                        showHostActionError(e, generation);
                                     } finally {
                                         runOnUiThread(() -> hostActionInProgress = false);
                                     }
@@ -1397,21 +1417,22 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         Toast.makeText(this, R.string.stream_bitrate_invalid, Toast.LENGTH_LONG).show();
                         return;
                     }
-                    if (!connected || hostActionInProgress) {
+                    if (!foreground || !connected || hostActionInProgress) {
                         return;
                     }
                     hostActionInProgress = true;
+                    final int generation = foregroundGeneration;
                     new Thread(() -> {
                         try {
                             int applied = conn.setBitrate(kbps);
                             runOnUiThread(() -> {
                                 currentBitrate = applied;
-                                if (foreground && connected && !isFinishing()) {
+                                if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
                                     Toast.makeText(this, getString(R.string.stream_bitrate_applied, applied), Toast.LENGTH_LONG).show();
                                 }
                             });
                         } catch (IOException | XmlPullParserException e) {
-                            showHostActionError(e);
+                            showHostActionError(e, generation);
                         } finally {
                             runOnUiThread(() -> hostActionInProgress = false);
                         }
@@ -1419,9 +1440,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 }).create());
     }
 
-    private void showHostActionError(Exception error) {
+    private void showHostActionError(Exception error, int generation) {
         runOnUiThread(() -> {
-            if (foreground && connected && !isFinishing()) {
+            if (foreground && generation == foregroundGeneration && connected && !isFinishing()) {
                 Toast.makeText(this, getString(R.string.stream_host_action_failed, error.getMessage()), Toast.LENGTH_LONG).show();
             }
         });
@@ -2691,6 +2712,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (!connecting || isFinishing()) {
+                    return;
+                }
                 if (spinner != null) {
                     spinner.dismiss();
                     spinner = null;
@@ -2713,7 +2737,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 h.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if (connected && streamMenu == null && !isFinishing()) {
+                        if (foreground && connected && streamMenu == null && !isFinishing()) {
                             setInputGrabState(true);
                         }
                     }
@@ -2805,6 +2829,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         if (!attemptedConnection) {
             attemptedConnection = true;
+            connecting = true;
 
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
@@ -2881,7 +2906,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             // Let the decoder know immediately that the surface is gone
             decoderRenderer.prepareForStop();
 
+            displayedFailureDialog = true;
             stopConnection();
+            // Decoder and input state are terminal after stop; resume with a fresh activity.
+            finish();
         }
         surfaceCreated = false;
         videoSurface = null;

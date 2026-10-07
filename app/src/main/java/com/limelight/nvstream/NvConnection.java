@@ -51,6 +51,9 @@ public class NvConnection {
     private final Context appContext;
     private volatile ComputerDetails hostDetails = new ComputerDetails();
     private NvHTTP http;
+    private Thread connectionThread;
+    private volatile boolean stopRequested;
+    private boolean nativeStarted;
     private boolean nativeConnected;
     private long lastServerCommandTime;
 
@@ -92,19 +95,36 @@ public class NvConnection {
     }
 
     public void stop() {
-        // Interrupt any pending connection. This is thread-safe.
-        MoonBridge.interruptConnection();
+        synchronized (this) {
+            if (stopRequested) {
+                return;
+            }
+            stopRequested = true;
+            if (connectionThread != null && !nativeStarted) {
+                connectionThread.interrupt();
+            }
+            if (http != null) {
+                http.cancelPendingRequests();
+            }
+            // A cancelled HTTP request or semaphore waiter does not own the global native connection.
+            if (nativeStarted) {
+                MoonBridge.interruptConnection();
+            }
+        }
 
         // Moonlight-core is not thread-safe with respect to connection start and stop, so
         // we must not invoke that functionality in parallel.
         synchronized (MoonBridge.class) {
-            nativeConnected = false;
-            MoonBridge.stopConnection();
-            MoonBridge.cleanupBridge();
+            if (nativeConnected) {
+                nativeConnected = false;
+                MoonBridge.stopConnection();
+                MoonBridge.cleanupBridge();
+                synchronized (this) {
+                    nativeStarted = false;
+                }
+                connectionAllowed.release();
+            }
         }
-
-        // Now a pending connection can be processed
-        connectionAllowed.release();
     }
 
     private InetAddress resolveServerAddress() throws IOException {
@@ -267,7 +287,12 @@ public class NvConnection {
     private boolean startApp(VideoDecoderRenderer renderer) throws XmlPullParserException, IOException
     {
         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
-        http = h;
+        synchronized (this) {
+            http = h;
+            if (stopRequested) {
+                h.cancelPendingRequests();
+            }
+        }
 
         String serverInfo = h.getServerInfo(true);
         
@@ -376,6 +401,10 @@ public class NvConnection {
                         context.connListener.displayMessage("Failed to resume existing session");
                         return false;
                     }
+                } else if (details.rustHostVersion != null) {
+                    // The Rust host resolves control tiles and confirms replacement itself. Cancelling
+                    // first would terminate the game when selecting its Resume or Remote Input tile.
+                    return launchNotRunningApp(h, context);
                 } else {
                     return quitAndLaunch(h, context);
                 }
@@ -440,82 +469,103 @@ public class NvConnection {
         return true;
     }
 
-    public void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer, final NvConnectionListener connectionListener)
+    public synchronized void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer, final NvConnectionListener connectionListener)
     {
-        new Thread(new Runnable() {
+        if (connectionThread != null || stopRequested) {
+            return;
+        }
+        connectionThread = new Thread(new Runnable() {
             public void run() {
                 context.connListener = connectionListener;
-                context.videoCapabilities = videoDecoderRenderer.getCapabilities();
-
                 String appName = context.streamConfig.getApp().getAppName();
-
-                context.connListener.stageStarting(appName);
-
+                boolean acquired = false;
+                boolean started = false;
                 try {
+                    if (stopRequested) {
+                        return;
+                    }
+                    context.videoCapabilities = videoDecoderRenderer.getCapabilities();
+                    context.connListener.stageStarting(appName);
+                    connectionAllowed.acquire();
+                    acquired = true;
                     if (!startApp(videoDecoderRenderer)) {
-                        videoDecoderRenderer.cleanup();
-                        context.connListener.stageFailed(appName, 0, 0);
+                        if (!stopRequested) {
+                            context.connListener.stageFailed(appName, 0, 0);
+                        }
+                        return;
+                    }
+                    if (stopRequested) {
                         return;
                     }
                     context.connListener.stageComplete(appName);
-                } catch (HostHttpResponseException e) {
-                    videoDecoderRenderer.cleanup();
-                    e.printStackTrace();
-                    context.connListener.displayMessage(e.getMessage());
-                    context.connListener.stageFailed(appName, 0, e.getErrorCode());
-                    return;
-                } catch (XmlPullParserException | IOException e) {
-                    videoDecoderRenderer.cleanup();
-                    e.printStackTrace();
-                    context.connListener.displayMessage(e.getMessage());
-                    context.connListener.stageFailed(appName, MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989, 0);
-                    return;
-                }
 
-                ByteBuffer ib = ByteBuffer.allocate(16);
-                ib.putInt(context.riKeyId);
+                    ByteBuffer ib = ByteBuffer.allocate(16);
+                    ib.putInt(context.riKeyId);
 
-                // Acquire the connection semaphore to ensure we only have one
-                // connection going at once.
-                try {
-                    connectionAllowed.acquire();
-                } catch (InterruptedException e) {
-                    videoDecoderRenderer.cleanup();
-                    context.connListener.displayMessage(e.getMessage());
-                    context.connListener.stageFailed(appName, 0, 0);
-                    return;
-                }
-
-                // Moonlight-core is not thread-safe with respect to connection start and stop, so
-                // we must not invoke that functionality in parallel.
-                synchronized (MoonBridge.class) {
-                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener);
-                    PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(appContext);
-                    int ret = MoonBridge.startConnection(context.serverAddress.address,
-                            context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
-                            context.serverCodecModeSupport,
-                            context.negotiatedWidth, context.negotiatedHeight,
-                            context.streamConfig.getRefreshRate(), context.streamConfig.getBitrate(),
-                            context.negotiatedPacketSize, context.negotiatedRemoteStreaming,
-                            context.streamConfig.getAudioConfiguration().toInt(),
-                            context.negotiatedVideoFormats,
-                            context.streamConfig.getClientRefreshRateX100(),
-                            context.riKey.getEncoded(), ib.array(),
-                            context.videoCapabilities,
-                            context.streamConfig.getColorSpace(),
-                            context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority);
-                    if (ret != 0) {
-                        videoDecoderRenderer.cleanup();
-                        // LiStartConnection() failed, so the caller is not expected
-                        // to stop the connection themselves. We need to release their
-                        // semaphore count for them.
-                        connectionAllowed.release();
-                        return;
+                    synchronized (MoonBridge.class) {
+                        synchronized (NvConnection.this) {
+                            if (stopRequested) {
+                                return;
+                            }
+                            nativeStarted = true;
+                        }
+                        MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener, () -> stopRequested);
+                        PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(appContext);
+                        int ret = MoonBridge.startConnection(context.serverAddress.address,
+                                context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
+                                context.serverCodecModeSupport,
+                                context.negotiatedWidth, context.negotiatedHeight,
+                                context.streamConfig.getRefreshRate(), context.streamConfig.getBitrate(),
+                                context.negotiatedPacketSize, context.negotiatedRemoteStreaming,
+                                context.streamConfig.getAudioConfiguration().toInt(),
+                                context.negotiatedVideoFormats,
+                                context.streamConfig.getClientRefreshRateX100(),
+                                context.riKey.getEncoded(), ib.array(),
+                                context.videoCapabilities,
+                                context.streamConfig.getColorSpace(),
+                                context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority);
+                        if (ret != 0) {
+                            return;
+                        }
+                        nativeConnected = true;
+                        started = true;
                     }
-                    nativeConnected = true;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (HostHttpResponseException e) {
+                    if (!stopRequested) {
+                        e.printStackTrace();
+                        context.connListener.displayMessage(e.getMessage());
+                        context.connListener.stageFailed(appName, 0, e.getErrorCode());
+                    }
+                } catch (XmlPullParserException | IOException | RuntimeException e) {
+                    if (!stopRequested) {
+                        e.printStackTrace();
+                        context.connListener.displayMessage(e.getMessage());
+                        context.connListener.stageFailed(appName, MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989, 0);
+                    }
+                } finally {
+                    if (!started) {
+                        try {
+                            synchronized (MoonBridge.class) {
+                                synchronized (NvConnection.this) {
+                                    if (nativeStarted) {
+                                        nativeStarted = false;
+                                        MoonBridge.cleanupBridge();
+                                    }
+                                }
+                                videoDecoderRenderer.cleanup();
+                            }
+                        } finally {
+                            if (acquired) {
+                                connectionAllowed.release();
+                            }
+                        }
+                    }
                 }
             }
-        }).start();
+        });
+        connectionThread.start();
     }
     
     public ComputerDetails getHostDetails() {
@@ -523,7 +573,14 @@ public class NvConnection {
     }
 
     public ComputerDetails refreshHostDetails() throws IOException, XmlPullParserException {
-        ComputerDetails details = http.getComputerDetails(true);
+        NvHTTP connection;
+        synchronized (this) {
+            if (stopRequested || http == null) {
+                throw new IOException("Stream is disconnected");
+            }
+            connection = http;
+        }
+        ComputerDetails details = connection.getComputerDetails(true);
         if (details.pairState != PairingManager.PairState.PAIRED) {
             throw new IOException("Device is no longer paired with the host");
         }
@@ -562,7 +619,7 @@ public class NvConnection {
             throw new IOException("Server command changed or permission denied. Reopen the stream menu.");
         }
         synchronized (MoonBridge.class) {
-            if (!nativeConnected || isMonkey) {
+            if (stopRequested || !nativeConnected || isMonkey) {
                 return false;
             }
             long now = System.nanoTime();

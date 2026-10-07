@@ -11,6 +11,82 @@ public class NvConnectionTest {
     private static final int PYROWAVE_CLIENT_FORMATS = 0x0F0000;
     private static final int PYROWAVE_HOST_FORMATS = 0x07800000;
 
+    private NvConnection connection() {
+        return new NvConnection(null,
+                new com.limelight.nvstream.http.ComputerDetails.AddressTuple("127.0.0.1", 47989),
+                47984, "1234567890abcdef", new StreamConfiguration.Builder()
+                .setApp(new com.limelight.nvstream.http.NvApp("Desktop", 1, false)).build(), null, null);
+    }
+
+    private java.util.concurrent.Semaphore connectionSemaphore() throws Exception {
+        java.lang.reflect.Field field = NvConnection.class.getDeclaredField("connectionAllowed");
+        field.setAccessible(true);
+        return (java.util.concurrent.Semaphore) field.get(null);
+    }
+
+    @Test
+    public void stoppingBeforeStartIsIdempotentAndDoesNotReleaseAnotherConnectionsPermit() throws Exception {
+        java.util.concurrent.Semaphore semaphore = connectionSemaphore();
+        assertTrue(semaphore.tryAcquire());
+        try {
+            NvConnection connection = connection();
+            connection.stop();
+            connection.stop();
+            connection.start(null, null, null);
+            assertEquals(0, semaphore.availablePermits());
+            assertThrows(java.io.IOException.class, connection::refreshHostDetails);
+        } finally {
+            semaphore.release();
+        }
+    }
+
+    @Test
+    public void cancellingAQueuedStartCleansRendererWithoutStealingNativeConnection() throws Exception {
+        java.util.concurrent.Semaphore semaphore = connectionSemaphore();
+        java.util.concurrent.CountDownLatch starting = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch cleaned = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
+        NvConnectionListener listener = (NvConnectionListener) java.lang.reflect.Proxy.newProxyInstance(
+                NvConnectionListener.class.getClassLoader(), new Class<?>[] {NvConnectionListener.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("stageStarting")) {
+                        starting.countDown();
+                    } else if (method.getName().equals("stageFailed")) {
+                        failures.incrementAndGet();
+                    }
+                    return null;
+                });
+        com.limelight.nvstream.av.video.VideoDecoderRenderer renderer =
+                new com.limelight.nvstream.av.video.VideoDecoderRenderer() {
+                    @Override public int setup(int format, int width, int height, int rate) {
+                        throw new AssertionError("Cancelled connection reached native setup");
+                    }
+                    @Override public void start() { }
+                    @Override public void stop() { }
+                    @Override public int getCapabilities() { return 0; }
+                    @Override public void setHdrMode(boolean enabled, byte[] metadata) { }
+                    @Override public void cleanup() { cleaned.countDown(); }
+                    @Override public int submitDecodeUnit(byte[] data, int length, int type, int frame,
+                            int frameType, char hostLatency, long received, long enqueued, long receivedNs) {
+                        throw new AssertionError("Cancelled connection received video");
+                    }
+                };
+        assertTrue(semaphore.tryAcquire());
+        NvConnection connection = connection();
+        try {
+            connection.start(null, renderer, listener);
+            assertTrue(starting.await(2, java.util.concurrent.TimeUnit.SECONDS));
+            connection.stop();
+            assertTrue(cleaned.await(2, java.util.concurrent.TimeUnit.SECONDS));
+            connection.stop();
+            assertEquals(0, semaphore.availablePermits());
+            assertEquals(0, failures.get());
+        } finally {
+            connection.stop();
+            semaphore.release();
+        }
+    }
+
     @Test
     public void unknownCodecFamiliesNeverReachTheNativeHandshake() {
         int host = PYROWAVE_HOST_FORMATS | 0x30301;
