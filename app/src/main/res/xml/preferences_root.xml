@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <Preference
+        android:key="video"
+        android:title="@string/settings_section_video" />
+    <Preference
+        android:key="latency"
+        android:title="@string/settings_section_latency" />
+    <Preference
+        android:key="input"
+        android:title="@string/settings_section_input"
+        android:summary="@string/settings_section_input_summary" />
+    <Preference
+        android:key="host"
+        android:title="@string/settings_section_host"
+        android:summary="@string/settings_section_host_summary" />
+    <Preference
+        android:key="app"
+        android:title="@string/settings_section_app" />
+    <PreferenceCategory android:title="@string/settings_category_support">
+        <Preference
+            android:key="help"
+            android:title="@string/title_troubleshooting"
+            android:summary="@string/summary_troubleshooting" />
+        <Preference
+            android:key="reset_all"
+            android:title="@string/title_reset_settings"
+            android:summary="@string/summary_reset_settings" />
+    </PreferenceCategory>
+</PreferenceScreen>

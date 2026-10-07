@@ -29,6 +29,17 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Toast;
+import android.app.AlertDialog;
+import android.content.res.XmlResourceParser;
+import android.widget.Toolbar;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
+import com.limelight.utils.HelpLauncher;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 
 import com.limelight.BuildConfig;
 import com.limelight.LimeLog;
@@ -50,8 +61,25 @@ import java.util.Map;
 
 public class StreamSettings extends Activity {
     private static final int EXPORT_LATENCY_REQUEST = 1;
+    private static final String STATE_SECTION = "section";
+    // Top-level screen keys and the preference categories each sub-screen shows
+    static final Map<String, String[]> SECTIONS = new LinkedHashMap<>();
+    static {
+        SECTIONS.put("video", new String[] {"category_basic_settings", "category_butterpollo_host", "category_codec_settings"});
+        SECTIONS.put("latency", new String[] {"category_latency_settings", "category_latency_diagnostics"});
+        SECTIONS.put("input", new String[] {"category_gamepad_settings", "category_input_settings", "category_onscreen_controls"});
+        SECTIONS.put("host", new String[] {"category_host_settings", "category_audio_settings"});
+        SECTIONS.put("app", new String[] {"category_ui_settings", "category_advanced_settings", "category_about"});
+    }
+    // Kept by a reset: the language is applied by the OS, the others are actions
+    private static final List<String> RESET_EXCLUDED_KEYS = Arrays.asList(
+            PreferenceConfiguration.LANGUAGE_PREF_STRING, "export_latency_csv", "about_app");
+
     private PreferenceConfiguration previousPrefs;
     private int previousDisplayPixelCount;
+    private String section;
+    private Toolbar toolbar;
+    private Object backCallback;
 
     // HACK for Android 9
     static DisplayCutout displayCutoutP;
@@ -62,8 +90,73 @@ public class StreamSettings extends Activity {
             previousDisplayPixelCount = mode.getPhysicalWidth() * mode.getPhysicalHeight();
         }
         getFragmentManager().beginTransaction().replace(
-                R.id.stream_settings, new SettingsFragment()
+                R.id.stream_settings, section == null ? new RootFragment() : SettingsFragment.forSection(section)
         ).commitAllowingStateLoss();
+        toolbar.setTitle(section == null ? getString(R.string.settings) : getString(sectionTitle(section)));
+        updateBackCallback();
+    }
+
+    static int sectionTitle(String section) {
+        switch (section) {
+            case "video": return R.string.settings_section_video;
+            case "latency": return R.string.settings_section_latency;
+            case "input": return R.string.settings_section_input;
+            case "host": return R.string.settings_section_host;
+            default: return R.string.settings_section_app;
+        }
+    }
+
+    void showSection(String newSection) {
+        section = newSection;
+        reloadSettings();
+    }
+
+    // Android 13+ with predictive back skips onBackPressed(), so sub-screens register a callback
+    private void updateBackCallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (section != null && backCallback == null) {
+                OnBackInvokedCallback callback = this::navigateBack;
+                getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                        OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
+                backCallback = callback;
+            }
+            else if (section == null && backCallback != null) {
+                getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((OnBackInvokedCallback) backCallback);
+                backCallback = null;
+            }
+        }
+    }
+
+    private void navigateBack() {
+        if (section != null) {
+            showSection(null);
+        }
+        else {
+            onBackPressed();
+        }
+    }
+
+    // Removes every setting shown in these screens, then restores the XML defaults
+    static void resetAllSettings(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        try (XmlResourceParser parser = context.getResources().getXml(R.xml.preferences)) {
+            for (int event = parser.getEventType(); event != XmlPullParser.END_DOCUMENT; event = parser.next()) {
+                if (event == XmlPullParser.START_TAG) {
+                    String key = parser.getAttributeValue("http://schemas.android.com/apk/res/android", "key");
+                    if (key != null && !RESET_EXCLUDED_KEYS.contains(key)) {
+                        editor.remove(key);
+                    }
+                }
+            }
+        } catch (XmlPullParserException | IOException e) {
+            LimeLog.warning("Unable to read preference keys: " + e);
+            return;
+        }
+        editor.remove("checkbox_native_touch")
+                .remove(PreferenceConfiguration.BITRATE_PREF_OLD_STRING)
+                .commit();
+        PreferenceManager.setDefaultValues(context, R.xml.preferences, true);
     }
 
     @Override
@@ -75,8 +168,19 @@ public class StreamSettings extends Activity {
         UiHelper.setLocale(this);
 
         setContentView(R.layout.activity_stream_settings);
+        toolbar = findViewById(R.id.settings_toolbar);
+        toolbar.setNavigationOnClickListener(v -> navigateBack());
+        if (savedInstanceState != null) {
+            section = savedInstanceState.getString(STATE_SECTION);
+        }
 
         UiHelper.notifyNewRootView(this);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_SECTION, section);
     }
 
     private void exportLatencyCsv() {
@@ -169,6 +273,10 @@ public class StreamSettings extends Activity {
     @Override
     // NOTE: This will NOT be called on Android 13+ with android:enableOnBackInvokedCallback="true"
     public void onBackPressed() {
+        if (section != null) {
+            showSection(null);
+            return;
+        }
         finish();
 
         // Language changes are handled via configuration changes in Android 13+,
@@ -184,7 +292,110 @@ public class StreamSettings extends Activity {
         }
     }
 
+    public static class RootFragment extends PreferenceFragment {
+        private static CharSequence entryFor(Context context, int names, int values, String value) {
+            String[] valueArray = context.getResources().getStringArray(values);
+            for (int i = 0; i < valueArray.length; i++) {
+                if (valueArray[i].equals(value)) {
+                    // "Automatic (recommended)" reads as "Automatic" in a one-line summary
+                    return context.getResources().getStringArray(names)[i].replaceFirst(" \\(.*\\)$", "");
+                }
+            }
+            return value;
+        }
+
+        private void updateSummaries() {
+            Context context = getActivity();
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+            PreferenceConfiguration config = PreferenceConfiguration.readPreferences(context);
+            String bitrate = config.bitrate % 1000 == 0 ? Integer.toString(config.bitrate / 1000) :
+                    String.format(Locale.getDefault(), "%.1f", config.bitrate / 1000f);
+            findPreference("video").setSummary(getString(R.string.settings_section_video_summary,
+                    config.width + "×" + config.height,
+                    config.fps + " " + getString(R.string.fps_suffix_fps),
+                    bitrate + " " + getString(R.string.suffix_seekbar_bitrate_mbps),
+                    entryFor(context, R.array.video_format_names, R.array.video_format_values,
+                            prefs.getString(PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING,
+                                    PreferenceConfiguration.DEFAULT_VIDEO_FORMAT))));
+            findPreference("latency").setSummary(getString(R.string.settings_section_latency_summary,
+                    entryFor(context, R.array.video_frame_pacing_names, R.array.video_frame_pacing_values,
+                            prefs.getString(PreferenceConfiguration.FRAME_PACING_PREF_STRING,
+                                    PreferenceConfiguration.DEFAULT_FRAME_PACING)),
+                    getString(config.enablePerfOverlay ? R.string.stream_enabled : R.string.stream_disabled)
+                            .toLowerCase(Locale.getDefault())));
+            findPreference("app").setSummary(getString(R.string.settings_section_app_summary, BuildConfig.VERSION_NAME));
+        }
+
+        @Override
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            addPreferencesFromResource(R.xml.preferences_root);
+            for (String key : SECTIONS.keySet()) {
+                findPreference(key).setOnPreferenceClickListener(preference -> {
+                    ((StreamSettings) getActivity()).showSection(key);
+                    return true;
+                });
+            }
+            findPreference("help").setOnPreferenceClickListener(preference -> {
+                HelpLauncher.launchTroubleshooting(getActivity());
+                return true;
+            });
+            findPreference("reset_all").setOnPreferenceClickListener(preference -> {
+                new AlertDialog.Builder(getActivity())
+                        .setTitle(R.string.dialog_reset_settings_title)
+                        .setMessage(R.string.dialog_reset_settings_text)
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(R.string.dialog_reset_settings_confirm, (dialog, which) -> {
+                            resetAllSettings(getActivity());
+                            updateSummaries();
+                            Toast.makeText(getActivity(), R.string.toast_reset_settings, Toast.LENGTH_SHORT).show();
+                        })
+                        .show();
+                return true;
+            });
+        }
+
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+            View view = super.onCreateView(inflater, container, savedInstanceState);
+            UiHelper.applyStatusBarPadding(view);
+            return view;
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            updateSummaries();
+        }
+    }
+
     public static class SettingsFragment extends PreferenceFragment {
+        private static final String ARG_SECTION = "section";
+
+        static SettingsFragment forSection(String section) {
+            SettingsFragment fragment = new SettingsFragment();
+            Bundle args = new Bundle();
+            args.putString(ARG_SECTION, section);
+            fragment.setArguments(args);
+            return fragment;
+        }
+
+        // Every category is built first so the device checks below can find their preferences
+        private void keepOnlySection(PreferenceScreen screen) {
+            String section = getArguments() == null ? null : getArguments().getString(ARG_SECTION);
+            String[] categories = section == null ? null : SECTIONS.get(section);
+            if (categories == null) {
+                return;
+            }
+            List<String> keep = Arrays.asList(categories);
+            for (int i = screen.getPreferenceCount() - 1; i >= 0; i--) {
+                Preference pref = screen.getPreference(i);
+                if (!keep.contains(pref.getKey())) {
+                    screen.removePreference(pref);
+                }
+            }
+        }
+
         private int nativeResolutionStartIndex = Integer.MAX_VALUE;
         private boolean nativeFramerateShown = false;
         private final Map<String, CharSequence> descriptions = new HashMap<>();
@@ -825,6 +1036,8 @@ public class StreamSettings extends Activity {
                     return true;
                 }
             });
+
+            keepOnlySection(screen);
         }
     }
 }
