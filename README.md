@@ -8,9 +8,66 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
 - PyroWave remains disabled; PyroWave-capable hosts use the existing HEVC/AV1/H.264 negotiation.
 - Host processing avg/p95/p99 beside client latency, and persistent per-device identity.
+- Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
+- A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
+- Butterpollo branding and display, latency, and codec settings groups; conservative 720p/60,
+  automatic codec selection and low-latency decoding defaults.
 
 See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
-findings, known limits and deferred Apollo extras. The links below describe the upstream Moonlight project.
+findings, supported host extras and known limits.
+
+## Install
+
+1. Download the `butterpollo-debug` artifact from a successful
+   [Android debug workflow](https://github.com/RamazanKara/butterpollo-android/actions/workflows/android.yml)
+   and extract `app-nonRoot-debug.apk`, or build it below. Android 5.0 or later is required; no root needed.
+2. Open the APK on your Android device and allow installation from your file manager when prompted,
+   or run `adb install -r app-nonRoot-debug.apk` with USB debugging enabled.
+3. Start [Butterpollo](https://github.com/RamazanKara/Butterpollo) on your PC. Select the discovered
+   host (or use **+** to enter its address), then enter the displayed PIN in **Devices** in the host
+   web console. Grant this device the desired list, launch and input permissions there.
+4. Launch an app. Android **Back**, or **Ctrl+Alt+Shift+M** on a keyboard, opens the stream menu.
+   Clipboard transfer is plain text, explicitly initiated, and requires an active session plus the
+   corresponding host permission. Server commands are the host's configured commands; sending one
+   does not confirm its execution. **Pause stream / disconnect** leaves the host application running;
+   select the same app to resume. It does not suspend the game process.
+
+Tag builds (`v*`) attach `butterpollo-unsigned.apk` to
+[GitHub Releases](https://github.com/RamazanKara/butterpollo-android/releases). **Unsigned APKs cannot
+be installed directly.** To sign one yourself, put JDK 17 and Android SDK Build Tools on your PATH:
+
+```sh
+keytool -genkeypair -keystore butterpollo.keystore -alias butterpollo -keyalg RSA -keysize 3072 -validity 10000
+zipalign -P 16 -f 4 butterpollo-unsigned.apk butterpollo-aligned.apk
+apksigner sign --ks butterpollo.keystore --ks-key-alias butterpollo --out butterpollo.apk butterpollo-aligned.apk
+apksigner verify --verbose butterpollo.apk
+adb install -r butterpollo.apk
+```
+
+Create the keystore once and keep it for updates; tools prompt for its password. See Android's
+[APK signing instructions](https://developer.android.com/tools/apksigner). CI has no signing secrets.
+Debug builds from different CI runs may use different keys; switching keys requires uninstalling
+the old app (which removes its settings and pairing identity). Butterpollo installs alongside Moonlight.
+
+## Building
+
+Install JDK 17, Android SDK Platform 37 and NDK `29.0.14206865` through Android Studio/SDK Manager,
+accept the SDK licenses, and set `ANDROID_HOME` (or `sdk.dir` in untracked `local.properties`).
+On Windows, use PowerShell and the Windows toolchains:
+
+```powershell
+git submodule update --init --recursive --jobs 2
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+.\gradlew.bat --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:testNonRootDebugUnitTest
+```
+
+The debug APK is `app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk`. Use
+`:app:assembleNonRootRelease` for the unsigned release APK under `app/build/outputs/apk/nonRoot/release/`.
+On Linux/macOS use `bash gradlew` with the same arguments. Native compilation and unit test forks
+are capped at two. GitHub Actions builds debug on pushes to `main` and manual dispatch, and release
+on `v*` tags. Protocol fixtures are synthetic; the parity document lists required real-device checks.
+
+## Upstream Moonlight
 
 [![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/232a8tadrrn8jv0k/branch/master?svg=true)](https://ci.appveyor.com/project/cgutman/moonlight-android/branch/master)
 [![Translation Status](https://hosted.weblate.org/widgets/moonlight/-/moonlight-android/svg-badge.svg)](https://hosted.weblate.org/projects/moonlight/moonlight-android/)
@@ -24,18 +81,6 @@ Moonlight also has a [PC client](https://github.com/moonlight-stream/moonlight-q
 
 You can follow development on our [Discord server](https://moonlight-stream.org/discord) and help translate Moonlight into your language on [Weblate](https://hosted.weblate.org/projects/moonlight/moonlight-android/).
 
-## Downloads
-* [Google Play Store](https://play.google.com/store/apps/details?id=com.limelight)
-* [Amazon App Store](https://www.amazon.com/gp/product/B00JK4MFN2)
-* [F-Droid](https://f-droid.org/packages/com.limelight)
-* [APK](https://github.com/moonlight-stream/moonlight-android/releases)
-
-## Building
-* Install Android Studio and the Android NDK
-* Run ‘git submodule update --init --recursive’ from within moonlight-android/
-* In moonlight-android/, create a file called ‘local.properties’. Add an ‘ndk.dir=’ property to the local.properties file and set it equal to your NDK directory.
-* Build the APK using Android Studio or gradle
-
 ## Authors
 
 * [Cameron Gutman](https://github.com/cgutman)  
@@ -45,3 +90,7 @@ You can follow development on our [Discord server](https://moonlight-stream.org/
 
 Moonlight is the work of students at [Case Western](http://case.edu) and was
 started as a project at [MHacks](http://mhacks.org).
+
+Apollo extension behavior was cross-checked against [Artemis Android](https://github.com/ClassicOldSong/moonlight-android)
+by ClassicOldSong and contributors (GPL-3.0), with Butterpollo Rust protocol differences handled explicitly.
+Moonlight attribution and the [GPL-3.0 license](LICENSE.txt) are retained.

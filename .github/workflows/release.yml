@@ -1,0 +1,36 @@
+name: Android unsigned release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Build unsigned release APK and run unit tests
+        run: bash gradlew --no-daemon --max-workers=2 :app:assembleNonRootRelease :app:testNonRootDebugUnitTest
+      - name: Attach unsigned APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cp app/build/outputs/apk/nonRoot/release/app-nonRoot-release-unsigned.apk butterpollo-unsigned.apk
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" butterpollo-unsigned.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" butterpollo-unsigned.apk --verify-tag --title "$RELEASE_TAG" --notes "Unsigned Butterpollo Android APK. Sign locally before installation; see the README for instructions."
+          fi

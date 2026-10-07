@@ -2,7 +2,7 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:seekbar="http://schemas.moonlight-stream.com/apk/res/seekbar">
 
-    <PreferenceCategory android:title="@string/category_basic_settings"
+    <PreferenceCategory android:title="@string/category_display_settings"
         android:key="category_basic_settings">
         <ListPreference
             android:key="list_resolution"
@@ -29,6 +29,43 @@
             android:summary="@string/summary_seekbar_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_bitrate" />
+        <CheckBoxPreference
+            android:key="checkbox_stretch_video"
+            android:title="@string/title_checkbox_stretch_video"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_texture_view"
+            android:title="@string/title_texture_view"
+            android:summary="@string/summary_texture_view"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_unlock_fps"
+            android:title="@string/title_unlock_fps"
+            android:summary="@string/summary_unlock_fps"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_reduce_refresh_rate"
+            android:title="@string/title_checkbox_reduce_refresh_rate"
+            android:summary="@string/summary_checkbox_reduce_refresh_rate"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_virtual_display"
+            android:title="@string/title_virtual_display"
+            android:summary="@string/summary_virtual_display"
+            android:defaultValue="false" />
+        <com.limelight.preferences.SeekBarPreference
+            android:key="seekbar_virtual_display_scale"
+            android:dependency="checkbox_virtual_display"
+            android:title="@string/title_virtual_display_scale"
+            android:summary="@string/summary_virtual_display_scale"
+            android:defaultValue="100"
+            seekbar:min="50"
+            android:max="200"
+            seekbar:step="5"
+            android:text="%" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_latency_settings"
+        android:key="category_latency_settings">
         <ListPreference
             android:key="frame_pacing"
             android:title="@string/title_frame_pacing"
@@ -37,8 +74,59 @@
             android:summary="@string/summary_frame_pacing"
             android:defaultValue="latency" />
         <CheckBoxPreference
-            android:key="checkbox_stretch_video"
-            android:title="@string/title_checkbox_stretch_video"
+            android:key="checkbox_codec_low_latency"
+            android:title="@string/title_codec_low_latency"
+            android:summary="@string/summary_codec_low_latency"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_vendor_low_latency"
+            android:title="@string/title_vendor_low_latency"
+            android:summary="@string/summary_vendor_low_latency"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_codec_performance"
+            android:title="@string/title_codec_performance"
+            android:summary="@string/summary_codec_performance"
+            android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_drop_late_frames"
+            android:title="@string/title_drop_late_frames"
+            android:summary="@string/summary_drop_late_frames"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_unbatched_input"
+            android:title="@string/title_unbatched_input"
+            android:summary="@string/summary_unbatched_input"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_network_priority"
+            android:title="@string/title_network_priority"
+            android:summary="@string/summary_network_priority"
+            android:defaultValue="false" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/category_codec_settings"
+        android:key="category_codec_settings">
+        <ListPreference
+            android:key="video_format"
+            android:title="@string/title_video_format"
+            android:entries="@array/video_format_names"
+            android:entryValues="@array/video_format_values"
+            android:summary="@string/summary_video_format"
+            android:defaultValue="auto" />
+        <CheckBoxPreference
+            android:key="checkbox_enable_hdr"
+            android:title="@string/title_enable_hdr"
+            android:summary="@string/summary_enable_hdr"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_full_range"
+            android:title="@string/title_full_range"
+            android:summary="@string/summary_full_range"
+            android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_yuv444"
+            android:title="@string/title_yuv444"
+            android:summary="@string/summary_yuv444"
             android:defaultValue="false" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_audio_settings">
@@ -227,92 +315,10 @@
     <PreferenceCategory android:title="@string/category_advanced_settings"
         android:key="category_advanced_settings">
         <CheckBoxPreference
-            android:key="checkbox_codec_low_latency"
-            android:title="@string/title_codec_low_latency"
-            android:summary="@string/summary_codec_low_latency"
-            android:defaultValue="true" />
-        <CheckBoxPreference
-            android:key="checkbox_vendor_low_latency"
-            android:title="@string/title_vendor_low_latency"
-            android:summary="@string/summary_vendor_low_latency"
-            android:defaultValue="true" />
-        <CheckBoxPreference
-            android:key="checkbox_codec_performance"
-            android:title="@string/title_codec_performance"
-            android:summary="@string/summary_codec_performance"
-            android:defaultValue="true" />
-        <CheckBoxPreference
-            android:key="checkbox_drop_late_frames"
-            android:title="@string/title_drop_late_frames"
-            android:summary="@string/summary_drop_late_frames"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_texture_view"
-            android:title="@string/title_texture_view"
-            android:summary="@string/summary_texture_view"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_unbatched_input"
-            android:title="@string/title_unbatched_input"
-            android:summary="@string/summary_unbatched_input"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_network_priority"
-            android:title="@string/title_network_priority"
-            android:summary="@string/summary_network_priority"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_unlock_fps"
-            android:title="@string/title_unlock_fps"
-            android:summary="@string/summary_unlock_fps"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_reduce_refresh_rate"
-            android:title="@string/title_checkbox_reduce_refresh_rate"
-            android:summary="@string/summary_checkbox_reduce_refresh_rate"
-            android:defaultValue="false" />
-        <CheckBoxPreference
             android:key="checkbox_disable_warnings"
             android:title="@string/title_checkbox_disable_warnings"
             android:summary="@string/summary_checkbox_disable_warnings"
             android:defaultValue="false" />
-        <ListPreference
-            android:key="video_format"
-            android:title="@string/title_video_format"
-            android:entries="@array/video_format_names"
-            android:entryValues="@array/video_format_values"
-            android:summary="@string/summary_video_format"
-            android:defaultValue="auto" />
-        <CheckBoxPreference
-            android:key="checkbox_enable_hdr"
-            android:title="@string/title_enable_hdr"
-            android:summary="@string/summary_enable_hdr"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_full_range"
-            android:title="@string/title_full_range"
-            android:summary="@string/summary_full_range"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_yuv444"
-            android:title="@string/title_yuv444"
-            android:summary="@string/summary_yuv444"
-            android:defaultValue="false" />
-        <CheckBoxPreference
-            android:key="checkbox_virtual_display"
-            android:title="@string/title_virtual_display"
-            android:summary="@string/summary_virtual_display"
-            android:defaultValue="false" />
-        <com.limelight.preferences.SeekBarPreference
-            android:key="seekbar_virtual_display_scale"
-            android:dependency="checkbox_virtual_display"
-            android:title="@string/title_virtual_display_scale"
-            android:summary="@string/summary_virtual_display_scale"
-            android:defaultValue="100"
-            seekbar:min="50"
-            android:max="200"
-            seekbar:step="5"
-            android:text="%" />
         <CheckBoxPreference
             android:key="checkbox_enable_perf_overlay"
             android:title="@string/title_enable_perf_overlay"

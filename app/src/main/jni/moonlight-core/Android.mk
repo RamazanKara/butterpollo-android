@@ -12,7 +12,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/ByteBuffer.c \
                    moonlight-common-c/src/Connection.c \
                    moonlight-common-c/src/ConnectionTester.c \
-                   moonlight-common-c/src/ControlStream.c \
+                   android_control.c \
                    moonlight-common-c/src/FakeCallbacks.c \
                    android_input.c \
                    latency.c \

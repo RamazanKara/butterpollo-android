@@ -644,7 +644,7 @@ public class StreamSettings extends Activity {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 LimeLog.info("Excluding HDR toggle based on OS");
                 PreferenceCategory category =
-                        (PreferenceCategory) findPreference("category_advanced_settings");
+                        (PreferenceCategory) findPreference("category_codec_settings");
                 category.removePreference(findPreference("checkbox_enable_hdr"));
             }
             else {
@@ -665,13 +665,13 @@ public class StreamSettings extends Activity {
                 if (!foundHdr10) {
                     LimeLog.info("Excluding HDR toggle based on display capabilities");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_advanced_settings");
+                            (PreferenceCategory) findPreference("category_codec_settings");
                     category.removePreference(findPreference("checkbox_enable_hdr"));
                 }
                 else if (PreferenceConfiguration.isShieldAtvFirmwareWithBrokenHdr()) {
                     LimeLog.info("Disabling HDR toggle on old broken SHIELD TV firmware");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_advanced_settings");
+                            (PreferenceCategory) findPreference("category_codec_settings");
                     CheckBoxPreference hdrPref = (CheckBoxPreference) category.findPreference("checkbox_enable_hdr");
                     hdrPref.setEnabled(false);
                     hdrPref.setChecked(false);

@@ -3,4 +3,6 @@
   <appversion>7.1.431.-1</appversion><GfeVersion>3.23.0.74</GfeVersion><state>SUNSHINE_SERVER_FREE</state>
   <ServerCodecModeSupport>197377</ServerCodecModeSupport><PairStatus>1</PairStatus>
   <VirtualDisplayCapable>1</VirtualDisplayCapable><VirtualDisplayHDRCapable>1</VirtualDisplayHDRCapable>
+  <Permission>4294967295</Permission>
+  <ServerCommand>Display &amp; audio</ServerCommand><ServerCommand></ServerCommand><ServerCommand>Sleep</ServerCommand>
 </root>

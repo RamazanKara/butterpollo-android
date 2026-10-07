@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="host_permission_names">
+        <item>Controller input</item>
+        <item>Touch input</item>
+        <item>Pen input</item>
+        <item>Mouse input</item>
+        <item>Keyboard input</item>
+        <item>Send clipboard</item>
+        <item>Read clipboard</item>
+        <item>Server commands</item>
+        <item>List applications</item>
+        <item>View streams</item>
+        <item>Launch and quit applications</item>
+    </string-array>
     <string-array name="resolution_names">
         <item>@string/resolution_360p</item>
         <item>@string/resolution_480p</item>

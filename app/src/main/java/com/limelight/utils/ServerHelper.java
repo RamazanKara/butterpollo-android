@@ -120,6 +120,13 @@ public class ServerHelper {
                               final NvApp app,
                               final ComputerManagerService.ComputerManagerBinder managerBinder,
                               final Runnable onComplete) {
+        if (!computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+            Toast.makeText(parent, R.string.host_launch_permission_denied, Toast.LENGTH_LONG).show();
+            if (onComplete != null) {
+                onComplete.run();
+            }
+            return;
+        }
         Toast.makeText(parent, parent.getResources().getString(R.string.applist_quit_app) + " " + app.getAppName() + "...", Toast.LENGTH_SHORT).show();
         new Thread(new Runnable() {
             @Override

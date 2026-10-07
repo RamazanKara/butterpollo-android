@@ -400,10 +400,12 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         if (lastRunningAppId != 0) {
             if (lastRunningAppId == selectedApp.app.getAppId()) {
                 menu.add(Menu.NONE, START_OR_RESUME_ID, 1, getResources().getString(R.string.applist_menu_resume));
-                menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit));
+                menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit))
+                        .setEnabled(computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
             }
             else {
-                menu.add(Menu.NONE, START_WITH_QUIT, 1, getResources().getString(R.string.applist_menu_quit_and_start));
+                menu.add(Menu.NONE, START_WITH_QUIT, 1, getResources().getString(R.string.applist_menu_quit_and_start))
+                        .setEnabled(computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
             }
         }
 

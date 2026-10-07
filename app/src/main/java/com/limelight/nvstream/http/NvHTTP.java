@@ -12,6 +12,7 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -56,6 +57,8 @@ import okhttp3.ConnectionPool;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.MediaType;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -380,6 +383,7 @@ public class NvHTTP {
 
         details.pairState = getPairState(serverInfo);
         details.runningGameId = getCurrentGame(serverInfo);
+        readClientCapabilities(details, serverInfo);
 
         // The MJOLNIR codename was used by GFE but never by any third-party server
         details.nvidiaServer = getXmlString(serverInfo, "state", true).contains("MJOLNIR");
@@ -388,6 +392,39 @@ public class NvHTTP {
         details.state = ComputerDetails.State.ONLINE;
 
         return details;
+    }
+
+    static void readClientCapabilities(ComputerDetails details, String serverInfo) throws IOException, XmlPullParserException {
+        details.permission = -1;
+        details.rustHostVersion = getXmlString(serverInfo, "RustHostVersion", false);
+        details.frameLimiterSupported = "1".equals(getXmlString(serverInfo, "FrameLimiterSupported", false));
+        details.frameLimiterEnabled = "1".equals(getXmlString(serverInfo, "FrameLimiterEnabled", false));
+        details.virtualDisplayFrameLimiterEnabled = "1".equals(getXmlString(serverInfo, "VirtualDisplayFrameLimiterEnabled", false));
+        details.frameLimiterFpsLimitMilliHz = readUnsignedValue(
+                getXmlString(serverInfo, "FrameLimiterFpsLimitMilliHz", false), Integer.MAX_VALUE);
+
+        XmlPullParser parser = XmlPullParserFactory.newInstance().newPullParser();
+        parser.setInput(new StringReader(serverInfo));
+        details.serverCommands.clear();
+        for (int event = parser.getEventType(); event != XmlPullParser.END_DOCUMENT; event = parser.next()) {
+            if (event == XmlPullParser.START_TAG && parser.getDepth() == 2) {
+                if ("Permission".equals(parser.getName())) {
+                    details.permission = readUnsignedValue(parser.nextText().trim(), 0xFFFFFFFFL);
+                } else if ("ServerCommand".equals(parser.getName())) {
+                    // Empty names still occupy a wire index.
+                    details.serverCommands.add(parser.nextText());
+                }
+            }
+        }
+    }
+
+    private static long readUnsignedValue(String value, long max) {
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed >= 0 && parsed <= max ? parsed : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
     
     public ComputerDetails getComputerDetails(boolean likelyOnline) throws IOException, XmlPullParserException {
@@ -410,7 +447,7 @@ public class NvHTTP {
 
     HttpUrl getCompleteUrl(HttpUrl baseUrl, String path, String query) {
         return baseUrl.newBuilder()
-                .addPathSegment(path)
+                .addPathSegments(path)
                 .query(query)
                 .addQueryParameter("uniqueid", uniqueId)
                 .addQueryParameter("uuid", UUID.randomUUID().toString())
@@ -426,8 +463,13 @@ public class NvHTTP {
     // The initial pair query does require outside action (user entering a PIN) but subsequent pairing
     // queries do not.
     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query) throws IOException {
+        return openHttpConnection(client, baseUrl, path, query, null);
+    }
+
+    private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query, RequestBody content) throws IOException {
         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
-        Request request = new Request.Builder().url(completeUrl).get().build();
+        Request.Builder builder = new Request.Builder().url(completeUrl);
+        Request request = (content == null ? builder.get() : builder.post(content)).build();
         Response response = performAndroidTlsHack(client).newCall(request).execute();
 
         ResponseBody body = response.body();
@@ -836,5 +878,55 @@ public class NvHTTP {
         }
 
         return true;
+    }
+
+    public String getClipboard() throws IOException {
+        try (ResponseBody response = openHttpConnection(httpClientLongConnectTimeout, getHttpsUrl(true),
+                "actions/clipboard", "type=text")) {
+            return readClipboardResponse(response);
+        }
+    }
+
+    public int setBitrate(int kbps) throws IOException, XmlPullParserException {
+        if (kbps <= 0 || kbps > 500000) {
+            throw new IllegalArgumentException("Bitrate must be between 1 and 500000 kbps");
+        }
+        String response = openHttpConnectionToString(httpClientLongConnectTimeout, getHttpsUrl(true),
+                "bitrate", "bitrate=" + kbps);
+        long applied = readUnsignedValue(getXmlString(response, "bitrate", true), 500000);
+        if (applied == 0) {
+            throw new IOException("Host did not apply the bitrate");
+        }
+        return (int) applied;
+    }
+
+    static String readClipboardResponse(ResponseBody response) throws IOException {
+        MediaType type = response.contentType();
+        // Some Sunshine versions return an XML error with HTTP 200 for unknown endpoints.
+        if (type == null || !type.type().equals("text") || !type.subtype().equals("plain")) {
+            throw new IOException("Host does not support text clipboard transfer");
+        }
+        if (response.source().request(1024 * 1024 + 1)) {
+            throw new IOException("Clipboard text exceeds 1 MiB");
+        }
+        return response.string();
+    }
+
+    public void sendClipboard(String text) throws IOException {
+        RequestBody body = clipboardRequestBody(text);
+        try (ResponseBody response = openHttpConnection(httpClientLongConnectTimeout, getHttpsUrl(true),
+                "actions/clipboard", "type=text", body)) {
+            if (response.byteStream().read() != -1) {
+                throw new IOException("Host did not accept the clipboard text");
+            }
+        }
+    }
+
+    static RequestBody clipboardRequestBody(String text) throws IOException {
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > 1024 * 1024) {
+            throw new IOException("Clipboard text exceeds 1 MiB");
+        }
+        return RequestBody.create(bytes, MediaType.get("text/plain; charset=utf-8"));
     }
 }
