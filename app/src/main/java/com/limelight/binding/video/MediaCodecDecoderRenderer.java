@@ -113,6 +113,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private VideoStats activeWindowVideoStats;
     private VideoStats lastWindowVideoStats;
     private VideoStats globalVideoStats;
+    private volatile long lastVideoFrameTimeMs;
+    private volatile float networkFrameLossPercent;
 
     private final PyroWaveDecoderRenderer pyroWaveRenderer = new PyroWaveDecoderRenderer();
     private long pyroWaveDecodeRemainderNs;
@@ -155,6 +157,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         }
         return text.toString();
+    }
+
+    public boolean hasRecentVideoFrames(long nowMs) {
+        return lastVideoFrameTimeMs != 0 && nowMs - lastVideoFrameTimeMs < 2000;
+    }
+
+    public float getNetworkFrameLossPercent() {
+        return networkFrameLossPercent;
     }
 
     private long lastTimestampUs;
@@ -1632,6 +1642,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return MoonBridge.DR_OK;
         }
 
+        lastVideoFrameTimeMs = SystemClock.uptimeMillis();
+
         if (lastFrameNumber == 0) {
             activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
         } else if (frameNumber != lastFrameNumber && frameNumber != lastFrameNumber + 1) {
@@ -1653,10 +1665,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Flip stats windows roughly every second
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
+            VideoStats lastTwo = new VideoStats();
+            lastTwo.add(lastWindowVideoStats);
+            lastTwo.add(activeWindowVideoStats);
+            networkFrameLossPercent = lastTwo.totalFrames == 0 ? 0 :
+                    (float) lastTwo.framesLost / lastTwo.totalFrames * 100;
             if (prefs.enablePerfOverlay) {
-                VideoStats lastTwo = new VideoStats();
-                lastTwo.add(lastWindowVideoStats);
-                lastTwo.add(activeWindowVideoStats);
                 VideoStatsFps fps = lastTwo.getFps();
                 String decoder;
 
