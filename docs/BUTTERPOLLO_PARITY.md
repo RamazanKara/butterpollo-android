@@ -34,7 +34,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Butterpollo stream-menu adjustment uses kbps and displays the applied host cap; current-session only, with refreshed view/launch permission. Other hosts retain startup bitrate selection. Client automatic bitrate control is not implemented. |
 | Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Tiles can be listed by existing app parser; role-specific lifecycle/confirmation UI deferred. Not claimed as full remote-session support. |
 | Clipboard and server commands | Permission-scoped text `/actions/clipboard`, advertised `ServerCommand` names | Explicit foreground text send/receive over paired HTTPS with direction permissions, UTF-8, 1 MiB limit and no content logging. Commands use reliable encrypted control type `0x3000`, original 8-bit index and host-specific payload size; confirmation, permission refresh and one-second spacing. Host enforces app restrictions; no execution acknowledgment exists. |
-| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Vulkan decoder/presentation port, including ten-bit HDR and 4:4:4. Auto codec + SurfaceView only, runtime feature/surface checks and a completed warm-up before advertising. Exact `186f0393` bitstream and ordinary packet-container transport; HEVC/AV1/H.264 fallback retained. Adaptive records, bandwidth probing and real-device certification remain unimplemented/unverified. See milestone 4b. |
+| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Vulkan decoder/presentation port, including ten-bit HDR and 4:4:4. Explicit PyroWave codec + SurfaceView only, runtime feature/surface checks and a completed warm-up before advertising. Exact `186f0393` bitstream and ordinary packet-container transport; HEVC/AV1/H.264 fallback retained. Adaptive records, bandwidth probing and real-device certification remain unimplemented/unverified. See milestone 4b. |
 | Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Standard version/codec checks retained; Rust version gates decimal launch rates. Local diagnostics ignored safely. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
 
@@ -130,9 +130,11 @@ the small Android renderer and common-c integration remain GPL-3.0.
 
 ### Negotiation and output
 
-- No new preference: **Auto** offers PyroWave when using **SurfaceView**. Existing HDR and 4:4:4
-  preferences control its profile bits; explicit H.264/HEVC/AV1 and TextureView retain MediaCodec.
-  This is the call made without an operator available. The ordinary codec offers remain available.
+- **Prefer PyroWave** explicitly opts into the experimental decoder and uses **SurfaceView**.
+  Existing HDR and 4:4:4 preferences control its profile bits; Auto keeps conventional codecs.
+  The quality pass changed this from automatic selection because normal Moonlight bitrates are
+  too low for PyroWave. Ordinary codec fallback remains available; start near 280 Mbps for 720p/60
+  on a fast LAN and verify quality and bandwidth on the actual host/device.
 - Android API 29+, a 64-bit library and Vulkan **1.3** are necessary. Runtime checks include
   subgroup basic/vote/ballot/arithmetic/shuffle/shuffle-relative operations, compute stage and size
   control (4–128), full subgroups, shaderInt16, storageBuffer8BitAccess, storageBuffer16BitAccess,
@@ -280,7 +282,7 @@ were not run.
    assembleNonRootDebug testNonRootDebugUnitTest`. Native make is already capped at `-j2`.
    Find the APK under `app/build/intermediates/apk/nonRoot/debug/` with AGP 9.4, then
    `adb -s SERIAL install -r app/build/intermediates/apk/nonRoot/debug/app-nonRoot-debug.apk`.
-2. On a Vulkan 1.3 Adreno and a Mali/Immortalis device, set Codec **Auto**, disable TextureView,
+2. On a Vulkan 1.3 Adreno and a Mali/Immortalis device, set Codec **Prefer PyroWave**,
    enable the performance overlay, and start at 1280×720/60. Pair with Butterpollo built with its
    `186f0393` PyroWave encoder. Use adequate LAN bitrate (e.g. 200,000 kbps on gigabit Ethernet).
    Capture `adb -s SERIAL logcat -v threadtime` to a file during the run. Verify the PyroWave surface

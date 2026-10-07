@@ -337,6 +337,24 @@ public class StreamSettings extends Activity {
             PreferenceScreen screen = getPreferenceScreen();
             findPreference("checkbox_codec_low_latency").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
             findPreference("checkbox_codec_performance").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+            ListPreference pacing = (ListPreference) findPreference("frame_pacing");
+            findPreference("checkbox_drop_late_frames").setEnabled("balanced".equals(pacing.getValue()));
+            pacing.setOnPreferenceChangeListener((preference, value) -> {
+                findPreference("checkbox_drop_late_frames").setEnabled("balanced".equals(value));
+                return true;
+            });
+            ListPreference codec = (ListPreference) findPreference("video_format");
+            CheckBoxPreference hdr = (CheckBoxPreference) findPreference("checkbox_enable_hdr");
+            Preference texture = findPreference("checkbox_texture_view");
+            texture.setEnabled(!hdr.isChecked() && !"forcepyrowave".equals(codec.getValue()));
+            codec.setOnPreferenceChangeListener((preference, value) -> {
+                texture.setEnabled(!hdr.isChecked() && !"forcepyrowave".equals(value));
+                return true;
+            });
+            hdr.setOnPreferenceChangeListener((preference, value) -> {
+                texture.setEnabled(!(Boolean) value && !"forcepyrowave".equals(codec.getValue()));
+                return true;
+            });
             findPreference("export_latency_csv").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
