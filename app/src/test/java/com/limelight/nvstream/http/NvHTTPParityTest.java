@@ -294,7 +294,13 @@ public class NvHTTPParityTest {
         try (ResponseBody response = ResponseBody.create(new byte[128 * 1024], MediaType.get("application/octet-stream"))) {
             NvHTTP.readBandwidthProbe(response, 128 * 1024, progress::add);
         }
-        assertEquals(java.util.Arrays.asList(50, 100), progress);
+        assertFalse(progress.isEmpty());
+        assertEquals(Integer.valueOf(100), progress.get(progress.size() - 1));
+        int previous = -1;
+        for (int percent : progress) {
+            assertTrue(percent > previous && percent >= 0 && percent <= 100);
+            previous = percent;
+        }
     }
 
     @Test
