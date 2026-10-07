@@ -3286,13 +3286,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void releaseMouseButtons() {
-        int[] masks = {MotionEvent.BUTTON_PRIMARY, MotionEvent.BUTTON_SECONDARY, MotionEvent.BUTTON_TERTIARY,
-                MotionEvent.BUTTON_BACK, MotionEvent.BUTTON_FORWARD};
-        byte[] buttons = {MouseButtonPacket.BUTTON_LEFT, MouseButtonPacket.BUTTON_RIGHT, MouseButtonPacket.BUTTON_MIDDLE,
-                MouseButtonPacket.BUTTON_X1, MouseButtonPacket.BUTTON_X2};
-        for (int i = 0; i < masks.length; i++) {
-            if ((lastButtonState & masks[i]) != 0) {
-                conn.sendMouseButtonUp(buttons[i]);
+        if (connected) {
+            // Evdev, stylus and synthetic Back clicks do not share the MotionEvent button mask.
+            byte[] buttons = {MouseButtonPacket.BUTTON_LEFT, MouseButtonPacket.BUTTON_RIGHT, MouseButtonPacket.BUTTON_MIDDLE,
+                    MouseButtonPacket.BUTTON_X1, MouseButtonPacket.BUTTON_X2};
+            for (byte button : buttons) {
+                conn.sendMouseButtonUp(button);
             }
         }
         lastButtonState = 0;
