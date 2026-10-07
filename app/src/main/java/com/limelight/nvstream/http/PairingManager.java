@@ -183,6 +183,14 @@ public class PairingManager {
     }
     
     public PairState pair(String serverInfo, String pin) throws IOException, XmlPullParserException {
+        return pair(serverInfo, pin, null);
+    }
+
+    static String oneTimePinAuth(String pin, byte[] salt, String passphrase) throws UnsupportedEncodingException {
+        return bytesToHex(new Sha256PairingHash().hashData((pin + bytesToHex(salt) + passphrase).getBytes("UTF-8")));
+    }
+
+    public PairState pair(String serverInfo, String pin, String passphrase) throws IOException, XmlPullParserException {
         PairingHashAlgorithm hashAlgo;
 
         int serverMajorVersion = http.getServerMajorVersion(serverInfo);
@@ -205,8 +213,9 @@ public class PairingManager {
         // Send the salt and get the server cert. This doesn't have a read timeout
         // because the user must enter the PIN before the server responds
         String getCert = http.executePairingCommand("phrase=getservercert&salt="+
-                bytesToHex(salt)+"&clientcert="+bytesToHex(pemCertBytes),
-                false);
+                bytesToHex(salt)+"&clientcert="+bytesToHex(pemCertBytes) +
+                (passphrase == null ? "" : "&otpauth=" + oneTimePinAuth(pin, salt, passphrase)),
+                passphrase != null);
         if (!NvHTTP.getXmlString(getCert, "paired", true).equals("1")) {
             return PairState.FAILED;
         }

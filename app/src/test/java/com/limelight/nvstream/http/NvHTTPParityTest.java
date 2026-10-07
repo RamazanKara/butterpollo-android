@@ -354,6 +354,47 @@ public class NvHTTPParityTest {
     }
 
     @Test
+    public void oneTimePinHashUsesPaddedPinUppercaseSaltTextAndUtf8Passphrase() throws Exception {
+        byte[] salt = new byte[] {1, 35, 69, 103, (byte) 137, (byte) 171, (byte) 205, (byte) 239,
+                1, 35, 69, 103, (byte) 137, (byte) 171, (byte) 205, (byte) 239};
+        assertEquals("083CF8E1505EBE84ECC0288156E3FCECBB31FE9650F64A6DA0908C3270B8DE4B",
+                PairingManager.oneTimePinAuth("0042", salt, "Grüße 🧈"));
+        assertNotEquals(PairingManager.oneTimePinAuth("0042", salt, "phrase"),
+                PairingManager.oneTimePinAuth("0042", salt, "phrase "));
+    }
+
+    @Test
+    public void oneTimePinPairingAddsOnlyAuthHashAndUsesReadTimeout() throws Exception {
+        LimelightCryptoProvider crypto = new LimelightCryptoProvider() {
+            public X509Certificate getClientCertificate() { return null; }
+            public PrivateKey getClientPrivateKey() { return null; }
+            public byte[] getPemEncodedClientCertificate() { return new byte[0]; }
+            public String encodeBase64String(byte[] data) { return ""; }
+        };
+        for (String passphrase : new String[] {null, "one-time secret"}) {
+            NvHTTP http = new NvHTTP(new ComputerDetails.AddressTuple("192.0.2.1", 47989),
+                    47984, "test-device", null, crypto) {
+                @Override
+                String executePairingCommand(String arguments, boolean readTimeout) {
+                    HttpUrl query = HttpUrl.get("http://host/pair?" + arguments);
+                    assertEquals("getservercert", query.queryParameter("phrase"));
+                    assertEquals(passphrase != null, readTimeout);
+                    if (passphrase == null) {
+                        assertNull(query.queryParameter("otpauth"));
+                    } else {
+                        assertTrue(query.queryParameter("otpauth").matches("[0-9A-F]{64}"));
+                        assertFalse(arguments.contains(passphrase));
+                        assertNull(query.queryParameter("pin"));
+                    }
+                    return "<root status_code=\"200\"><paired>0</paired></root>";
+                }
+            };
+            assertEquals(PairingManager.PairState.FAILED, http.getPairingManager().pair(
+                    "<root status_code=\"200\"><appversion>7.1.2.3</appversion></root>", "0042", passphrase));
+        }
+    }
+
+    @Test
     public void pyrowaveServerCapabilitiesRemainSeparateFromLaunchHdr() throws Exception {
         ConnectionContext context = context("butterpollo-serverinfo.xml");
         String server = fixture("butterpollo-serverinfo.xml");

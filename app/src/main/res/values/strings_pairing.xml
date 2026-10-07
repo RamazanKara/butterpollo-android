@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pair_otp_title">Pair with one-time PIN</string>
+    <string name="pair_otp_help">Generate a one-time PIN in the host web console, then enter it and its passphrase here within three minutes.</string>
+    <string name="pair_otp_pin">One-time PIN</string>
+    <string name="pair_otp_passphrase">Passphrase</string>
+    <string name="pair_otp_invalid_pin">Enter the four-digit PIN from the host.</string>
+    <string name="pair_otp_invalid_passphrase">Enter the passphrase you chose on the host (at least four characters).</string>
+</resources>
