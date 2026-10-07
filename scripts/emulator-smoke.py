@@ -206,6 +206,18 @@ def main():
             preferences = adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{PACKAGE}_preferences.xml")
             assert any(n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true"
                        for n in ET.fromstring(preferences)), "Overlay preference was not enabled"
+            tap("Controller buttons", scroll=True)
+            find("Waiting for a button press…")
+            adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
+            find("Y sends…")
+            screenshot("11-controller-choose")
+            tap("A")
+            find("Y sends A")
+            screenshot("12-controller-buttons")
+            mappings = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/ControllerButtonMaps.xml")
+            assert any(n.text == "100:96" for n in ET.fromstring(mappings)), mappings
+            adb("shell", "input", "keyevent", "4")
+            find(overlay)
             adb("shell", "input", "keyevent", "3")
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find(overlay)
@@ -230,7 +242,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: manual discovery, host profile validation/save/reset, settings, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: manual discovery, host profile validation/save/reset, settings, controller mapping, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")

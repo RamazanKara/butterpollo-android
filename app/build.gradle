@@ -22,6 +22,11 @@ android {
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
+
+        // -PabiFilters=arm64-v8a builds a smaller single-ABI APK for device testing
+        if (project.hasProperty('abiFilters')) {
+            ndk.abiFilters.addAll(project.property('abiFilters').toString().split(',') as List)
+        }
     }
 
     flavorDimensions.add("root")

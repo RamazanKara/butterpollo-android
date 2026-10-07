@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      device_build:
+        description: Also build the arm64 test APK and run the emulator smoke test
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -11,7 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,3 +38,29 @@ jobs:
           name: butterpollo-debug
           path: app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk
           if-no-files-found: error
+      - name: Emulator smoke test
+        if: inputs.device_build
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          image='system-images;android-35;google_apis;x86_64'
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" emulator platform-tools "$image" > /dev/null
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n sunset -k "$image" -d pixel_6
+          pip install --quiet pillow
+          python3 scripts/emulator-smoke.py
+      - name: Build arm64 test APK
+        if: inputs.device_build
+        run: |
+          bash gradlew --no-daemon --max-workers=2 -PabiFilters=arm64-v8a :app:assembleNonRootDebug
+          cp app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk butterpollo-arm64-debug.apk
+      - uses: actions/upload-artifact@v7
+        if: always() && inputs.device_build
+        with:
+          name: butterpollo-device-test
+          path: |
+            butterpollo-arm64-debug.apk
+            docs/screenshots/
+            app/build/emulator-smoke/
+          if-no-files-found: warn

@@ -2,7 +2,7 @@
 <resources>
     <string name="host_profile_menu">Streaming settings for this PC</string>
     <string name="host_profile_title">%1$s streaming settings</string>
-    <string name="host_profile_explanation">Save overrides for this PC, or reset to use global settings. Changes apply to the next stream. Host display layout and device/app policies still apply. Fractional refresh requests require Butterpollo; other hosts use whole Hz. HDR, colour and codecs require compatible hardware. PyroWave needs a fast LAN and high bitrate (about 280000 kbps at 720p/60).</string>
+    <string name="host_profile_explanation">Applies to this PC from the next stream. Host policies still win. PyroWave needs a fast LAN and about 280000 kbps at 720p/60.</string>
     <string name="host_profile_width">Width (pixels, 64–16384)</string>
     <string name="host_profile_height">Height (pixels, 64–16384)</string>
     <string name="host_profile_refresh">Refresh rate (1–1000 Hz, up to two decimals)</string>
