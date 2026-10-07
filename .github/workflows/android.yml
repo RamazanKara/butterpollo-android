@@ -1,0 +1,31 @@
+name: Android debug
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Build debug APK and run unit tests
+        run: bash gradlew --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:testNonRootDebugUnitTest
+      - uses: actions/upload-artifact@v7
+        with:
+          name: butterpollo-debug
+          path: app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk
+          if-no-files-found: error

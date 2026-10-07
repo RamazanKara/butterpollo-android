@@ -37,9 +37,9 @@
     <string name="pairing">Pairing…</string>
     <string name="pair_pc_offline">Computer is offline</string>
     <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
-    <string name="pair_pairing_title">Pairing</string>
+    <string name="pair_pairing_title">Pair Butterpollo Android</string>
     <string name="pair_pairing_msg">Please enter the following PIN on the target PC:</string>
-    <string name="pair_pairing_help">If your host PC is running Sunshine, navigate to the Sunshine web UI to enter the PIN.</string>
+    <string name="pair_pairing_help">In the Butterpollo host web console, open Devices and enter this PIN. Sunshine and Apollo hosts use their own pairing page.</string>
     <string name="pair_incorrect_pin">Incorrect PIN</string>
     <string name="pair_fail">Pairing failed</string>
     <string name="pair_already_in_progress">Pairing already in progress</string>
@@ -95,8 +95,7 @@
 
     <!-- General strings -->
     <string name="ip_hint">IP address of host PC</string>
-    <string name="searching_pc">Searching for host PCs on your local network…\n\n
-        Ensure Sunshine is running on your host PC or GameStream is enabled in the GeForce Experience SHIELD settings.</string>
+    <string name="searching_pc">Searching for Butterpollo hosts on your local network…\n\nStart Butterpollo on your PC, or use + to add its address. Sunshine and Apollo hosts are also supported.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
@@ -135,7 +134,7 @@
     <string name="applist_details_id">App ID:</string>
 
     <!-- Add computer manually activity -->
-    <string name="title_add_pc">Add PC Manually</string>
+    <string name="title_add_pc">Add streaming host</string>
     <string name="msg_add_pc">Connecting to the PC…</string>
     <string name="addpc_fail">Unable to connect to the specified computer. Make sure the required ports are allowed through the firewall.</string>
     <string name="addpc_success">Successfully added computer</string>
@@ -225,7 +224,7 @@
     <string name="title_checkbox_enable_pip">Enable Picture-in-Picture observer mode</string>
     <string name="summary_checkbox_enable_pip">Allows the stream to be viewed (but not controlled) while multitasking</string>
     <string name="title_language_list">Language</string>
-    <string name="summary_language_list">Language to use for Moonlight</string>
+    <string name="summary_language_list">Language to use for Butterpollo</string>
     <string name="title_checkbox_small_icon_mode">Use small box art</string>
     <string name="summary_checkbox_small_icon_mode">Smaller box art in the app grid allows more apps to be visible on screen</string>
 
@@ -339,4 +338,38 @@
     <string name="summary_unbatched_input">Skip the 1 ms motion batching wait. High polling rates may increase network queues and latency. Button ordering and motion coalescing are preserved. Applies to the next stream.</string>
     <string name="title_network_priority">Prioritize streaming network work</string>
     <string name="summary_network_priority">Request higher socket and network-thread priority. May increase power use or compete with other work; some devices ignore the request. Applies to the next stream.</string>
+    <string name="category_display_settings">Display</string>
+    <string name="category_latency_settings">Latency</string>
+    <string name="category_codec_settings">Codec and color</string>
+    <string name="stream_menu">Butterpollo stream</string>
+    <string name="stream_continue">Continue streaming</string>
+    <string name="stream_disconnect">Pause stream / disconnect</string>
+    <string name="stream_status_unavailable">Host status is unavailable. Disconnecting leaves the host application running so you can resume it from the app list.</string>
+    <string name="stream_clipboard_send">Send clipboard to host</string>
+    <string name="stream_clipboard_receive">Copy host clipboard</string>
+    <string name="stream_clipboard_empty">The clipboard has no plain text</string>
+    <string name="stream_clipboard_sent">Clipboard text sent to host</string>
+    <string name="stream_clipboard_received">Host text copied to clipboard</string>
+    <string name="stream_server_commands">Server commands</string>
+    <string name="stream_command_confirm">Run this host-configured command? It may change the host or end the session.</string>
+    <string name="stream_command_run">Run command</string>
+    <string name="stream_command_sent">Command sent. The host does not report its execution result.</string>
+    <string name="stream_command_failed">Command could not be sent</string>
+    <string name="stream_host_status">Device permissions and host pacing</string>
+    <string name="stream_permissions_unknown">This host does not advertise per-device permissions.</string>
+    <string name="stream_permission_allowed">Allowed</string>
+    <string name="stream_permission_denied">Denied</string>
+    <string name="stream_permissions_help">Manage this device in the host web console. The host enforces permissions and application-specific restrictions.</string>
+    <string name="stream_input_denied">Host input is disabled for this device. Open the stream menu to review its permissions.</string>
+    <string name="stream_bitrate">Adjust stream bitrate</string>
+    <string name="stream_bitrate_help">Bitrate in kbps for this session only. The host may cap the requested value. Automatic bitrate adjustment is not enabled.</string>
+    <string name="stream_bitrate_invalid">Enter a bitrate between 1 and 500000 kbps</string>
+    <string name="stream_bitrate_applied">Host applied %1$d kbps</string>
+    <string name="stream_enabled">On</string>
+    <string name="stream_disabled">Off</string>
+    <string name="stream_limiter_status">Host frame limiter: %1$s\nVirtual-display automatic limiter: %2$s\nConfigured limit: %3$s</string>
+    <string name="stream_limiter_stream_rate">Stream frame rate</string>
+    <string name="stream_android_pacing">Android uses the selected display rate and frame-pacing mode. Host limiter settings are informational; 1000 Hz VRR negotiation is not supported.</string>
+    <string name="stream_host_action_failed">Host action failed: %1$s</string>
+    <string name="host_launch_permission_denied">This device cannot launch or quit applications. Enable its launch permission in the host web console.</string>
 </resources>

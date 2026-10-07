@@ -397,6 +397,7 @@ public class MoonBridge {
     public static native void sendMouseHighResHScroll(short scrollAmount);
 
     public static native void sendUtf8Text(String text);
+    public static native boolean sendServerCommand(byte[] payload);
 
     public static native String getStageName(int stage);
 

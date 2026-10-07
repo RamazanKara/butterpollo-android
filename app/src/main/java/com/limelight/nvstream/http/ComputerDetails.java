@@ -1,10 +1,19 @@
 package com.limelight.nvstream.http;
 
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Objects;
 
 
 public class ComputerDetails {
+    public static final int PERMISSION_INPUT = 0x00001F00;
+    public static final int PERMISSION_CLIPBOARD_SET = 1 << 16;
+    public static final int PERMISSION_CLIPBOARD_READ = 1 << 17;
+    public static final int PERMISSION_SERVER_COMMAND = 1 << 20;
+    public static final int PERMISSION_LIST = 1 << 24;
+    public static final int PERMISSION_VIEW = 1 << 25;
+    public static final int PERMISSION_LAUNCH = 1 << 26;
+
     public enum State {
         ONLINE, OFFLINE, UNKNOWN
     }
@@ -76,6 +85,41 @@ public class ComputerDetails {
     public int runningGameId;
     public String rawAppList;
     public boolean nvidiaServer;
+    public long permission = -1;
+    public String rustHostVersion;
+    public ArrayList<String> serverCommands = new ArrayList<>();
+    public boolean frameLimiterSupported;
+    public boolean frameLimiterEnabled;
+    public boolean virtualDisplayFrameLimiterEnabled;
+    public long frameLimiterFpsLimitMilliHz;
+
+    public boolean hasPermission(int mask) {
+        // Hosts without Apollo permissions retain their existing behavior.
+        return permission == -1 || (permission & mask) != 0;
+    }
+
+    public boolean canReadClipboard() {
+        return permission != -1 && hasPermission(PERMISSION_CLIPBOARD_READ) &&
+                hasPermission(PERMISSION_VIEW | PERMISSION_LAUNCH);
+    }
+
+    public boolean canWriteClipboard() {
+        return permission != -1 && hasPermission(PERMISSION_CLIPBOARD_SET) &&
+                hasPermission(PERMISSION_VIEW | PERMISSION_LAUNCH);
+    }
+
+    public boolean canRunServerCommand(int index) {
+        return index >= 0 && index < Math.min(serverCommands.size(), 256) &&
+                hasPermission(PERMISSION_SERVER_COMMAND);
+    }
+
+    public byte[] serverCommandPayload(int index) {
+        if (!canRunServerCommand(index)) {
+            throw new IllegalArgumentException("Server command unavailable or permission denied");
+        }
+        // Butterpollo Rust accepts one byte; Apollo/Artemis uses three reserved trailing bytes.
+        return rustHostVersion != null ? new byte[] {(byte) index} : new byte[] {(byte) index, 0, 0, 0};
+    }
 
     public ComputerDetails() {
         // Use defaults
@@ -146,6 +190,13 @@ public class ComputerDetails {
         this.runningGameId = details.runningGameId;
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
+        this.permission = details.permission;
+        this.rustHostVersion = details.rustHostVersion;
+        this.serverCommands = new ArrayList<>(details.serverCommands);
+        this.frameLimiterSupported = details.frameLimiterSupported;
+        this.frameLimiterEnabled = details.frameLimiterEnabled;
+        this.virtualDisplayFrameLimiterEnabled = details.virtualDisplayFrameLimiterEnabled;
+        this.frameLimiterFpsLimitMilliHz = details.frameLimiterFpsLimitMilliHz;
     }
 
     @Override
@@ -163,6 +214,18 @@ public class ComputerDetails {
         str.append("Pair State: ").append(pairState).append("\n");
         str.append("Running Game ID: ").append(runningGameId).append("\n");
         str.append("HTTPS Port: ").append(httpsPort).append("\n");
+        str.append("Permissions: ").append(permission == -1 ? "Not advertised" : "0x" + Long.toHexString(permission)).append("\n");
+        if (permission != -1) {
+            str.append("List applications: ").append(hasPermission(PERMISSION_LIST)).append("\n");
+            str.append("View streams: ").append(hasPermission(PERMISSION_VIEW | PERMISSION_LAUNCH)).append("\n");
+            str.append("Launch/quit applications: ").append(hasPermission(PERMISSION_LAUNCH)).append("\n");
+            str.append("Controller / touch / pen / mouse / keyboard: ");
+            for (int bit = 8; bit <= 12; bit++) {
+                str.append(hasPermission(1 << bit)).append(bit == 12 ? "\n" : " / ");
+            }
+            str.append("Clipboard send/read: ").append(canWriteClipboard()).append(" / ").append(canReadClipboard()).append("\n");
+            str.append("Server commands: ").append(hasPermission(PERMISSION_SERVER_COMMAND)).append("\n");
+        }
         return str.toString();
     }
 }

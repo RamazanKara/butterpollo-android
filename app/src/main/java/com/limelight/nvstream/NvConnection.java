@@ -49,6 +49,10 @@ public class NvConnection {
     private static Semaphore connectionAllowed = new Semaphore(1);
     private final boolean isMonkey;
     private final Context appContext;
+    private volatile ComputerDetails hostDetails = new ComputerDetails();
+    private NvHTTP http;
+    private boolean nativeConnected;
+    private long lastServerCommandTime;
 
     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
     {
@@ -94,6 +98,7 @@ public class NvConnection {
         // Moonlight-core is not thread-safe with respect to connection start and stop, so
         // we must not invoke that functionality in parallel.
         synchronized (MoonBridge.class) {
+            nativeConnected = false;
             MoonBridge.stopConnection();
             MoonBridge.cleanupBridge();
         }
@@ -255,6 +260,7 @@ public class NvConnection {
     private boolean startApp() throws XmlPullParserException, IOException
     {
         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
+        http = h;
 
         String serverInfo = h.getServerInfo(true);
         
@@ -265,6 +271,7 @@ public class NvConnection {
         }
 
         ComputerDetails details = h.getComputerDetails(serverInfo);
+        hostDetails = details;
         context.isNvidiaServerSoftware = details.nvidiaServer;
         NvHTTP.readDisplayCapabilities(context, serverInfo);
         if (context.streamConfig.getVirtualDisplay() && !context.serverSupportsVirtualDisplay) {
@@ -344,6 +351,12 @@ public class NvConnection {
             }
         }
         
+        // The host also exposes resume/control tiles as apps, so it must decide whether a launch needs launch permission.
+        if (!details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
+            context.connListener.displayMessage("This device cannot view streams. Enable its view or launch permission in the host web console.");
+            return false;
+        }
+
         // If there's a game running, resume it
         if (h.getCurrentGame(serverInfo) != 0) {
             try {
@@ -483,11 +496,68 @@ public class NvConnection {
                         connectionAllowed.release();
                         return;
                     }
+                    nativeConnected = true;
                 }
             }
         }).start();
     }
     
+    public ComputerDetails getHostDetails() {
+        return hostDetails;
+    }
+
+    public ComputerDetails refreshHostDetails() throws IOException, XmlPullParserException {
+        ComputerDetails details = http.getComputerDetails(true);
+        if (details.pairState != PairingManager.PairState.PAIRED) {
+            throw new IOException("Device is no longer paired with the host");
+        }
+        hostDetails = details;
+        return details;
+    }
+
+    public String getClipboard() throws IOException, XmlPullParserException {
+        if (!refreshHostDetails().canReadClipboard()) {
+            throw new IOException("Host clipboard read permission denied");
+        }
+        return http.getClipboard();
+    }
+
+    public int setBitrate(int kbps) throws IOException, XmlPullParserException {
+        ComputerDetails details = refreshHostDetails();
+        if (isMonkey || details.rustHostVersion == null ||
+                !details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
+            throw new IOException("Host does not allow runtime bitrate changes");
+        }
+        return http.setBitrate(kbps);
+    }
+
+    public void sendClipboard(String text) throws IOException, XmlPullParserException {
+        if (!refreshHostDetails().canWriteClipboard()) {
+            throw new IOException("Host clipboard write permission denied");
+        }
+        if (!isMonkey) {
+            http.sendClipboard(text);
+        }
+    }
+
+    public boolean sendServerCommand(int index, String name) throws IOException, XmlPullParserException {
+        ComputerDetails details = refreshHostDetails();
+        if (!details.canRunServerCommand(index) || !details.serverCommands.get(index).equals(name)) {
+            throw new IOException("Server command changed or permission denied. Reopen the stream menu.");
+        }
+        synchronized (MoonBridge.class) {
+            if (!nativeConnected || isMonkey) {
+                return false;
+            }
+            long now = System.nanoTime();
+            if (lastServerCommandTime != 0 && now - lastServerCommandTime < 1_000_000_000L) {
+                throw new IOException("Wait one second between server commands");
+            }
+            lastServerCommandTime = now;
+            return MoonBridge.sendServerCommand(details.serverCommandPayload(index));
+        }
+    }
+
     public void sendMouseMove(final short deltaX, final short deltaY)
     {
         if (!isMonkey) {

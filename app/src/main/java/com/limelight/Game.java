@@ -40,10 +40,13 @@ import com.limelight.utils.UiHelper;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -61,6 +64,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.PersistableBundle;
+import android.text.InputType;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -76,17 +81,22 @@ import android.view.View.OnSystemUiVisibilityChangeListener;
 import android.view.View.OnTouchListener;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Locale;
 
 
@@ -127,6 +137,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
     private int suppressPipRefCount = 0;
+    private AlertDialog streamMenu;
+    private boolean hostActionInProgress;
+    private boolean foreground;
+    private boolean restoreInputAfterMenu;
+    private int currentBitrate;
     private String pcName;
     private String appName;
     private NvApp app;
@@ -1063,7 +1078,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        foreground = true;
+    }
+
+    @Override
     protected void onPause() {
+        foreground = false;
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -1080,6 +1102,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onStop() {
         super.onStop();
+
+        if (streamMenu != null) {
+            streamMenu.dismiss();
+        }
 
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
@@ -1147,6 +1173,257 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (connected) {
+            showStreamMenu();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    private void showStreamDialog(AlertDialog dialog) {
+        setInputGrabState(false);
+        suppressPipRefCount++;
+        updatePipAutoEnter();
+        streamMenu = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (streamMenu == dialog) {
+                streamMenu = null;
+            }
+            suppressPipRefCount--;
+            updatePipAutoEnter();
+            getWindow().getDecorView().post(() -> {
+                if (foreground && connected && !isFinishing() && streamMenu == null) {
+                    setInputGrabState(restoreInputAfterMenu);
+                    hideSystemUi(1000);
+                }
+            });
+        });
+        dialog.show();
+    }
+
+    private void showStreamMenu() {
+        if (!connected || streamMenu != null || hostActionInProgress) {
+            return;
+        }
+        restoreInputAfterMenu = grabbedInput;
+        hostActionInProgress = true;
+        new Thread(() -> {
+            try {
+                ComputerDetails details = conn.refreshHostDetails();
+                runOnUiThread(() -> {
+                    if (!foreground || !connected || isFinishing()) {
+                        return;
+                    }
+                    ArrayList<String> labels = new ArrayList<>();
+                    ArrayList<Runnable> actions = new ArrayList<>();
+                    labels.add(getString(R.string.stream_continue));
+                    actions.add(() -> {});
+                    labels.add(getString(R.string.stream_disconnect));
+                    actions.add(this::finish);
+                    if (details.canWriteClipboard()) {
+                        labels.add(getString(R.string.stream_clipboard_send));
+                        actions.add(() -> transferClipboard(true));
+                    }
+                    if (details.canReadClipboard()) {
+                        labels.add(getString(R.string.stream_clipboard_receive));
+                        actions.add(() -> transferClipboard(false));
+                    }
+                    if (details.canRunServerCommand(0)) {
+                        labels.add(getString(R.string.stream_server_commands));
+                        actions.add(() -> showServerCommands(details));
+                    }
+                    labels.add(getString(R.string.stream_host_status));
+                    actions.add(() -> showHostStatus(details));
+                    if (details.rustHostVersion != null &&
+                            details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
+                        labels.add(getString(R.string.stream_bitrate));
+                        actions.add(this::showBitrateDialog);
+                    }
+                    showStreamDialog(new AlertDialog.Builder(this)
+                            .setTitle(R.string.stream_menu)
+                            .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                                dialog.dismiss();
+                                actions.get(which).run();
+                            }).create());
+                });
+            } catch (IOException | XmlPullParserException e) {
+                showHostActionError(e);
+                runOnUiThread(() -> {
+                    if (foreground && connected && !isFinishing()) {
+                        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_menu)
+                                .setMessage(R.string.stream_status_unavailable)
+                                .setNegativeButton(R.string.stream_continue, null)
+                                .setPositiveButton(R.string.stream_disconnect, (dialog, which) -> finish()).create());
+                    }
+                });
+            } finally {
+                runOnUiThread(() -> hostActionInProgress = false);
+            }
+        }, "Host status").start();
+    }
+
+    private void transferClipboard(boolean send) {
+        if (hostActionInProgress || !foreground || !connected) {
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        String text = null;
+        if (send) {
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0 || clip.getItemAt(0).getText() == null) {
+                Toast.makeText(this, R.string.stream_clipboard_empty, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            text = clip.getItemAt(0).getText().toString();
+        }
+        final String outgoing = text;
+        hostActionInProgress = true;
+        new Thread(() -> {
+            try {
+                if (send) {
+                    conn.sendClipboard(outgoing);
+                }
+                String incoming = send ? null : conn.getClipboard();
+                runOnUiThread(() -> {
+                    if (!foreground || !connected || isFinishing() || !hasWindowFocus()) {
+                        return;
+                    }
+                    if (!send) {
+                        ClipData clip = ClipData.newPlainText("Butterpollo", incoming);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            PersistableBundle extras = new PersistableBundle();
+                            extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
+                            clip.getDescription().setExtras(extras);
+                        }
+                        try {
+                            clipboard.setPrimaryClip(clip);
+                        } catch (RuntimeException e) {
+                            showHostActionError(e);
+                            return;
+                        }
+                    }
+                    Toast.makeText(this, send ? R.string.stream_clipboard_sent : R.string.stream_clipboard_received,
+                            Toast.LENGTH_SHORT).show();
+                });
+            } catch (IOException | XmlPullParserException e) {
+                showHostActionError(e);
+            } finally {
+                runOnUiThread(() -> hostActionInProgress = false);
+            }
+        }, "Clipboard transfer").start();
+    }
+
+    private void showServerCommands(ComputerDetails details) {
+        String[] names = details.serverCommands.subList(0, Math.min(256, details.serverCommands.size())).toArray(new String[0]);
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_server_commands)
+                .setItems(names, (dialog, index) -> {
+                    dialog.dismiss();
+                    showStreamDialog(new AlertDialog.Builder(this).setTitle(names[index])
+                            .setMessage(R.string.stream_command_confirm)
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .setPositiveButton(R.string.stream_command_run, (confirmation, which) -> {
+                                if (!connected || hostActionInProgress) {
+                                    return;
+                                }
+                                hostActionInProgress = true;
+                                new Thread(() -> {
+                                    try {
+                                        boolean sent = conn.sendServerCommand(index, names[index]);
+                                        runOnUiThread(() -> {
+                                            if (foreground && connected && !isFinishing()) {
+                                                Toast.makeText(this, sent ? R.string.stream_command_sent : R.string.stream_command_failed,
+                                                        Toast.LENGTH_LONG).show();
+                                            }
+                                        });
+                                    } catch (IOException | XmlPullParserException e) {
+                                        showHostActionError(e);
+                                    } finally {
+                                        runOnUiThread(() -> hostActionInProgress = false);
+                                    }
+                                }, "Server command").start();
+                            }).create());
+                }).setNegativeButton(android.R.string.cancel, null).create());
+    }
+
+    private void showHostStatus(ComputerDetails details) {
+        StringBuilder status = new StringBuilder();
+        if (details.permission == -1) {
+            status.append(getString(R.string.stream_permissions_unknown));
+        } else {
+            String[] names = getResources().getStringArray(R.array.host_permission_names);
+            int[] masks = {1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12,
+                    ComputerDetails.PERMISSION_CLIPBOARD_SET, ComputerDetails.PERMISSION_CLIPBOARD_READ,
+                    ComputerDetails.PERMISSION_SERVER_COMMAND, ComputerDetails.PERMISSION_LIST,
+                    ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH, ComputerDetails.PERMISSION_LAUNCH};
+            for (int i = 0; i < names.length; i++) {
+                status.append(names[i]).append(": ").append(getString(details.hasPermission(masks[i]) ?
+                        R.string.stream_permission_allowed : R.string.stream_permission_denied)).append('\n');
+            }
+        }
+        status.append("\n\n").append(getString(R.string.stream_permissions_help));
+        if (details.frameLimiterSupported) {
+            status.append("\n\n").append(getString(R.string.stream_limiter_status,
+                    getString(details.frameLimiterEnabled ? R.string.stream_enabled : R.string.stream_disabled),
+                    getString(details.virtualDisplayFrameLimiterEnabled ? R.string.stream_enabled : R.string.stream_disabled),
+                    details.frameLimiterFpsLimitMilliHz == 0 ? getString(R.string.stream_limiter_stream_rate) :
+                            String.format(Locale.getDefault(), "%.3f FPS", details.frameLimiterFpsLimitMilliHz / 1000.0)));
+        }
+        status.append("\n\n").append(getString(R.string.stream_android_pacing));
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_host_status)
+                .setMessage(status).setPositiveButton(android.R.string.ok, null).create());
+    }
+
+    private void showBitrateDialog() {
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText(Integer.toString(currentBitrate == 0 ? prefConfig.bitrate : currentBitrate));
+        input.selectAll();
+        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_bitrate)
+                .setMessage(R.string.stream_bitrate_help).setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    final int kbps;
+                    try {
+                        kbps = Integer.parseInt(input.getText().toString());
+                        if (kbps <= 0 || kbps > 500000) {
+                            throw new NumberFormatException();
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, R.string.stream_bitrate_invalid, Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (!connected || hostActionInProgress) {
+                        return;
+                    }
+                    hostActionInProgress = true;
+                    new Thread(() -> {
+                        try {
+                            int applied = conn.setBitrate(kbps);
+                            runOnUiThread(() -> {
+                                currentBitrate = applied;
+                                if (foreground && connected && !isFinishing()) {
+                                    Toast.makeText(this, getString(R.string.stream_bitrate_applied, applied), Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        } catch (IOException | XmlPullParserException e) {
+                            showHostActionError(e);
+                        } finally {
+                            runOnUiThread(() -> hostActionInProgress = false);
+                        }
+                    }, "Stream bitrate").start();
+                }).create());
+    }
+
+    private void showHostActionError(Exception error) {
+        runOnUiThread(() -> {
+            if (foreground && connected && !isFinishing()) {
+                Toast.makeText(this, getString(R.string.stream_host_action_failed, error.getMessage()), Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void setInputGrabState(boolean grab) {
@@ -1235,6 +1512,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         finish();
                         break;
 
+                    case KeyEvent.KEYCODE_M:
+                        showStreamMenu();
+                        break;
+
                     // Toggle cursor visibility
                     case KeyEvent.KEYCODE_C:
                         if (!grabbedInput) {
@@ -1265,6 +1546,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             switch (androidKeyCode) {
                 case KeyEvent.KEYCODE_Z:
                 case KeyEvent.KEYCODE_Q:
+                case KeyEvent.KEYCODE_M:
                 case KeyEvent.KEYCODE_C:
                     // Remember that a special key combo was activated, so we can consume all key
                     // events until the modifiers come up
@@ -2417,6 +2699,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 connecting = false;
                 updatePipAutoEnter();
 
+                if (!conn.getHostDetails().hasPermission(ComputerDetails.PERMISSION_INPUT)) {
+                    Toast.makeText(Game.this, R.string.stream_input_denied, Toast.LENGTH_LONG).show();
+                }
+
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone
                 // when the spinner gets displayed. On Android Q, even now
@@ -2426,7 +2712,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 h.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        setInputGrabState(true);
+                        if (connected && streamMenu == null && !isFinishing()) {
+                            setInputGrabState(true);
+                        }
                     }
                 }, 500);
 
