@@ -72,7 +72,7 @@ After building debug, run `python scripts/emulator-smoke.py` with Python 3, the 
 `sunset` Android 35 AVD installed. It refuses to start alongside another emulator, uses a headless,
 disposable AVD session, installs the APK, manually adds a loopback server-info fixture, opens settings
 and checks the production latency overlay layout in a debug-only screen, including rotation.
-Screenshots go to `docs/screenshots/`; UI dumps and logcat go to `app/build/emulator-smoke/`.
+Screenshots go to `docs/screenshots/` (half size, palette PNG when Pillow is installed); UI dumps and logcat go to `app/build/emulator-smoke/`.
 The emulator is stopped in a `finally` block. The fixture does not pair or stream; overlay timings
 remain unavailable. The debug overlay activity is absent from release builds.
 

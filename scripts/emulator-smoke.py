@@ -4,6 +4,7 @@ Uses a disposable, read-only AVD session and a loopback serverinfo fixture.
 This checks UI rendering and manual discovery, not pairing or live streaming.
 """
 import http.server
+import io
 import os
 from pathlib import Path
 import re
@@ -70,7 +71,14 @@ def tap(label, scroll=False):
 def screenshot(name):
     ui = tree()
     png = adb("exec-out", "screencap", "-p", binary=True)
-    SHOTS.joinpath(name + ".png").write_bytes(png)
+    try:
+        # Keep committed screenshots small: half size, 128-color palette
+        from PIL import Image
+        image = Image.open(io.BytesIO(png))
+        image = image.resize((image.width // 2, image.height // 2), Image.LANCZOS)
+        image.quantize(128).save(SHOTS.joinpath(name + ".png"), optimize=True)
+    except ImportError:
+        SHOTS.joinpath(name + ".png").write_bytes(png)
     LOGS.joinpath(name + ".xml").write_bytes(ET.tostring(ui))
     return struct.unpack(">II", png[16:24])
 
@@ -149,9 +157,9 @@ def main():
             tap(f"{PACKAGE}:id/settingsButton")
             find("Display")
             screenshot("04-settings")
-            find("Android low-latency decoding", scroll=True)
+            find("Android low-latency mode", scroll=True)
             screenshot("05-latency-controls")
-            overlay = "Show latency and performance overlay"
+            overlay = "Show performance overlay"
             tap(overlay, scroll=True)
             screenshot("06-latency-settings")
             preferences = adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{PACKAGE}_preferences.xml")
@@ -160,11 +168,16 @@ def main():
             adb("shell", "input", "keyevent", "3")
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find(overlay)
+            find("Butterpollo Android", scroll=True)
+            screenshot("09-settings-about")
+            summary = next((n.get("text", "") for n in tree().iter("node")
+                            if "Moonlight" in n.get("text", "")), "")
+            assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
             adb("shell", "input", "keyevent", "4")
             find(HOST_NAME)
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
             node = find(f"{PACKAGE}:id/performanceOverlay")
-            assert "N/A (no observed samples)" in node.get("text", ""), node.attrib
+            assert "no data yet" in node.get("text", ""), node.attrib
             width, height = screenshot("07-latency-overlay")
             adb("shell", "wm", "user-rotation", "lock", "1" if width < height else "0")
             time.sleep(1)
