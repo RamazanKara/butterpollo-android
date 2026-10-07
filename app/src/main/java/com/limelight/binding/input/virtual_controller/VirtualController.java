@@ -7,7 +7,9 @@ package com.limelight.binding.input.virtual_controller;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.DisplayMetrics;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -69,29 +71,16 @@ public class VirtualController {
         buttonConfigure.setAlpha(0.25f);
         buttonConfigure.setFocusable(false);
         buttonConfigure.setBackgroundResource(R.drawable.ic_settings);
+        buttonConfigure.setContentDescription(context.getString(R.string.stream_controls_layout));
         buttonConfigure.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message;
-
                 if (currentMode == ControllerMode.Active){
-                    currentMode = ControllerMode.MoveButtons;
-                    message = "Entering configuration mode (Move buttons)";
+                    setControllerMode(ControllerMode.MoveButtons);
                 } else if (currentMode == ControllerMode.MoveButtons) {
-                    currentMode = ControllerMode.ResizeButtons;
-                    message = "Entering configuration mode (Resize buttons)";
+                    setControllerMode(ControllerMode.ResizeButtons);
                 } else {
-                    currentMode = ControllerMode.Active;
-                    VirtualControllerConfigurationLoader.saveProfile(VirtualController.this, context);
-                    message = "Exiting configuration mode";
-                }
-
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-
-                buttonConfigure.invalidate();
-
-                for (VirtualControllerElement element : elements) {
-                    element.invalidate();
+                    setControllerMode(ControllerMode.Active);
                 }
             }
         });
@@ -103,6 +92,7 @@ public class VirtualController {
     }
 
     public void hide() {
+        releaseInput();
         for (VirtualControllerElement element : elements) {
             element.setVisibility(View.INVISIBLE);
         }
@@ -153,6 +143,7 @@ public class VirtualController {
     }
 
     public void refreshLayout() {
+        releaseInput();
         removeElements();
 
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
@@ -172,6 +163,39 @@ public class VirtualController {
 
     public ControllerMode getControllerMode() {
         return currentMode;
+    }
+
+    public void setControllerMode(ControllerMode mode) {
+        if (mode == currentMode) {
+            return;
+        }
+        releaseInput();
+        currentMode = mode;
+        if (mode == ControllerMode.Active) {
+            VirtualControllerConfigurationLoader.saveProfile(this, context);
+        }
+        Toast.makeText(context, mode == ControllerMode.MoveButtons ? R.string.stream_controls_move_help :
+                mode == ControllerMode.ResizeButtons ? R.string.stream_controls_resize_help :
+                        R.string.stream_controls_saved, Toast.LENGTH_SHORT).show();
+        buttonConfigure.invalidate();
+        for (VirtualControllerElement element : elements) {
+            element.invalidate();
+        }
+    }
+
+    public void releaseInput() {
+        if (elements.isEmpty()) {
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        MotionEvent cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0, 0, 0);
+        for (VirtualControllerElement element : elements) {
+            element.onElementTouchEvent(cancel);
+        }
+        cancel.recycle();
+        handler.removeCallbacksAndMessages(null);
+        inputContext = new ControllerInputContext();
+        sendControllerInputContextInternal();
     }
 
     public ControllerInputContext getControllerInputContext() {

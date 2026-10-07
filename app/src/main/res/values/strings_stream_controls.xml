@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stream_overlay_show">Show performance overlay</string>
+    <string name="stream_overlay_hide">Hide performance overlay</string>
+    <string name="stream_touch_mode">Touch mode</string>
+    <string name="stream_keyboard">Show or hide keyboard</string>
+    <string name="stream_controls_show">Show on-screen controls</string>
+    <string name="stream_controls_hide">Hide on-screen controls</string>
+    <string name="stream_controls_layout">Edit controller layout</string>
+    <string name="stream_controls_move_help">Drag controls to move them. Open the stream menu to resize or save.</string>
+    <string name="stream_controls_resize_help">Drag controls to resize them. Open the stream menu to save.</string>
+    <string name="stream_controls_saved">Controller layout saved</string>
+    <string name="stream_reconnect">Reconnect stream</string>
+    <string name="stream_reconnecting">Disconnecting before reconnecting to the running app…</string>
+    <string name="stream_native_touch_help">Fingers are sent directly to the host. Use Back → Show or hide keyboard to type. Unsupported hosts use direct mouse control.</string>
+    <string name="stream_native_touch_fallback">This host does not support native touch. Using direct mouse control.</string>
+    <string-array name="stream_touch_modes">
+        <item>Trackpad</item>
+        <item>Direct mouse</item>
+        <item>Native touch (compatible hosts)</item>
+    </string-array>
+    <string-array name="stream_control_layout_actions">
+        <item>Move controls</item>
+        <item>Resize controls</item>
+        <item>Save layout and play</item>
+    </string-array>
+</resources>

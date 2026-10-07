@@ -2788,6 +2788,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                                short leftStickX, short leftStickY,
                                short rightStickX, short rightStickY,
                                byte leftTrigger, byte rightTrigger) {
+        if (stopped) {
+            return;
+        }
         defaultContext.leftStickX = leftStickX;
         defaultContext.leftStickY = leftStickY;
 
