@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="host_profile_menu">Streaming settings for this PC</string>
+    <string name="host_profile_title">%1$s streaming settings</string>
+    <string name="host_profile_explanation">Save overrides for this PC, or reset to use global settings. Changes apply to the next stream. Host display layout and device/app policies still apply. Fractional refresh requests require Butterpollo; other hosts use whole Hz. HDR, colour and codecs require compatible hardware. PyroWave needs a fast LAN and high bitrate (about 280000 kbps at 720p/60).</string>
+    <string name="host_profile_width">Width (pixels, 64–16384)</string>
+    <string name="host_profile_height">Height (pixels, 64–16384)</string>
+    <string name="host_profile_refresh">Refresh rate (1–1000 Hz, up to two decimals)</string>
+    <string name="host_profile_bitrate">Bitrate (500–1000000 kbps)</string>
+    <string name="host_profile_scale">Host render scale (50–200%)</string>
+    <string name="host_profile_codec">Preferred codec</string>
+    <string name="host_profile_virtual_display">Request a virtual display</string>
+    <string name="host_profile_hdr">Prefer HDR10</string>
+    <string name="host_profile_full_range">Full colour range</string>
+    <string name="host_profile_yuv444">Prefer YUV 4:4:4</string>
+    <string name="host_profile_save">Save</string>
+    <string name="host_profile_reset">Use global settings</string>
+    <string name="host_profile_saved">PC streaming settings saved</string>
+    <string name="host_profile_reset_done">This PC now uses global streaming settings</string>
+    <string name="host_profile_invalid_number">Enter a whole number from %1$d to %2$d</string>
+    <string name="host_profile_invalid_refresh">Enter 1–1000 Hz with at most two decimal places</string>
+    <string-array name="host_profile_codecs">
+        <item>Automatic (H.264 / HEVC / AV1)</item>
+        <item>Prefer AV1</item>
+        <item>Prefer HEVC</item>
+        <item>H.264</item>
+        <item>Prefer PyroWave (experimental)</item>
+    </string-array>
+</resources>

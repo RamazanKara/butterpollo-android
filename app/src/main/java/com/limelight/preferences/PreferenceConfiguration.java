@@ -134,6 +134,7 @@ public class PreferenceConfiguration {
     public static final String RES_NATIVE = "Native";
 
     public int width, height, fps;
+    public int launchRefreshRateX100;
     public int bitrate;
     public FormatOption videoFormat;
     public int deadzonePercentage;
@@ -146,7 +147,7 @@ public class PreferenceConfiguration {
     public boolean showGuideButton;
     public boolean enableHdr;
     public boolean enablePip;
-    public boolean enablePerfOverlay;
+    public volatile boolean enablePerfOverlay;
     public boolean enableLatencyToast;
     public boolean bindAllUsb;
     public boolean mouseEmulation;
@@ -459,6 +460,19 @@ public class PreferenceConfiguration {
         // https://www.nvidia.com/en-us/geforce/forums/notifications/comment/155192/
         return Build.MANUFACTURER.equalsIgnoreCase("NVIDIA") &&
                 Build.FINGERPRINT.contains("PPR1.180610.011/4079208_2235.1395");
+    }
+
+    public static PreferenceConfiguration readPreferences(Context context, String hostUuid) {
+        PreferenceConfiguration config = readPreferences(context);
+        HostStreamProfile profile = HostStreamProfile.load(context, hostUuid);
+        if (profile != null) {
+            profile.applyTo(config);
+            config.enableHdr &= !isShieldAtvFirmwareWithBrokenHdr();
+            config.useTextureView = PreferenceManager.getDefaultSharedPreferences(context)
+                    .getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&
+                    config.videoFormat != FormatOption.FORCE_PYROWAVE;
+        }
+        return config;
     }
 
     public static PreferenceConfiguration readPreferences(Context context) {
