@@ -22,7 +22,7 @@ import com.limelight.R;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.io.File;
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class UsbDriverService extends Service implements UsbDriverListener {
 
@@ -36,9 +36,9 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     private final UsbEventReceiver receiver = new UsbEventReceiver();
     private final UsbDriverBinder binder = new UsbDriverBinder();
 
-    private final ArrayList<AbstractController> controllers = new ArrayList<>();
+    private final CopyOnWriteArrayList<AbstractController> controllers = new CopyOnWriteArrayList<>();
 
-    private UsbDriverListener listener;
+    private volatile UsbDriverListener listener;
     private UsbDriverStateListener stateListener;
     private int nextDeviceId;
 
@@ -48,6 +48,30 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         // Call through to the client's listener
         if (listener != null) {
             listener.reportControllerState(controllerId, buttonFlags, leftStickX, leftStickY, rightStickX, rightStickY, leftTrigger, rightTrigger);
+        }
+    }
+
+    @Override
+    public void reportControllerTouch(int controllerId, byte eventType, int pointerId, float x, float y, float pressure) {
+        UsbDriverListener current = listener;
+        if (current != null) {
+            current.reportControllerTouch(controllerId, eventType, pointerId, x, y, pressure);
+        }
+    }
+
+    @Override
+    public void reportControllerMotion(int controllerId, byte motionType, float x, float y, float z) {
+        UsbDriverListener current = listener;
+        if (current != null) {
+            current.reportControllerMotion(controllerId, motionType, x, y, z);
+        }
+    }
+
+    @Override
+    public void reportControllerBattery(int controllerId, byte state, byte percentage) {
+        UsbDriverListener current = listener;
+        if (current != null) {
+            current.reportControllerBattery(controllerId, state, percentage);
         }
     }
 
@@ -94,6 +118,15 @@ public class UsbDriverService extends Service implements UsbDriverListener {
                     }
                 }, 1000);
             }
+            else if (action.equals(UsbManager.ACTION_USB_DEVICE_DETACHED)) {
+                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                for (AbstractController controller : controllers) {
+                    if (controller instanceof DualSenseController &&
+                            ((DualSenseController)controller).getUsbDeviceId() == device.getDeviceId()) {
+                        controller.stop();
+                    }
+                }
+            }
             // Subsequent permission dialog completion intent
             else if (action.equals(ACTION_USB_PERMISSION)) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
@@ -137,6 +170,16 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     }
 
     private void handleUsbDeviceState(UsbDevice device) {
+        if (!started) {
+            return;
+        }
+        for (AbstractController controller : controllers) {
+            if (controller instanceof DualSenseController &&
+                    ((DualSenseController)controller).getUsbDeviceId() == device.getDeviceId()) {
+                return;
+            }
+        }
+
         // Are we able to operate it?
         if (shouldClaimDevice(device, prefConfig.bindAllUsb)) {
             // Do we have permission yet?
@@ -185,7 +228,10 @@ public class UsbDriverService extends Service implements UsbDriverListener {
 
             AbstractController controller;
 
-            if (XboxOneController.canClaimDevice(device)) {
+            if (DualSenseController.canClaimDevice(device)) {
+                controller = new DualSenseController(device, connection, nextDeviceId++, this);
+            }
+            else if (XboxOneController.canClaimDevice(device)) {
                 controller = new XboxOneController(device, connection, nextDeviceId++, this);
             }
             else if (Xbox360Controller.canClaimDevice(device)) {
@@ -275,7 +321,9 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     }
 
     public static boolean shouldClaimDevice(UsbDevice device, boolean claimAllAvailable) {
-        return ((!kernelSupportsXboxOne() || !isRecognizedInputDevice(device) || claimAllAvailable) && XboxOneController.canClaimDevice(device)) ||
+        // Android's InputDevice API cannot apply DualSense adaptive trigger effects.
+        return DualSenseController.canClaimDevice(device) ||
+                ((!kernelSupportsXboxOne() || !isRecognizedInputDevice(device) || claimAllAvailable) && XboxOneController.canClaimDevice(device)) ||
                 ((!isRecognizedInputDevice(device) || claimAllAvailable) && Xbox360Controller.canClaimDevice(device)) ||
                 // We must not call isRecognizedInputDevice() because wireless controllers don't share the same product ID as the dongle
                 ((!kernelSupportsXbox360W() || claimAllAvailable) && Xbox360WirelessDongle.canClaimDevice(device));
@@ -283,7 +331,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void start() {
-        if (started || usbManager == null) {
+        if (started || usbManager == null || !prefConfig.usbDriver) {
             return;
         }
 
@@ -292,6 +340,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         // Register for USB attach broadcasts and permission completions
         IntentFilter filter = new IntentFilter();
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         filter.addAction(ACTION_USB_PERMISSION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED);
@@ -320,10 +369,10 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         unregisterReceiver(receiver);
 
         // Stop all controllers
-        while (controllers.size() > 0) {
-            // Stop and remove the controller
-            controllers.remove(0).stop();
+        for (AbstractController controller : controllers) {
+            controller.stop();
         }
+        controllers.clear();
     }
 
     @Override

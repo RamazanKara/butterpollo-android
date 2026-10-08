@@ -125,7 +125,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private final HandlerThread backgroundHandlerThread;
     private final Handler backgroundThreadHandler;
     private boolean hasGameController;
-    private boolean stopped = false;
+    private volatile boolean stopped = false;
+    private volatile boolean sensorsEnabled = true;
 
     private final PreferenceConfiguration prefConfig;
     private short currentControllers, initialControllers;
@@ -284,8 +285,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             deviceContext.destroy();
         }
 
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext deviceContext = usbDeviceContexts.valueAt(i);
+        SparseArray<UsbDeviceContext> stoppedUsbContexts = usbDeviceContexts.clone();
+        for (int i = 0; i < stoppedUsbContexts.size(); i++) {
+            UsbDeviceContext deviceContext = stoppedUsbContexts.valueAt(i);
+            deviceContext.device.stop();
             deviceContext.destroy();
         }
 
@@ -302,9 +305,16 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     }
 
     public void disableSensors() {
+        sensorsEnabled = false;
         for (int i = 0; i < inputDeviceContexts.size(); i++) {
             InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
             deviceContext.disableSensors();
+        }
+        for (int i = 0; i < usbDeviceContexts.size(); i++) {
+            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && (context.device.getCapabilities() & MoonBridge.LI_CCAP_GYRO) != 0) {
+                conn.sendControllerMotionEvent((byte)context.controllerNumber, MoonBridge.LI_MOTION_TYPE_GYRO, 0, 0, 0);
+            }
         }
     }
 
@@ -312,6 +322,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (stopped) {
             return;
         }
+
+        sensorsEnabled = true;
 
         for (int i = 0; i < inputDeviceContexts.size(); i++) {
             InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
@@ -2154,6 +2166,19 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    public void handleSetAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                          byte typeRight, byte[] left, byte[] right) {
+        if (stopped) {
+            return;
+        }
+        for (int i = 0; i < usbDeviceContexts.size(); i++) {
+            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
+                context.device.setAdaptiveTriggers(eventFlags, typeLeft, typeRight, left, right);
+            }
+        }
+    }
+
     private SensorEventListener createSensorListener(final short controllerNumber, final byte motionType, final boolean needsDeviceOrientationCorrection) {
         return new SensorEventListener() {
             private float[] lastValues = new float[3];
@@ -2243,6 +2268,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return;
         }
 
+        for (int i = 0; i < usbDeviceContexts.size(); i++) {
+            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
+                context.device.setMotionEventState(motionType, prefConfig.gamepadMotionSensors ? reportRateHz : 0);
+            }
+        }
+
         // Report rate is restricted to <= 200 Hz without the HIGH_SAMPLING_RATE_SENSORS permission
         reportRateHz = (short) Math.min(200, reportRateHz);
 
@@ -2306,6 +2338,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     public void handleSetControllerLED(short controllerNumber, byte r, byte g, byte b) {
         if (stopped) {
             return;
+        }
+
+        for (int i = 0; i < usbDeviceContexts.size(); i++) {
+            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+            if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
+                context.device.setLed(r, g, b);
+            }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -2829,7 +2868,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                                       float rightStickX, float rightStickY,
                                       float leftTrigger, float rightTrigger) {
         GenericControllerContext context = usbDeviceContexts.get(controllerId);
-        if (context == null) {
+        if (stopped || context == null) {
             return;
         }
 
@@ -2863,10 +2902,38 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     }
 
     @Override
+    public void reportControllerTouch(int controllerId, byte eventType, int pointerId, float x, float y, float pressure) {
+        UsbDeviceContext context = usbDeviceContexts.get(controllerId);
+        if (!stopped && context != null && context.assignedControllerNumber) {
+            conn.sendControllerTouchEvent((byte)context.controllerNumber, eventType, pointerId, x, y, pressure);
+        }
+    }
+
+    @Override
+    public void reportControllerMotion(int controllerId, byte motionType, float x, float y, float z) {
+        UsbDeviceContext context = usbDeviceContexts.get(controllerId);
+        if (!stopped && sensorsEnabled && prefConfig.gamepadMotionSensors && context != null && context.assignedControllerNumber) {
+            conn.sendControllerMotionEvent((byte)context.controllerNumber, motionType, x, y, z);
+        }
+    }
+
+    @Override
+    public void reportControllerBattery(int controllerId, byte state, byte percentage) {
+        UsbDeviceContext context = usbDeviceContexts.get(controllerId);
+        if (!stopped && context != null && context.assignedControllerNumber) {
+            conn.sendControllerBatteryEvent((byte)context.controllerNumber, state, percentage);
+        }
+    }
+
+    @Override
     public void deviceRemoved(AbstractController controller) {
         UsbDeviceContext context = usbDeviceContexts.get(controller.getControllerId());
         if (context != null) {
             LimeLog.info("Removed controller: "+controller.getControllerId());
+            if (context.assignedControllerNumber && (controller.getCapabilities() & MoonBridge.LI_CCAP_TOUCHPAD) != 0) {
+                conn.sendControllerTouchEvent((byte)context.controllerNumber, MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL,
+                        0, 0, 0, 0);
+            }
             releaseControllerNumber(context);
             context.destroy();
             usbDeviceContexts.remove(controller.getControllerId());
@@ -2876,6 +2943,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     @Override
     public void deviceAdded(AbstractController controller) {
         if (stopped) {
+            controller.stop();
+            return;
+        }
+        if (usbDeviceContexts.get(controller.getControllerId()) != null) {
             return;
         }
 
@@ -3316,8 +3387,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         @Override
         public void sendControllerArrival() {
+            short capabilities = device.getCapabilities();
+            if (!prefConfig.gamepadMotionSensors) {
+                capabilities &= ~(MoonBridge.LI_CCAP_ACCEL | MoonBridge.LI_CCAP_GYRO);
+            }
             conn.sendControllerArrivalEvent((byte)controllerNumber, getActiveControllerMask(),
-                    device.getType(), device.getSupportedButtonFlags(), device.getCapabilities());
+                    device.getType(), device.getSupportedButtonFlags(), capabilities);
+            device.setPlayerNumber(controllerNumber);
         }
     }
 }
