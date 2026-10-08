@@ -1,4 +1,4 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -11,7 +11,7 @@
         <ImageButton android:id="@+id/helpButton" style="@style/ToolbarIcon"
             android:src="@drawable/ic_help" android:contentDescription="@string/help" />
         <ImageButton android:id="@+id/manuallyAddPc" style="@style/ToolbarIcon"
-            android:src="@drawable/ic_add" android:tint="@color/accent" android:contentDescription="@string/title_add_pc" />
+            android:src="@drawable/ic_add" app:tint="@color/accent" android:contentDescription="@string/title_add_pc" />
     </LinearLayout>
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <FrameLayout android:id="@+id/pcFragmentContainer"

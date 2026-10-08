@@ -1,10 +1,10 @@
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/LibraryCard">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:padding="16dp" android:gravity="center_vertical" android:importantForAccessibility="noHideDescendants">
         <FrameLayout android:layout_width="48dp" android:layout_height="48dp" android:layout_marginEnd="16dp">
             <ImageView android:id="@+id/grid_image" android:layout_width="match_parent" android:layout_height="match_parent"
-                android:tint="@color/accent" />
+                app:tint="@color/accent" />
             <ProgressBar android:id="@+id/grid_spinner" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:visibility="gone" />
         </FrameLayout>
@@ -16,7 +16,7 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:gravity="center_vertical">
                 <ImageView android:id="@+id/grid_overlay" android:layout_width="24dp" android:layout_height="24dp"
-                    android:layout_marginEnd="8dp" android:tint="@color/on_surface_variant" />
+                    android:layout_marginEnd="8dp" app:tint="@color/on_surface_variant" />
                 <TextView android:id="@+id/grid_status" android:layout_width="0dp" android:layout_height="wrap_content"
                     android:layout_weight="1" android:textSize="16sp" android:textColor="@color/on_surface_variant"
                     android:minLines="2" android:maxLines="2" />
