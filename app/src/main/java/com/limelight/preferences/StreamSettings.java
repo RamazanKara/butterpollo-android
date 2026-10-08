@@ -1,5 +1,6 @@
 package com.limelight.preferences;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
