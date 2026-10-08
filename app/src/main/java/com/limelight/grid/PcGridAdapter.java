@@ -5,6 +5,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import androidx.core.view.ViewCompat;
 
 import com.limelight.PcView;
 import com.limelight.R;
@@ -51,49 +52,35 @@ public class PcGridAdapter extends GenericGridAdapter<PcView.ComputerObject> {
     @Override
     public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, PcView.ComputerObject obj) {
         imgView.setImageResource(R.drawable.ic_computer);
-        if (obj.details.state == ComputerDetails.State.ONLINE) {
-            imgView.setAlpha(1.0f);
-        }
-        else {
-            imgView.setAlpha(0.4f);
-        }
+        boolean checking = obj.details.state == ComputerDetails.State.UNKNOWN;
+        imgView.setVisibility(checking ? View.INVISIBLE : View.VISIBLE);
+        prgView.setVisibility(checking ? View.VISIBLE : View.GONE);
+        txtView.setText(obj.details.name);
 
-        if (obj.details.state == ComputerDetails.State.UNKNOWN) {
-            prgView.setVisibility(View.VISIBLE);
-        }
-        else {
-            prgView.setVisibility(View.INVISIBLE);
-        }
-
-        if (obj.details.state == ComputerDetails.State.ONLINE &&
-                obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
-            txtView.setText(context.getString(R.string.pc_tap_to_pair, obj.details.name));
-        }
-        else {
-            txtView.setText(obj.details.name);
-        }
-        if (obj.details.state == ComputerDetails.State.ONLINE) {
-            txtView.setAlpha(1.0f);
-        }
-        else {
-            txtView.setAlpha(0.4f);
-        }
-
+        int status;
         if (obj.details.state == ComputerDetails.State.OFFLINE) {
+            status = R.string.pc_offline;
             overlayView.setImageResource(R.drawable.ic_pc_offline);
-            overlayView.setAlpha(0.4f);
-            overlayView.setVisibility(View.VISIBLE);
         }
-        // We must check if the status is exactly online and unpaired
-        // to avoid colliding with the loading spinner when status is unknown
-        else if (obj.details.state == ComputerDetails.State.ONLINE &&
-                obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
+        else if (checking) {
+            status = R.string.pc_checking;
+            overlayView.setImageResource(R.drawable.ic_computer);
+        }
+        else if (obj.details.pairState == PairingManager.PairState.NOT_PAIRED) {
+            status = R.string.pc_needs_pairing;
             overlayView.setImageResource(R.drawable.ic_lock);
-            overlayView.setAlpha(1.0f);
-            overlayView.setVisibility(View.VISIBLE);
+        }
+        else if (obj.details.pairState == PairingManager.PairState.PAIRED) {
+            status = R.string.pc_online_paired;
+            overlayView.setImageResource(R.drawable.ic_check);
         }
         else {
-            overlayView.setVisibility(View.GONE);
+            status = R.string.pc_online;
+            overlayView.setImageResource(R.drawable.ic_computer);
         }
+        TextView statusView = parentView.findViewById(R.id.grid_status);
+        statusView.setText(status);
+        parentView.setContentDescription(obj.details.name);
+        ViewCompat.setStateDescription(parentView, context.getString(status));
     }
 }

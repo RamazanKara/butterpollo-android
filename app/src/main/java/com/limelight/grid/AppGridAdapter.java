@@ -28,8 +28,8 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     private static final int ART_WIDTH_PX = 300;
-    private static final int SMALL_WIDTH_DP = 100;
-    private static final int LARGE_WIDTH_DP = 150;
+    private static final int SMALL_WIDTH_DP = 104;
+    private static final int LARGE_WIDTH_DP = 160;
 
     private final ComputerDetails computer;
     private final String uniqueId;
@@ -182,20 +182,18 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
                     role == NvApp.Role.REMOTE_MONITOR ? R.drawable.ic_remote_monitor : R.drawable.ic_input_only, 0, 0, 0);
         }
 
+        parentView.setActivated(obj.isRunning);
+        TextView status = parentView.findViewById(R.id.grid_status);
+        status.setText(obj.isRunning ? (obj.isHidden ? R.string.app_running_hidden : R.string.app_running) : R.string.app_hidden);
+        status.setVisibility(obj.isRunning || obj.isHidden ? View.VISIBLE : View.INVISIBLE);
+        parentView.findViewById(R.id.grid_actions).setVisibility(obj.isRunning ? View.VISIBLE : View.INVISIBLE);
+        String description = obj.app.getAppName();
+        if (obj.isRunning || obj.isHidden) {
+            description = context.getString(R.string.library_item_description, description, status.getText());
+        }
         if (obj.isRunning) {
-            // Show the play button overlay
-            overlayView.setImageResource(R.drawable.ic_play);
-            overlayView.setVisibility(View.VISIBLE);
+            description = context.getString(R.string.library_item_description, description, context.getString(R.string.app_resume_quit));
         }
-        else {
-            overlayView.setVisibility(View.GONE);
-        }
-
-        if (obj.isHidden) {
-            parentView.setAlpha(0.40f);
-        }
-        else {
-            parentView.setAlpha(1.0f);
-        }
+        parentView.setContentDescription(description);
     }
 }

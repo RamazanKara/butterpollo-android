@@ -11,6 +11,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.limelight.R;
@@ -145,6 +146,8 @@ public class SeekBarPreference extends DialogPreference
         button.setAllCaps(false);
         button.setMinWidth(dp(48));
         button.setMinimumWidth(dp(48));
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
         return button;
     }
 
@@ -180,6 +183,8 @@ public class SeekBarPreference extends DialogPreference
         plus.setOnClickListener(v -> showDialogValue(nudge(dialogValue, true, logScale, stepSize, minValue, maxValue)));
 
         seekBar = new SeekBar(context);
+        seekBar.setMinimumHeight(dp(48));
+        seekBar.setContentDescription(getTitle());
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int position, boolean fromUser) {
@@ -236,7 +241,9 @@ public class SeekBarPreference extends DialogPreference
         }
         showDialogValue(clamp(currentValue, minValue, maxValue));
 
-        return layout;
+        ScrollView scroll = new ScrollView(context);
+        scroll.addView(layout);
+        return scroll;
     }
 
     @Override

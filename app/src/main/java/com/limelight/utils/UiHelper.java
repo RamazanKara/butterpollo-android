@@ -10,12 +10,16 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Insets;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.LocaleList;
 import android.view.View;
-import android.view.WindowInsets;
 import android.view.WindowManager;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.limelight.Game;
 import com.limelight.R;
@@ -26,8 +30,8 @@ import java.util.Locale;
 
 public class UiHelper {
 
-    private static final int TV_VERTICAL_PADDING_DP = 15;
-    private static final int TV_HORIZONTAL_PADDING_DP = 15;
+    private static final int TV_VERTICAL_PADDING_DP = 16;
+    private static final int TV_HORIZONTAL_PADDING_DP = 16;
 
     private static void setGameModeStatus(Context context, boolean streaming, boolean interruptible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -98,23 +102,6 @@ public class UiHelper {
         }
     }
 
-    public static void applyStatusBarPadding(View view) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // This applies the padding that we omitted in notifyNewRootView() on Q
-            view.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-                @Override
-                public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
-                    view.setPadding(view.getPaddingLeft(),
-                            view.getPaddingTop(),
-                            view.getPaddingRight(),
-                            windowInsets.getTappableElementInsets().bottom);
-                    return windowInsets;
-                }
-            });
-            view.requestApplyInsets();
-        }
-    }
-
     public static void notifyNewRootView(final Activity activity)
     {
         View rootView = activity.findViewById(android.R.id.content);
@@ -133,43 +120,36 @@ public class UiHelper {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
 
-        if (modeMgr.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) {
-            // Increase view padding on TVs
-            float scale = activity.getResources().getDisplayMetrics().density;
-            int verticalPaddingPixels = (int) (TV_VERTICAL_PADDING_DP*scale + 0.5f);
-            int horizontalPaddingPixels = (int) (TV_HORIZONTAL_PADDING_DP*scale + 0.5f);
-
-            rootView.setPadding(horizontalPaddingPixels, verticalPaddingPixels,
-                    horizontalPaddingPixels, verticalPaddingPixels);
+        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
+        activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS |
+                WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        activity.getWindow().setStatusBarColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                Color.TRANSPARENT : Color.rgb(17, 26, 31));
+        activity.getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                Color.TRANSPARENT : Color.rgb(17, 26, 31));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            activity.getWindow().setStatusBarContrastEnforced(false);
+            activity.getWindow().setNavigationBarContrastEnforced(false);
+            rootView.setForceDarkAllowed(false);
         }
-        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Draw under the status bar on Android Q devices
+        boolean light = activity.getResources().getBoolean(R.bool.light_system_bars);
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(activity.getWindow(), rootView);
+        controller.setAppearanceLightStatusBars(light);
+        controller.setAppearanceLightNavigationBars(light);
 
-            // Using getDecorView() here breaks the translucent status/navigation bar when gestures are disabled
-            activity.findViewById(android.R.id.content).setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-                @Override
-                public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
-                    // Use the tappable insets so we can draw under the status bar in gesture mode
-                    Insets tappableInsets = windowInsets.getTappableElementInsets();
-                    view.setPadding(tappableInsets.left,
-                            tappableInsets.top,
-                            tappableInsets.right,
-                            0);
-
-                    // Show a translucent navigation bar if we can't tap there
-                    if (tappableInsets.bottom != 0) {
-                        activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-                    }
-                    else {
-                        activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-                    }
-
-                    return windowInsets;
-                }
-            });
-
-            activity.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-        }
+        boolean tv = modeMgr.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+        float scale = activity.getResources().getDisplayMetrics().density;
+        int horizontalPadding = tv ? Math.round(TV_HORIZONTAL_PADDING_DP * scale) : 0;
+        int verticalPadding = tv ? Math.round(TV_VERTICAL_PADDING_DP * scale) : 0;
+        ViewCompat.setOnApplyWindowInsetsListener(rootView, (view, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() |
+                    WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
+            view.setPadding(insets.left + horizontalPadding, insets.top + verticalPadding,
+                    insets.right + horizontalPadding, insets.bottom + verticalPadding);
+            // The root owns all insets, including the keyboard; descendants must not apply them twice.
+            return WindowInsetsCompat.CONSUMED;
+        });
+        ViewCompat.requestApplyInsets(rootView);
     }
 
     public static void showDecoderCrashDialog(Activity activity) {

@@ -1,0 +1,11 @@
+<resources>
+    <color name="accent">#F4CE69</color>
+    <color name="on_accent">#302600</color>
+    <color name="accent_container">#494025</color>
+    <color name="surface">#111A1F</color>
+    <color name="surface_container">#202C32</color>
+    <color name="on_surface">#F0F3F4</color>
+    <color name="on_surface_variant">#BCC8CE</color>
+    <color name="outline">#8E9BA2</color>
+    <bool name="light_system_bars">false</bool>
+</resources>

@@ -1,0 +1,14 @@
+<resources>
+    <string name="library_computers">Computers</string>
+    <string name="pc_online_paired">Online · Paired</string>
+    <string name="pc_needs_pairing">Online · Needs pairing</string>
+    <string name="pc_online">Online</string>
+    <string name="pc_offline">Offline</string>
+    <string name="pc_checking">Checking connection…</string>
+    <string name="app_running">Running</string>
+    <string name="app_hidden">Hidden</string>
+    <string name="app_running_hidden">Running · Hidden</string>
+    <string name="app_resume_quit">Resume / quit</string>
+    <string name="library_item_description">%1$s, %2$s</string>
+    <string name="add_pc_hint">Enter your PC’s IP address or hostname. You can include a port, such as 192.168.1.10:47989.</string>
+</resources>
