@@ -16,6 +16,19 @@
 #define VK_USE_PLATFORM_ANDROID_KHR
 #include <vulkan/vulkan.h>
 
+// NDK 29's Vulkan headers predate this extension.
+#ifndef VK_EXT_present_mode_fifo_latest_ready
+#define VK_EXT_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME "VK_EXT_present_mode_fifo_latest_ready"
+constexpr VkPresentModeKHR VK_PRESENT_MODE_FIFO_LATEST_READY_EXT = static_cast<VkPresentModeKHR>(1000361000);
+constexpr VkStructureType VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_EXT =
+    static_cast<VkStructureType>(1000361000);
+struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
+    VkStructureType sType;
+    void *pNext;
+    VkBool32 presentModeFifoLatestReady;
+};
+#endif
+
 #include <pyrowave/pyrowave.h>
 
 #include <android/log.h>
@@ -46,6 +59,20 @@ namespace {
     constexpr int SUBMIT_OK = 0;
     constexpr int SUBMIT_SKIPPED = 1;
     constexpr int SUBMIT_ERROR = -1;
+
+    // Keep these reason codes aligned with PyroWaveDecoderRenderer.getReadinessSummary().
+    enum Readiness {
+        READY = 0,
+        NEEDS_VULKAN_1_3 = 1,
+        MISSING_SUBGROUP_OPS = 2,
+        MISSING_DEVICE_FEATURES = 3,
+        MISSING_IMAGE_FORMATS = 4,
+        INSUFFICIENT_DEVICE_LIMITS = 5,
+        MISSING_GRAPHICS_QUEUE = 6,
+        MISSING_SWAPCHAIN = 7,
+        MISSING_HDR = 8,
+        PROBE_FAILED = 9,
+    };
 
     constexpr uint64_t ACQUIRE_TIMEOUT_NS = 250'000'000;
     constexpr uint64_t FENCE_TIMEOUT_NS = 2'000'000'000;
@@ -206,13 +233,13 @@ namespace {
 
     // Features PyroWave's decode kernels use unconditionally. shaderFloat16 is optional.
     struct FeatureProbe {
-        bool ok = false;
+        Readiness reason = NEEDS_VULKAN_1_3;
         bool float16 = false;
         uint32_t apiVersion = 0;
         char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] = {};
     };
 
-    FeatureProbe probeFeatures(const VulkanLoader &vk, VkPhysicalDevice device) {
+    FeatureProbe probeFeatures(const VulkanLoader &vk, VkPhysicalDevice device, bool tenBit) {
         FeatureProbe probe;
         VkPhysicalDeviceProperties props;
         vk.GetPhysicalDeviceProperties(device, &props);
@@ -245,11 +272,66 @@ namespace {
             ((p13.minSubgroupSize >= 4 && p13.maxSubgroupSize <= 128) ||
              ((p13.requiredSubgroupSizeStages & VK_SHADER_STAGE_COMPUTE_BIT) &&
               p13.minSubgroupSize <= 128 && p13.maxSubgroupSize >= 4));
-        probe.ok = subgroups && f2.features.shaderStorageImageWriteWithoutFormat &&
-                   f2.features.shaderInt16 && f11.storageBuffer16BitAccess &&
-                   f12.storageBuffer8BitAccess && f12.timelineSemaphore &&
-                   f13.subgroupSizeControl && f13.computeFullSubgroups && f13.synchronization2;
+        if (!subgroups || !f13.subgroupSizeControl || !f13.computeFullSubgroups) {
+            probe.reason = MISSING_SUBGROUP_OPS;
+            return probe;
+        }
+        if (!f2.features.shaderStorageImageWriteWithoutFormat || !f2.features.shaderInt16 ||
+            !f11.storageBuffer16BitAccess || !f12.storageBuffer8BitAccess ||
+            !f12.timelineSemaphore || !f13.synchronization2) {
+            probe.reason = MISSING_DEVICE_FEATURES;
+            return probe;
+        }
         probe.float16 = f12.shaderFloat16;
+        if (props.limits.maxImageArrayLayers < 12 || props.limits.maxComputeWorkGroupInvocations < 128 ||
+            props.limits.maxComputeWorkGroupSize[0] < 128) {
+            probe.reason = INSUFFICIENT_DEVICE_LIMITS;
+            return probe;
+        }
+        // Mixed-precision wavelets use FP16 high bands and FP32 low bands.
+        for (auto format : {VK_FORMAT_R16_SFLOAT, VK_FORMAT_R32_SFLOAT, VK_FORMAT_R16G16_SFLOAT}) {
+            VkFormatProperties formats;
+            vk.GetPhysicalDeviceFormatProperties(device, format, &formats);
+            VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+            if ((formats.optimalTilingFeatures & required) != required) {
+                probe.reason = MISSING_IMAGE_FORMATS;
+                return probe;
+            }
+        }
+        VkFormatProperties plane;
+        vk.GetPhysicalDeviceFormatProperties(device, tenBit ? VK_FORMAT_R16_UNORM : VK_FORMAT_R8_UNORM, &plane);
+        VkFormatFeatureFlags sampled = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        if ((plane.optimalTilingFeatures & sampled) != sampled ||
+            !(plane.optimalTilingFeatures & (VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT))) {
+            probe.reason = MISSING_IMAGE_FORMATS;
+            return probe;
+        }
+        uint32_t familyCount = 0;
+        vk.GetPhysicalDeviceQueueFamilyProperties(device, &familyCount, nullptr);
+        std::vector<VkQueueFamilyProperties> families(familyCount);
+        vk.GetPhysicalDeviceQueueFamilyProperties(device, &familyCount, families.data());
+        bool graphicsCompute = false;
+        for (uint32_t i = 0; i < familyCount; ++i) {
+            graphicsCompute |= (families[i].queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) ==
+                (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
+        }
+        if (!graphicsCompute) {
+            probe.reason = MISSING_GRAPHICS_QUEUE;
+            return probe;
+        }
+        uint32_t extensionCount = 0;
+        probe.reason = PROBE_FAILED;
+        if (vk.EnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr) != VK_SUCCESS) return probe;
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        if (vk.EnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data()) != VK_SUCCESS) return probe;
+        extensions.resize(extensionCount);
+        bool swapchain = false, metadata = false;
+        for (const auto &extension : extensions) {
+            if (!strcmp(extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) swapchain = true;
+            if (!strcmp(extension.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
+        }
+        probe.reason = !swapchain ? MISSING_SWAPCHAIN : (tenBit && !metadata ? MISSING_HDR : READY);
         return probe;
     }
 
@@ -275,6 +357,7 @@ namespace {
             case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE";
             case VK_PRESENT_MODE_MAILBOX_KHR: return "MAILBOX";
             case VK_PRESENT_MODE_FIFO_KHR: return "FIFO";
+            case VK_PRESENT_MODE_FIFO_LATEST_READY_EXT: return "FIFO_LATEST_READY";
             case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
             default: return "other";
         }
@@ -295,12 +378,13 @@ namespace {
             destroy();
         }
 
-        bool create(ANativeWindow *nativeWindow, int streamWidth, int streamHeight, int frameRate, bool fullChroma, bool tenBitOutput, bool fullRangeOutput) {
+        bool create(ANativeWindow *nativeWindow, int streamWidth, int streamHeight, int frameRate, float displayRefreshRate, bool fullChroma, bool tenBitOutput, bool fullRangeOutput) {
             window = nativeWindow;
             chroma444 = fullChroma;
             tenBit = hdr = tenBitOutput;
             fullRange = fullRangeOutput;
             frameRateHz = frameRate > 0 ? frameRate : 60;
+            displayRefreshRateHz = displayRefreshRate;
             width = uint32_t(streamWidth);
             height = uint32_t(streamHeight);
             records = PyroWaveRecords(width, height, chroma444);
@@ -395,9 +479,9 @@ namespace {
 
             FeatureProbe chosenProbe;
             for (auto device : devices) {
-                auto probe = probeFeatures(vk, device);
-                if (!probe.ok) {
-                    LOGI("Skipping %s: missing the PyroWave feature set", probe.name);
+                auto probe = probeFeatures(vk, device, tenBit);
+                if (probe.reason != READY) {
+                    LOGI("Skipping %s: PyroWave reason %d", probe.name, probe.reason);
                     continue;
                 }
                 uint32_t familyCount = 0;
@@ -460,9 +544,21 @@ namespace {
             if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensions.data()), "device extensions")) return false;
             extensions.resize(extensionCount);
             bool metadata = false;
+            bool fifoLatestReadyExtension = false;
             for (const auto &ext : extensions) {
                 if (!strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
                 if (!strcmp(ext.extensionName, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME)) displayTimingSupported = true;
+                if (!strcmp(ext.extensionName, VK_EXT_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME)) fifoLatestReadyExtension = true;
+            }
+            if (fifoLatestReadyExtension) {
+                fifoLatestReadyFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_EXT};
+                VkPhysicalDeviceFeatures2 available = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+                available.pNext = &fifoLatestReadyFeatures;
+                vk.GetPhysicalDeviceFeatures2(physicalDevice, &available);
+                if (fifoLatestReadyFeatures.presentModeFifoLatestReady) {
+                    features13.pNext = &fifoLatestReadyFeatures;
+                    deviceExtensions.push_back(VK_EXT_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME);
+                }
             }
             if (displayTimingSupported) deviceExtensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
             // KHR present_id + present_wait provide no timestamp, and can signal for replaced images.
@@ -501,18 +597,7 @@ namespace {
         bool checkDecoderLimits() {
             VkPhysicalDeviceProperties props;
             vk.GetPhysicalDeviceProperties(physicalDevice, &props);
-            if (props.limits.maxImageDimension2D < std::max((width + 127) & ~127u, (height + 127) & ~127u) ||
-                props.limits.maxImageArrayLayers < 12 || props.limits.maxComputeWorkGroupInvocations < 128 ||
-                props.limits.maxComputeWorkGroupSize[0] < 128) return false;
-            // Mixed-precision wavelets use FP16 high bands and FP32 low bands.
-            for (auto format : {VK_FORMAT_R16_SFLOAT, VK_FORMAT_R32_SFLOAT, VK_FORMAT_R16G16_SFLOAT}) {
-                VkFormatProperties formats;
-                vk.GetPhysicalDeviceFormatProperties(physicalDevice, format, &formats);
-                VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                    VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-                if ((formats.optimalTilingFeatures & required) != required) return false;
-            }
-            return true;
+            return props.limits.maxImageDimension2D >= std::max((width + 127) & ~127u, (height + 127) & ~127u);
         }
 
         bool warmUpDecoder() {
@@ -682,9 +767,15 @@ namespace {
                 std::vector<VkPresentModeKHR> modes(modeCount);
                 if (!check(vk.GetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &modeCount, modes.data()), "present modes")) return false;
                 modes.resize(modeCount);
-                // MAILBOX shows the newest frame without tearing where available.
-                presentMode = std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end() ?
-                    VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
+                if (fifoLatestReadyFeatures.presentModeFifoLatestReady &&
+                    std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_FIFO_LATEST_READY_EXT) != modes.end()) {
+                    presentMode = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
+                } else if (displayRefreshRateHz > frameRateHz &&
+                           std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end()) {
+                    presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+                } else {
+                    presentMode = VK_PRESENT_MODE_FIFO_KHR;
+                }
             }
 
             if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) return false;
@@ -719,6 +810,10 @@ namespace {
             VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
             if (!check(vk.CreateSwapchainKHR(device, &info, nullptr, &newSwapchain), "vkCreateSwapchainKHR")) {
                 return false;
+            }
+            if (swapchain == VK_NULL_HANDLE) {
+                LOGI("Present mode: %s (display %.2f Hz, stream %d fps)",
+                     presentModeName(presentMode), displayRefreshRateHz, frameRateHz);
             }
             destroySwapchainResources();
             if (swapchain != VK_NULL_HANDLE) {
@@ -1285,6 +1380,7 @@ namespace {
         float queuePriority = 1.0f;
         VkDeviceQueueCreateInfo queueInfo = {};
         VkPhysicalDeviceVulkan13Features features13 = {};
+        VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT fifoLatestReadyFeatures = {};
         VkPhysicalDeviceVulkan12Features features12 = {};
         VkPhysicalDeviceVulkan11Features features11 = {};
         VkPhysicalDeviceFeatures2 features2 = {};
@@ -1338,11 +1434,14 @@ namespace {
         bool timestampsSupported = false;
         uint32_t timestampValidBits = 0;
         int frameRateHz = 60;
+        float displayRefreshRateHz = 0;
 
         bool queriesPending = false;
         float timestampPeriodNs = 1.0f;
 
     public:
+        const char *getPresentModeName() const { return presentModeName(presentMode); }
+
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
@@ -1436,10 +1535,10 @@ namespace {
             const double seconds = double(now - stats.startUs) / 1e6;
             const double gpuFrames = stats.gpuSamples ? double(stats.gpuSamples) : 1.0;
             LOGI("%.1f fps: GPU decode %.2f ms, wait previous frame %.2f ms, "
-                 "wait swapchain image %.2f ms, submit+present %.2f ms (%s)",
+                 "wait swapchain image %.2f ms, submit+present %.2f ms",
                  stats.frames / seconds, stats.gpuDecodeUs / gpuFrames / 1000.0,
                  stats.fenceWaitUs / double(stats.frames) / 1000.0, stats.acquireWaitUs / double(stats.frames) / 1000.0,
-                 stats.presentUs / double(stats.frames) / 1000.0, presentModeName(presentMode));
+                 stats.presentUs / double(stats.frames) / 1000.0);
             stats = {};
             stats.startUs = now;
 
@@ -1450,19 +1549,33 @@ namespace {
         }
     };
 
-    bool probeAvailable() {
+    Readiness probeReadiness(bool tenBit) {
         if (!apiVersionSupported()) {
-            return false;
+            return PROBE_FAILED;
         }
         VulkanLoader vk;
         if (!vk.loadGlobal()) {
-            return false;
+            return NEEDS_VULKAN_1_3;
         }
         uint32_t loaderVersion = 0;
         if (vk.EnumerateInstanceVersion(&loaderVersion) != VK_SUCCESS || loaderVersion < VK_API_VERSION_1_3) {
             LOGI("Vulkan loader is older than 1.3; PyroWave unavailable");
-            return false;
+            return NEEDS_VULKAN_1_3;
         }
+
+        uint32_t extensionCount = 0;
+        if (vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr) != VK_SUCCESS) return PROBE_FAILED;
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        if (vk.EnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data()) != VK_SUCCESS) return PROBE_FAILED;
+        extensions.resize(extensionCount);
+        for (const char *required : INSTANCE_EXTENSIONS) {
+            if (std::none_of(extensions.begin(), extensions.end(), [required](const VkExtensionProperties &ext) {
+                return !strcmp(ext.extensionName, required);
+            })) return MISSING_SWAPCHAIN;
+        }
+        if (tenBit && std::none_of(extensions.begin(), extensions.end(), [](const VkExtensionProperties &ext) {
+            return !strcmp(ext.extensionName, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+        })) return MISSING_HDR;
 
         VkApplicationInfo appInfo = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
         appInfo.apiVersion = VK_API_VERSION_1_3;
@@ -1470,7 +1583,7 @@ namespace {
         instanceInfo.pApplicationInfo = &appInfo;
         VkInstance instance = VK_NULL_HANDLE;
         if (vk.CreateInstance(&instanceInfo, nullptr, &instance) != VK_SUCCESS) {
-            return false;
+            return PROBE_FAILED;
         }
         // Only the functions the probe needs; surface functions may be absent here.
         vk.EnumeratePhysicalDevices = reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(
@@ -1481,48 +1594,62 @@ namespace {
             vk.GetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2"));
         vk.GetPhysicalDeviceFeatures2 = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
             vk.GetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2"));
+        vk.GetPhysicalDeviceFormatProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(
+            vk.GetInstanceProcAddr(instance, "vkGetPhysicalDeviceFormatProperties"));
+        vk.GetPhysicalDeviceQueueFamilyProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
+            vk.GetInstanceProcAddr(instance, "vkGetPhysicalDeviceQueueFamilyProperties"));
+        vk.EnumerateDeviceExtensionProperties = reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(
+            vk.GetInstanceProcAddr(instance, "vkEnumerateDeviceExtensionProperties"));
         vk.DestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(
             vk.GetInstanceProcAddr(instance, "vkDestroyInstance"));
 
         if (!vk.EnumeratePhysicalDevices || !vk.GetPhysicalDeviceProperties ||
-            !vk.GetPhysicalDeviceProperties2 || !vk.GetPhysicalDeviceFeatures2 || !vk.DestroyInstance) {
+            !vk.GetPhysicalDeviceProperties2 || !vk.GetPhysicalDeviceFeatures2 || !vk.DestroyInstance ||
+            !vk.GetPhysicalDeviceFormatProperties || !vk.GetPhysicalDeviceQueueFamilyProperties ||
+            !vk.EnumerateDeviceExtensionProperties) {
             if (vk.DestroyInstance) vk.DestroyInstance(instance, nullptr);
-            return false;
+            return PROBE_FAILED;
         }
 
-        bool capable = false;
+        Readiness readiness = PROBE_FAILED;
         uint32_t count = 0;
         if (vk.EnumeratePhysicalDevices(instance, &count, nullptr) == VK_SUCCESS && count > 0) {
             std::vector<VkPhysicalDevice> devices(count);
             if (vk.EnumeratePhysicalDevices(instance, &count, devices.data()) == VK_SUCCESS) {
                 devices.resize(count);
+                readiness = NEEDS_VULKAN_1_3;
                 for (auto device : devices) {
-                    auto probe = probeFeatures(vk, device);
-                    LOGI("%s (Vulkan %u.%u) PyroWave-capable: %d", probe.name, VK_API_VERSION_MAJOR(probe.apiVersion),
-                         VK_API_VERSION_MINOR(probe.apiVersion), probe.ok);
-                    capable = capable || probe.ok;
+                    auto probe = probeFeatures(vk, device, tenBit);
+                    LOGI("%s (Vulkan %u.%u) PyroWave readiness: %d", probe.name, VK_API_VERSION_MAJOR(probe.apiVersion),
+                         VK_API_VERSION_MINOR(probe.apiVersion), probe.reason);
+                    if (probe.reason == READY) {
+                        readiness = READY;
+                        break;
+                    }
+                    readiness = std::max(readiness, probe.reason);
                 }
             }
         }
         vk.DestroyInstance(instance, nullptr);
-        return capable;
+        return readiness;
     }
 }  // namespace
 
 extern "C" {
 
-JNIEXPORT jboolean JNICALL
-Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeIsAvailable(JNIEnv *, jclass) {
+JNIEXPORT jint JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetReadiness(JNIEnv *, jclass, jboolean tenBit) {
     // The capability is a property of the driver, so probe once per process.
-    static std::once_flag once;
-    static bool available = false;
-    std::call_once(once, [] { available = probeAvailable(); });
-    return available ? JNI_TRUE : JNI_FALSE;
+    static std::once_flag once[2];
+    static Readiness readiness[2] = {PROBE_FAILED, PROBE_FAILED};
+    int index = tenBit ? 1 : 0;
+    std::call_once(once[index], [index] { readiness[index] = probeReadiness(index != 0); });
+    return readiness[index];
 }
 
 JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *env, jclass, jobject surface,
-                                                                      jint width, jint height, jint frameRate,
+                                                                      jint width, jint height, jint frameRate, jfloat displayRefreshRate,
                                                                       jboolean chroma444, jboolean tenBit, jboolean fullRange) {
     if (surface == nullptr || width < 64 || height < 64 || width > 16384 || height > 16384 || (!chroma444 && ((width & 1) || (height & 1)))) {
         LOGE("PyroWave needs a surface and positive dimensions, even for 4:2:0 (%dx%d)", width, height);
@@ -1533,7 +1660,7 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *en
         return 0;
     }
     auto renderer = std::make_unique<Renderer>();
-    if (!renderer->create(window, width, height, frameRate, chroma444, tenBit, fullRange)) {
+    if (!renderer->create(window, width, height, frameRate, displayRefreshRate, chroma444, tenBit, fullRange)) {
         return 0;  // The renderer releases the window.
     }
     LOGI("PyroWave renderer ready for %dx%d %s", width, height, chroma444 ? "4:4:4" : "4:2:0");
@@ -1583,6 +1710,11 @@ JNIEXPORT jint JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastGpuDecodeUs(JNIEnv *, jclass, jlong handle) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
     return renderer != nullptr ? jint(renderer->lastGpuDecodeUs) : 0;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetPresentMode(JNIEnv *env, jclass, jlong handle) {
+    return env->NewStringUTF(reinterpret_cast<Renderer *>(handle)->getPresentModeName());
 }
 
 JNIEXPORT jfloat JNICALL

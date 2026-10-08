@@ -554,11 +554,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public int prepareVideoFormats(int formats, int width, int height, int fps) {
+        float displayRefreshRate = activity.getWindowManager().getDefaultDisplay().getRefreshRate();
         int[] choices = { MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10_444, MoonBridge.VIDEO_FORMAT_PYROWAVE_MAIN10,
                 MoonBridge.VIDEO_FORMAT_PYROWAVE_444, MoonBridge.VIDEO_FORMAT_PYROWAVE };
         for (int choice : choices) {
             if ((formats & choice) != 0 && !stopping &&
-                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, prefs.fullRange) && !stopping) {
+                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, displayRefreshRate, prefs.fullRange) && !stopping) {
                 LimeLog.info("PyroWave surface initialized before negotiation: " + Integer.toHexString(choice));
                 return (formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) | choice;
             }
@@ -1705,7 +1706,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
                     decoder = av1Decoder.getName();
                 } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-                    decoder = "PyroWave (Vulkan)";
+                    decoder = "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")";
                 } else {
                     decoder = "(unknown)";
                 }

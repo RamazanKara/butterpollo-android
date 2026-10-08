@@ -303,6 +303,13 @@ def main():
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "81000" for n in root),
                 "Bitrate was not stored in kbps")
+            tap("Video codec", scroll=True)
+            tap("Prefer PyroWave (experimental, high bandwidth)")
+            summary = find("Prefer PyroWave (experimental, high bandwidth)", scroll=True)
+            assert "\nNot supported: " in summary.get("text", ""), summary.attrib
+            screenshot("20-pyrowave-readiness")
+            tap("Video codec")
+            tap("Automatic (recommended)")
             adb("shell", "input", "keyevent", "4")
             find("1280×720 · 60 FPS · 81 Mbps · Automatic")
             tap("Latency and diagnostics")
@@ -383,7 +390,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
