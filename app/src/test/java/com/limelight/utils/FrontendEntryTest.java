@@ -39,7 +39,7 @@ public class FrontendEntryTest {
 
     @Test
     public void toleratesBomCrlfAndBlankValues() throws IOException {
-        Map<String, String> values = parse("﻿[host_name] Desk\r\n[app_uuid]\r\n\r\n[APP_NAME] Hades\r\n");
+        Map<String, String> values = parse("\uFEFF[host_name] Desk\r\n[app_uuid]\r\n\r\n[APP_NAME] Hades\r\n");
         assertEquals("Desk", values.get(FrontendEntry.KEY_HOST_NAME));
         assertEquals("Hades", values.get(FrontendEntry.KEY_APP_NAME));
         assertFalse(values.containsKey(FrontendEntry.KEY_APP_UUID));

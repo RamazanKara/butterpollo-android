@@ -72,7 +72,7 @@ public final class FrontendEntry {
                 continue;
             }
             // A UTF-8 byte order mark from desktop editors precedes the first key
-            if (line.charAt(0) == '﻿') {
+            if (line.charAt(0) == '\uFEFF') {
                 line = line.substring(1).trim();
             }
             int close = line.indexOf(']');
