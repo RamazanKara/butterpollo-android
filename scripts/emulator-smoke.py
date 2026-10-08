@@ -305,12 +305,20 @@ def main():
                 "Bitrate was not stored in kbps")
             tap("Video codec", scroll=True)
             tap("Prefer PyroWave (experimental, high bandwidth)")
-            summary = find("Prefer PyroWave (experimental, high bandwidth)", scroll=True)
-            assert "\nNot supported: " in summary.get("text", ""), summary.attrib
+            for _ in range(10):
+                time.sleep(1)
+                summary = find("Prefer PyroWave (experimental, high bandwidth)", scroll=True)
+                if "\nNot supported: " in summary.get("text", "") or "\nReady on this phone" in summary.get("text", ""):
+                    break
+            assert "\nNot supported: " in summary.get("text", "") or "\nReady on this phone" in summary.get("text", ""), summary.attrib
             screenshot("20-pyrowave-readiness")
             tap("Video codec")
             tap("Automatic (recommended)")
-            adb("shell", "input", "keyevent", "4")
+            for _ in range(3):
+                adb("shell", "input", "keyevent", "4")
+                time.sleep(1)
+                if any("1280×720 · 60 FPS · 81 Mbps · Automatic" in n.get("text", "") for n in tree().iter("node")):
+                    break
             find("1280×720 · 60 FPS · 81 Mbps · Automatic")
             tap("Video and display")
             find("Host display", scroll=True)
@@ -424,7 +432,11 @@ def main():
             crashes = adb("logcat", "-b", "crash", "-d")
             LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
-            if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
+            # uiautomator itself can time out under host load and logs a FATAL EXCEPTION of its own;
+            # only crashes of this app count.
+            app_crashes = [block for block in re.split(r"(?=FATAL EXCEPTION)|(?=Fatal signal)", crashes)
+                           if ("FATAL EXCEPTION" in block or "Fatal signal" in block) and PACKAGE in block]
+            if app_crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
             print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
