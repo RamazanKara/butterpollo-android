@@ -33,8 +33,14 @@ def adb(*args, timeout=30, binary=False):
 
 
 def tree():
-    adb("shell", "uiautomator", "dump", "/sdcard/butterpollo-smoke.xml")
-    return ET.fromstring(adb("shell", "cat", "/sdcard/butterpollo-smoke.xml"))
+    for attempt in range(5):
+        try:
+            adb("shell", "uiautomator", "dump", "/sdcard/butterpollo-smoke.xml")
+            return ET.fromstring(adb("shell", "cat", "/sdcard/butterpollo-smoke.xml"))
+        except subprocess.CalledProcessError:
+            if attempt == 4:
+                raise
+            time.sleep(2)
 
 
 def bounds(node):
