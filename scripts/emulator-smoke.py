@@ -312,6 +312,33 @@ def main():
             tap("Automatic (recommended)")
             adb("shell", "input", "keyevent", "4")
             find("1280×720 · 60 FPS · 81 Mbps · Automatic")
+            tap("Video and display")
+            find("Host display", scroll=True)
+            vrr = "Variable refresh (VRR)"
+            tap(vrr, scroll=True)
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_vrr" and n.get("value") == "true" for n in root),
+                "VRR preference was not enabled")
+            screenshot("21-host-display-vrr")
+            adb("shell", "am", "force-stop", PACKAGE)
+            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
+            find(HOST_NAME)
+            tap(f"{PACKAGE}:id/settingsButton")
+            tap("Video and display")
+            find("Host display", scroll=True)
+            find(vrr, scroll=True)
+            row = next(n for n in tree().iter("node") if n.get("clickable") == "true" and
+                       any(child.get("text") == vrr for child in n.iter("node")))
+            assert any(n.get("checked") == "true" for n in row.iter("node")), \
+                "VRR checkbox was not restored after restarting the app"
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_vrr" and n.get("value") == "true" for n in root),
+                "VRR preference did not persist after restarting the app")
+            tap(vrr)
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_vrr" and n.get("value") == "false" for n in root),
+                "VRR preference could not be disabled")
+            tap("Navigate up")
             tap("Latency and diagnostics")
             find("Android low-latency mode", scroll=True)
             hints = "Phone performance hints"
@@ -399,7 +426,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")

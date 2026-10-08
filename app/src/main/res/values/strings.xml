@@ -321,7 +321,7 @@
     <string name="title_virtual_display">Host virtual display</string>
     <string name="summary_virtual_display">Butterpollo and Apollo hosts create a display that matches the resolution and frame rate above. Host device and app policies still apply.</string>
     <string name="title_vrr">Variable refresh (VRR)</string>
-    <string name="summary_vrr">Butterpollo sends frames as the game renders them instead of at a fixed rate. This phone shows each one right away at its highest refresh rate. Overrides frame pacing.</string>
+    <string name="summary_vrr">Butterpollo sends frames as the game renders them instead of at a fixed rate. Supported Android 16 displays adapt to the stream; other displays use their highest refresh rate. Overrides frame pacing.</string>
     <string name="title_virtual_display_scale">Host render scale</string>
     <string name="summary_virtual_display_scale">Renders the host virtual display at this percentage of the stream resolution. 100% matches it exactly. Needs the virtual display.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>

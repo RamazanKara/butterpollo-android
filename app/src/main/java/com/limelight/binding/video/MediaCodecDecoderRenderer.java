@@ -126,7 +126,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private volatile float pyroWaveLossPercent;
     private volatile float pyroWaveQueueDelayMs;
 
-    private final FrameLatencyStats frameLatencyStats = new FrameLatencyStats();
+    private final FrameLatencyStats frameLatencyStats;
     private HandlerThread latencyThread;
     private Handler latencyHandler;
     private BufferedWriter latencyCsv;
@@ -170,6 +170,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public boolean hasRecentVideoFrames(long nowMs) {
         return lastVideoFrameTimeMs != 0 && nowMs - lastVideoFrameTimeMs < 2000;
+    }
+
+    public float takeReleaseFrameRate() {
+        return frameLatencyStats.takeReleaseFrameRate();
     }
 
     public float getNetworkFrameLossPercent() {
@@ -388,6 +392,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.context = activity;
         this.activity = activity;
         this.prefs = prefs;
+        this.frameLatencyStats = new FrameLatencyStats(prefs.vrr);
         this.crashListener = crashListener;
         this.consecutiveCrashCount = consecutiveCrashCount;
         this.glRenderer = glRenderer;

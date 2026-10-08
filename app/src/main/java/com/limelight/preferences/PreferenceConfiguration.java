@@ -652,7 +652,7 @@ public class PreferenceConfiguration {
         config.vrr = prefs.getBoolean(VRR_PREF_STRING, false);
         if (config.vrr) {
             // VRR streams arrive at the game's own cadence: show each frame as soon as it is
-            // decoded on the panel's highest refresh rate instead of pacing to a fixed rate.
+            // decoded; Game votes for ARR where supported, or the highest refresh rate otherwise.
             config.framePacing = FRAME_PACING_MIN_LATENCY;
             config.reduceRefreshRate = false;
         }
