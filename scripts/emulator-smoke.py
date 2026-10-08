@@ -314,6 +314,15 @@ def main():
             find("1280×720 · 60 FPS · 81 Mbps · Automatic")
             tap("Latency and diagnostics")
             find("Android low-latency mode", scroll=True)
+            hints = "Phone performance hints"
+            tap(hints, scroll=True)
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
+                "Phone performance hints were not on by default or could not be disabled")
+            tap(hints)
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "true" for n in root),
+                "Phone performance hints could not be enabled")
             overlay = "Show performance overlay"
             tap(overlay, scroll=True)
             screenshot("13-latency-settings")

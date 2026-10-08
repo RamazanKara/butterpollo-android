@@ -622,6 +622,7 @@ public class StreamSettings extends Activity {
             PreferenceScreen screen = getPreferenceScreen();
             findPreference("checkbox_codec_low_latency").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
             findPreference("checkbox_codec_performance").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+            findPreference("checkbox_phone_performance_hints").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S);
             ListPreference pacing = (ListPreference) findPreference("frame_pacing");
             findPreference("checkbox_drop_late_frames").setEnabled("balanced".equals(pacing.getValue()));
             pacing.setOnPreferenceChangeListener((preference, value) -> {
