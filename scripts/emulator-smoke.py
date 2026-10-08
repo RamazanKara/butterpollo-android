@@ -1,7 +1,7 @@
 """Run after assembleNonRootDebug; needs Python 3 and the android-35 sunset AVD.
 
 Uses a disposable, read-only AVD session and a loopback serverinfo fixture.
-This checks UI rendering and manual discovery, not pairing or live streaming.
+This checks UI rendering, manual discovery and frontend errors, not pairing or live streaming.
 """
 import http.server
 import io
@@ -77,11 +77,12 @@ def tap(label, scroll=False):
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
 
 
-def host_menu(item):
+def host_menu(item=None):
     x1, y1, x2, y2 = bounds(find(HOST_NAME))
     x, y = str((x1+x2)//2), str((y1+y2)//2)
     adb("shell", "input", "swipe", x, y, x, y, "1000")
-    tap(item)
+    if item is not None:
+        tap(item)
 
 
 def open_host_profile():
@@ -133,6 +134,26 @@ def screenshot(name):
     return struct.unpack(">II", png[16:24])
 
 
+def frontend_entry(name, contents):
+    entry = LOGS / f"butterpollo-smoke-{name}.art"
+    entry.write_text(contents, encoding="utf-8", newline="\n")
+    remote = f"/sdcard/Download/{entry.name}"
+    adb("push", str(entry), remote)
+    adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+        "-d", f"file://{remote}")
+    for _ in range(30):
+        rows = adb("shell", "content", "query", "--uri", "content://media/external/downloads",
+                   "--projection", "_id:_display_name")
+        match = re.search(rf"\b_id=(\d+), _display_name={re.escape(entry.name)}\r?$", rows, re.MULTILINE)
+        if match:
+            uri = f"content://media/external/downloads/{match[1]}"
+            assert adb("exec-out", "content", "read", "--uri", uri, binary=True) == entry.read_bytes(), \
+                f"Content URI does not contain the fixture: {uri}"
+            return uri
+        time.sleep(1)
+    raise AssertionError(f"MediaStore did not index {remote}: {rows}")
+
+
 class HostFixture(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?", 1)[0] != "/serverinfo":
@@ -158,12 +179,15 @@ class HostFixture(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    devices = subprocess.check_output([str(ADB), "devices"], text=True)
-    if "emulator-" in devices:
-        raise RuntimeError("Stop the existing emulator before running this single-emulator test")
     apk = ROOT / "app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk"
     if not apk.is_file():
         raise FileNotFoundError("Build :app:assembleNonRootDebug before running the smoke test")
+    deadline = time.monotonic() + 30 * 60
+    while "emulator-" in subprocess.check_output([str(ADB), "devices"], text=True, timeout=30):
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Existing emulator is still in use after 30 minutes")
+        print("Waiting for the existing emulator to stop", flush=True)
+        time.sleep(30)
     SHOTS.mkdir(parents=True, exist_ok=True)
     LOGS.mkdir(parents=True, exist_ok=True)
     fixture = http.server.ThreadingHTTPServer(("127.0.0.1", 0), HostFixture)
@@ -171,7 +195,7 @@ def main():
     with LOGS.joinpath("emulator.log").open("w") as log:
         process = subprocess.Popen([str(EMULATOR), "-avd", "sunset", "-read-only",
                                     "-no-snapshot", "-no-window", "-no-audio", "-no-boot-anim",
-                                    "-gpu", os.environ.get("BUTTERPOLLO_EMULATOR_GPU", "swiftshader"), "-cores", "2", "-memory", "2048",
+                                    "-gpu", os.environ.get("BUTTERPOLLO_EMULATOR_GPU", "swiftshader"), "-cores", "2", "-memory", "4096",
                                     "-port", "5554"], stdout=log, stderr=subprocess.STDOUT,
                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         try:
@@ -180,14 +204,37 @@ def main():
                 if process.poll() is not None:
                     raise RuntimeError("Emulator exited; see app/build/emulator-smoke/emulator.log")
                 try:
-                    if adb("shell", "getprop", "sys.boot_completed", timeout=5).strip() == "1":
+                    if (adb("shell", "getprop", "sys.boot_completed", timeout=5).strip() == "1" and
+                            adb("shell", "pm", "path", "android", timeout=5).startswith("package:")):
                         break
                 except (subprocess.SubprocessError, OSError):
                     pass
                 time.sleep(2)
             else:
-                raise TimeoutError("Emulator did not boot")
-            print("Emulator booted; installing debug APK", flush=True)
+                raise TimeoutError("Emulator boot or package manager did not become ready")
+            adb("shell", "input", "keyevent", "82", "3")
+            previous = None
+            while time.monotonic() < deadline:
+                try:
+                    launcher = adb("shell", "cmd", "package", "resolve-activity", "--brief",
+                                   "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME",
+                                   timeout=5).strip().split("\n")[-1]
+                    ui = tree()
+                    current = ET.tostring(ui)
+                    # HOME can still resolve to a temporary boot screen after boot_completed.
+                    if ("/" in launcher and not launcher.startswith(("com.android.settings/", "com.google.android.googlesdksetup/")) and
+                            any(n.get("package") == launcher.split("/")[0] for n in ui.iter("node"))):
+                        if current == previous:
+                            break
+                        previous = current
+                    else:
+                        previous = None
+                except (subprocess.SubprocessError, ET.ParseError):
+                    previous = None
+                time.sleep(2)
+            else:
+                raise TimeoutError("Emulator launcher did not settle")
+            print("Emulator services and launcher ready; installing debug APK", flush=True)
             adb("install", "-r", str(apk), timeout=90)
             adb("shell", "pm", "clear", PACKAGE)
             adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
@@ -207,7 +254,12 @@ def main():
             tap(f"{PACKAGE}:id/addPcButton")
             find(HOST_NAME)
             screenshot("03-host-added")
-            host_menu("Pair with one-time PIN")
+            host_menu()
+            find("Pair with one-time PIN")
+            assert not any(n.get("text") == "Add games to ES-DE" for n in tree().iter("node")), \
+                "Unpaired PC offers frontend export"
+            screenshot("19-unpaired-host-menu")
+            tap("Pair with one-time PIN")
             find("One-time PIN")
             screenshot("16-otp-pairing")
             tap("android:id/button2")
@@ -296,6 +348,25 @@ def main():
                   "Reset removed the controller mapping")
             adb("shell", "input", "keyevent", "4")
             find(HOST_NAME)
+            for name, contents, message, shot in (
+                    ("malformed", "This is not a game entry.\n",
+                     "This game file can't be opened. Add the games again from Butterpollo.", "17-frontend-malformed"),
+                    ("unknown-host", "# Butterpollo game entry\n"
+                     "[host_uuid] 00000000-0000-4000-8000-000000000007\n"
+                     "[host_name] Unknown smoke PC\n[app_uuid] 00000000-0000-4000-8000-000000000008\n"
+                     "[app_name] Smoke game\n[app_id] 123\n", "PC not found", "18-frontend-unknown-host")):
+                uri = frontend_entry(name, contents)
+                adb("shell", "input", "keyevent", "3")
+                find(f"{launcher.split('/')[0]}:id/workspace")
+                adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.ShortcutTrampoline",
+                    "-a", "android.intent.action.VIEW", "-d", uri, "--grant-read-uri-permission")
+                find(message)
+                if name == "malformed":
+                    assert "Unreadable frontend entry: Not a game entry file" in adb("logcat", "-d"), \
+                        "Malformed entry was not read by the app"
+                screenshot(shot)
+                tap("android:id/button1")
+                find(HOST_NAME)
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
             node = find(f"{PACKAGE}:id/performanceOverlay")
             assert "no data yet" in node.get("text", ""), node.attrib
@@ -312,7 +383,7 @@ def main():
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")
             if "FATAL EXCEPTION" in crashes or "Fatal signal" in crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, bitrate, controller mapping, reset, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
@@ -320,7 +391,8 @@ def main():
             except (subprocess.SubprocessError, OSError):
                 pass
             try:
-                adb("emu", "kill", timeout=10)
+                if "OK" not in adb("emu", "kill", timeout=10):
+                    adb("shell", "reboot", "-p", timeout=10)
             except (subprocess.SubprocessError, OSError):
                 process.terminate()
             try:
