@@ -299,6 +299,8 @@ def main():
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
             node = find(f"{PACKAGE}:id/performanceOverlay")
             assert "no data yet" in node.get("text", ""), node.attrib
+            assert "Client latency (receive → present): no data yet" in node.get("text", ""), node.attrib
+            assert "Decode → present: no data yet" in node.get("text", ""), node.attrib
             width, height = screenshot("07-latency-overlay")
             adb("shell", "wm", "user-rotation", "lock", "1" if width < height else "0")
             time.sleep(1)

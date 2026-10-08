@@ -129,6 +129,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private final Runnable updateLatencyStats = new Runnable() {
         @Override
         public void run() {
+            pyroWaveRenderer.pollRenderedFrames(frameLatencyStats);
             frameLatencyStats.expire(System.nanoTime());
             flushLatencyCsv();
             StringBuilder text = new StringBuilder(formatLatencyOverlay(context, frameLatencyStats.summarize()));
@@ -143,12 +144,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     };
 
     public static String formatLatencyOverlay(Context context, double[][] summary) {
-        int[] labels = { R.string.latency_receive_input, R.string.latency_input_output,
-                R.string.latency_output_render, R.string.latency_receive_render,
+        int[] labels = { R.string.latency_receive_render, R.string.latency_output_render,
+                R.string.latency_receive_input, R.string.latency_input_output,
                 R.string.latency_host_processing };
+        int[] stages = {3, 2, 0, 1, 4};
         StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
-        for (int stage = 0; stage < labels.length; stage++) {
-            text.append('\n').append(context.getString(labels[stage])).append(": ");
+        for (int line = 0; line < labels.length; line++) {
+            int stage = stages[line];
+            text.append('\n').append(context.getString(labels[line])).append(": ");
             if (summary[stage][0] == 0) {
                 text.append(context.getString(R.string.latency_unavailable));
             } else {
@@ -826,6 +829,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             videoDecoder.setOnFrameRenderedListener(new MediaCodec.OnFrameRenderedListener() {
                 @Override
                 public void onFrameRendered(MediaCodec mediaCodec, long presentationTimeUs, long renderTimeNanos) {
+                    // Callbacks may be batched; their timestamp, not delivery time, measures rendering.
                     frameLatencyStats.onFrameRendered(presentationTimeUs, renderTimeNanos);
                     long delta = (renderTimeNanos / 1000000L) - (presentationTimeUs / 1000);
                     if (delta >= 0 && delta < 1000) {
@@ -1491,6 +1495,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void cleanup() {
+        pyroWaveRenderer.pollRenderedFrames(frameLatencyStats);
         pyroWaveRenderer.cleanup();
         if (videoDecoder != null) {
             videoDecoder.release();
@@ -1724,13 +1729,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
             lastTimestampUs = ptsUs;
             frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, inputNs, frameHostProcessingLatency);
-            long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength);
+            long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength, ptsUs, frameLatencyStats);
             activeWindowVideoStats.totalFrames++;
             activeWindowVideoStats.totalFramesReceived++;
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
-                frameLatencyStats.onDecoderOutput(0, ptsUs, outputNs);
-                frameLatencyStats.onOutputReleased(0, System.nanoTime(), true, false);
                 pyroWaveDecodeRemainderNs += outputNs - inputNs;
                 activeWindowVideoStats.decoderTimeMs += pyroWaveDecodeRemainderNs / 1000000;
                 pyroWaveDecodeRemainderNs %= 1000000;
