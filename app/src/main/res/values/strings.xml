@@ -307,6 +307,8 @@
     <string name="yuv444_fallback">Using YUV 4:2:0: no compatible 4:4:4 format for this stream.</string>
     <string name="title_virtual_display">Host virtual display</string>
     <string name="summary_virtual_display">Butterpollo and Apollo hosts create a display that matches the resolution and frame rate above. Host device and app policies still apply.</string>
+    <string name="title_vrr">Variable refresh (VRR)</string>
+    <string name="summary_vrr">Butterpollo sends frames as the game renders them instead of at a fixed rate. This phone shows each one right away at its highest refresh rate. Overrides frame pacing.</string>
     <string name="title_virtual_display_scale">Host render scale</string>
     <string name="summary_virtual_display_scale">Renders the host virtual display at this percentage of the stream resolution. 100% matches it exactly. Needs the virtual display.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>
@@ -363,7 +365,7 @@
     <string name="stream_disabled">Off</string>
     <string name="stream_limiter_status">Host frame limiter: %1$s\nVirtual-display automatic limiter: %2$s\nConfigured limit: %3$s</string>
     <string name="stream_limiter_stream_rate">Stream frame rate</string>
-    <string name="stream_android_pacing">Android uses the selected display rate and frame-pacing mode. Host limiter settings are informational; 1000 Hz VRR negotiation is not supported.</string>
+    <string name="stream_android_pacing">This phone uses the selected display rate and frame pacing. With VRR on, it shows each frame as soon as it arrives. Host limiter settings are shown for reference.</string>
     <string name="stream_host_action_failed">Host action failed: %1$s</string>
     <string name="host_launch_permission_denied">This device cannot launch or quit applications. Enable its launch permission in the host web console.</string>
     <string name="category_butterpollo_host">Host display</string>

@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 
 public final class HostStreamProfile {
     private static final String PREFERENCES = "HostStreamProfiles";
+    // Butterpollo accepts up to 2 Gbps at stream setup; PyroWave's clean 4K60 needs about 1.6 Gbps.
+    static final int MAX_BITRATE_KBPS = 2000000;
 
     public final int width, height, refreshRateX100, bitrate, renderScale;
     public final PreferenceConfiguration.FormatOption codec;
@@ -17,7 +19,7 @@ public final class HostStreamProfile {
         requireRange(width, 64, 16384);
         requireRange(height, 64, 16384);
         requireRange(refreshRateX100, 100, 100000);
-        requireRange(bitrate, 500, 1000000);
+        requireRange(bitrate, 500, MAX_BITRATE_KBPS);
         requireRange(renderScale, 50, 200);
         this.width = width;
         this.height = height;
@@ -51,7 +53,7 @@ public final class HostStreamProfile {
     static int parseBitrateMbps(String text) {
         try {
             return requireRange(new BigDecimal(text.trim().replace(',', '.'))
-                    .movePointRight(3).intValueExact(), 500, 1000000);
+                    .movePointRight(3).intValueExact(), 500, MAX_BITRATE_KBPS);
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Bitrate needs at most three decimal places", e);
         }

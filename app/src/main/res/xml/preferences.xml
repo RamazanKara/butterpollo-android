@@ -68,6 +68,11 @@
             android:max="200"
             seekbar:step="5"
             android:text="%" />
+        <CheckBoxPreference
+            android:key="checkbox_vrr"
+            android:title="@string/title_vrr"
+            android:summary="@string/summary_vrr"
+            android:defaultValue="false" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_codec_settings"
         android:key="category_codec_settings">

@@ -522,6 +522,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 .setAttachedGamepadMask(gamepadMask)
                 .setClientRefreshRateX100(Math.round(desiredRefreshRate * 100))
                 .setVirtualDisplay(prefConfig.virtualDisplay, prefConfig.virtualDisplayScale)
+                .setVrr(prefConfig.vrr)
                 .setAudioConfiguration(prefConfig.audioConfiguration)
                 .setColorSpace(decoderRenderer.getPreferredColorSpace())
                 .setColorRange(decoderRenderer.getPreferredColorRange())

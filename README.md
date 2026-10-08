@@ -27,6 +27,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Ordinary PIN or host-generated one-time PIN/passphrase pairing; UUID-aware app shortcuts,
   host library order and versioned artwork updates.
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
+- Opt-in variable refresh (VRR) for Butterpollo's VRR mode: the host sends frames at the game's
+  rate and the phone shows each one right away at its highest refresh rate.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
 - Settings split into Video, Latency, Input, Host and App screens with a title bar, a summary of the
   current stream setup, and **Reset all settings** (keeps paired PCs, per-PC settings, controller
@@ -37,7 +39,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
   host details with **Copy debug info** for support reports.
 
 See [the low-latency roadmap](docs/ROADMAP-LOWLATENCY.md) for what is measured, what is next and how this
-client compares with Moonlight and Artemis. See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
+client compares with Moonlight and Artemis. [The host parity matrix](docs/PARITY-MATRIX.md) lists every
+Butterpollo host feature and its status here. See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
 findings, supported host extras and known limits. Having trouble? See [troubleshooting](docs/TROUBLESHOOTING.md)
 for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave requirements.
 

@@ -18,6 +18,7 @@ public class StreamConfiguration {
     private int clientRefreshRateX100;
     private boolean virtualDisplay;
     private int virtualDisplayScale = 100;
+    private boolean vrr;
     private int bitrate;
     private boolean sops;
     private boolean enableAdaptiveResolution;
@@ -119,6 +120,11 @@ public class StreamConfiguration {
         public StreamConfiguration.Builder setVirtualDisplay(boolean enabled, int scale) {
             config.virtualDisplay = enabled;
             config.virtualDisplayScale = scale;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setVrr(boolean enabled) {
+            config.vrr = enabled;
             return this;
         }
 
@@ -238,6 +244,10 @@ public class StreamConfiguration {
 
     public int getVirtualDisplayScale() {
         return virtualDisplayScale;
+    }
+
+    public boolean getVrr() {
+        return vrr;
     }
 
     public int getColorRange() {

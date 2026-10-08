@@ -19,9 +19,10 @@ public class HostStreamProfileTest {
         assertEquals(280000, HostStreamProfile.parseBitrateMbps("280"));
         assertEquals(10500, HostStreamProfile.parseBitrateMbps("10,5"));
         assertEquals(500, HostStreamProfile.parseBitrateMbps(" 0.5 "));
+        assertEquals(1600000, HostStreamProfile.parseBitrateMbps("1600"));
         assertEquals("10", HostStreamProfile.formatBitrateMbps(10000));
         assertEquals("12.345", HostStreamProfile.formatBitrateMbps(12345));
-        for (String value : new String[] {"0.4", "1000.001", "1.0005", "NaN", ""}) {
+        for (String value : new String[] {"0.4", "2000.001", "1.0005", "NaN", ""}) {
             assertThrows(value, IllegalArgumentException.class, () -> HostStreamProfile.parseBitrateMbps(value));
         }
     }
