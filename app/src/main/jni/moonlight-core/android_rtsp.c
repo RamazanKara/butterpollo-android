@@ -1223,7 +1223,10 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         // Let the audio stream know the port number is now finalized.
         // NB: This is needed because audio stream init happens before RTSP,
         // which is not the case for the video stream.
-        notifyAudioPortNegotiationComplete();
+        extern bool AndroidInputOnly;
+        if (!AndroidInputOnly) {
+            notifyAudioPortNegotiationComplete();
+        }
 
         sessionId = getOptionContent(response.options, "Session");
 

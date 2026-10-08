@@ -6,6 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 public class NvApp {
+    public enum Role { STREAM, REMOTE_MONITOR, INPUT_ONLY }
+    public enum Control { NONE, RESUME, DISCONNECT_MONITOR, DISCONNECT_INPUT, TERMINATE, MONITOR, INPUT, RUNNING_GAME }
+
     private String appName = "";
     private int appId;
     private boolean initialized;
@@ -13,6 +16,7 @@ public class NvApp {
     private String appUuid = "";
     private int hostIndex = Integer.MAX_VALUE;
     private String artVersion = "";
+    private boolean monitorResume;
     
     public NvApp() {}
     
@@ -55,6 +59,43 @@ public class NvApp {
 
     public String getAppUuid() {
         return appUuid;
+    }
+
+    public Control getControl() {
+        // Butterpollo rust/core/src/remote.rs keeps these identities stable across catalogues.
+        for (int offset = 1; offset <= 7; offset++) {
+            if (appId == 2147483500 + offset || appId == 2147483600 + offset ||
+                    ((offset == 1 || offset == 4 || offset == 5 || offset == 6) && appId == 2147483510 + offset) ||
+                    appUuid.equals("9a1c5a25-58fe-40e0-b9aa-7d3f0000000" + offset)) {
+                return Control.values()[offset];
+            }
+        }
+        return Control.NONE;
+    }
+
+    public Role getRole() {
+        switch (getControl()) {
+            case MONITOR:
+            case DISCONNECT_MONITOR:
+                return Role.REMOTE_MONITOR;
+            case INPUT:
+            case DISCONNECT_INPUT:
+                return Role.INPUT_ONLY;
+            case RESUME:
+                return monitorResume ? Role.REMOTE_MONITOR : Role.STREAM;
+            default:
+                return Role.STREAM;
+        }
+    }
+
+    public void setMonitorResume(boolean monitorResume) {
+        this.monitorResume = monitorResume;
+    }
+
+    public boolean isControlAction() {
+        Control control = getControl();
+        return control == Control.DISCONNECT_MONITOR || control == Control.DISCONNECT_INPUT ||
+                control == Control.TERMINATE;
     }
 
     public void setHostIndex(String index) {

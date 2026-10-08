@@ -134,7 +134,8 @@ public class ShortcutTrampoline extends Activity {
                                             
                                             // Launch game if provided app ID, otherwise launch app view
                                             if (app != null) {
-                                                if (details.runningGameId == 0 || app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
+                                                if (details.runningGameId == 0 || app.getControl() != NvApp.Control.NONE ||
+                                                        details.rustHostVersion != null || app.matchesRunningApp(details.runningGameId, details.runningGameUuid)) {
                                                     intentStack.add(ServerHelper.createStartIntent(ShortcutTrampoline.this, app, details, managerBinder));
 
                                                     // Close this activity
@@ -329,6 +330,7 @@ public class ShortcutTrampoline extends Activity {
                     Integer.parseInt(appIdString),
                     getIntent().getBooleanExtra(Game.EXTRA_APP_HDR, false));
             app.setAppUuid(getIntent().getStringExtra(Game.EXTRA_APP_UUID));
+            app.setMonitorResume(getIntent().getBooleanExtra(Game.EXTRA_MONITOR_RESUME, false));
         }
         else if (appUuidString != null && !appUuidString.isEmpty()) {
             // The host resolves UUIDs at launch, so renamed apps and changed numeric IDs still work.

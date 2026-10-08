@@ -26,4 +26,16 @@
         android:gravity="center"
         android:textSize="14sp">
     </TextView>
+    <TextView
+        android:id="@+id/grid_role"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="#E6202020"
+        android:padding="4dp"
+        android:drawablePadding="4dp"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:visibility="gone" />
 </RelativeLayout>

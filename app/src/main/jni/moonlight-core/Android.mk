@@ -10,7 +10,7 @@ LOCAL_MODULE    := moonlight-core
 
 LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/ByteBuffer.c \
-                   moonlight-common-c/src/Connection.c \
+                   android_connection.c \
                    moonlight-common-c/src/ConnectionTester.c \
                    android_control.c \
                    moonlight-common-c/src/FakeCallbacks.c \

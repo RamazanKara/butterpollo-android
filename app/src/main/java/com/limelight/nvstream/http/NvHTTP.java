@@ -838,6 +838,13 @@ public class NvHTTP {
             }
         }
         
+        boolean monitorCatalogue = false;
+        for (NvApp app : appList) {
+            monitorCatalogue |= app.getControl() == NvApp.Control.DISCONNECT_MONITOR;
+        }
+        for (NvApp app : appList) {
+            app.setMonitorResume(monitorCatalogue);
+        }
         return appList;
     }
     
@@ -929,6 +936,9 @@ public class NvHTTP {
     }
 
     static String getLaunchQuery(ConnectionContext context, int appId, boolean enableHdr) {
+        NvApp.Role role = context.streamConfig.getApp().getRole();
+        boolean inputOnly = role == NvApp.Role.INPUT_ONLY;
+        int gamepads = role == NvApp.Role.REMOTE_MONITOR ? 0 : context.streamConfig.getAttachedGamepadMask();
         // Using an FPS value over 60 causes SOPS to default to 720p60,
         // so force it to 0 to ensure the correct resolution is set. We
         // used to use 60 here but that locked the frame rate to 60 FPS
@@ -965,26 +975,31 @@ public class NvHTTP {
                     "&" + new HttpUrl.Builder().scheme("https").host("host")
                             .addQueryParameter("appuuid", context.streamConfig.getApp().getAppUuid())
                             .build().encodedQuery()) +
+            (role == NvApp.Role.REMOTE_MONITOR ? "&remote_monitor=1" : inputOnly ? "&input_only=1" : "") +
             "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + launchRate +
-            (context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
+            (!inputOnly && context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
                     "&virtualDisplay=1&scaleFactor=" + context.streamConfig.getVirtualDisplayScale() : "") +
             // Butterpollo and Vibepollo pace a VRR stream at the game's frame rate (Nonary's 1000 Hz
             // virtual display mode). Other hosts ignore the parameter; GFE never receives it.
-            (context.streamConfig.getVrr() && !context.isNvidiaServerSoftware ? "&vrr=1" : "") +
+            (!inputOnly && context.streamConfig.getVrr() && !context.isNvidiaServerSoftware ? "&vrr=1" : "") +
             "&additionalStates=1&sops=" + (enableSops ? 1 : 0) +
             "&rikey="+bytesToHex(context.riKey.getEncoded()) +
             "&rikeyid="+context.riKeyId +
-            (!enableHdr ? "" : "&hdrMode=1&clientHdrCapVersion=0&clientHdrCapSupportedFlagsInUint32=0&clientHdrCapMetaDataId=NV_STATIC_METADATA_TYPE_1&clientHdrCapDisplayData=0x0x0x0x0x0x0x0x0x0x0") +
+            (!enableHdr || inputOnly ? "" : "&hdrMode=1&clientHdrCapVersion=0&clientHdrCapSupportedFlagsInUint32=0&clientHdrCapMetaDataId=NV_STATIC_METADATA_TYPE_1&clientHdrCapDisplayData=0x0x0x0x0x0x0x0x0x0x0") +
             "&localAudioPlayMode=" + (context.streamConfig.getPlayLocalAudio() ? 1 : 0) +
             "&surroundAudioInfo=" + context.streamConfig.getAudioConfiguration().getSurroundAudioInfo() +
-            "&remoteControllersBitmap=" + context.streamConfig.getAttachedGamepadMask() +
-            "&gcmap=" + context.streamConfig.getAttachedGamepadMask() +
-            "&gcpersist="+(context.streamConfig.getPersistGamepadsAfterDisconnect() ? 1 : 0);
+            "&remoteControllersBitmap=" + gamepads +
+            "&gcmap=" + gamepads +
+            "&gcpersist="+(role != NvApp.Role.REMOTE_MONITOR && context.streamConfig.getPersistGamepadsAfterDisconnect() ? 1 : 0);
     }
 
     public boolean launchApp(ConnectionContext context, String verb, int appId, boolean enableHdr) throws IOException, XmlPullParserException {
         String xmlStr = openHttpConnectionToString(httpClientLongConnectNoReadTimeout, getHttpsUrl(true), verb,
                 getLaunchQuery(context, appId, enableHdr) + MoonBridge.getLaunchUrlQueryParameters());
+        return readLaunchResponse(context, verb, xmlStr);
+    }
+
+    static boolean readLaunchResponse(ConnectionContext context, String verb, String xmlStr) throws IOException, XmlPullParserException {
         if ((verb.equals("launch") && !getXmlString(xmlStr, "gamesession", true).equals("0") ||
                 (verb.equals("resume") && !getXmlString(xmlStr, "resume", true).equals("0")))) {
             // sessionUrl0 will be missing for older GFE versions
@@ -994,6 +1009,23 @@ public class NvHTTP {
         else {
             return false;
         }
+    }
+
+    public boolean disconnectRole(NvApp.Role role) throws IOException, XmlPullParserException {
+        if (role == NvApp.Role.STREAM) {
+            throw new IllegalArgumentException("Not a remote role");
+        }
+        NvApp action = new NvApp("", role == NvApp.Role.REMOTE_MONITOR ? 2147483502 : 2147483503, false);
+        try {
+            getXmlString(openHttpConnectionToString(httpClientLongConnectTimeout, getHttpsUrl(true),
+                    "launch", "appid=" + action.getAppId()), "gamesession", true);
+        } catch (HostHttpResponseException e) {
+            if (LaunchConfirmation.isCompleted(action, e)) {
+                return true;
+            }
+            throw e;
+        }
+        return false;
     }
     
     public boolean quitApp() throws IOException, XmlPullParserException {

@@ -48,6 +48,7 @@ public class ServerHelper {
         i.putExtra(Game.EXTRA_APP_ID, ""+app.getAppId());
         i.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
         i.putExtra(Game.EXTRA_APP_UUID, app.getAppUuid());
+        i.putExtra(Game.EXTRA_MONITOR_RESUME, app.getRole() == NvApp.Role.REMOTE_MONITOR);
         i.setAction(Intent.ACTION_DEFAULT);
         return i;
     }
@@ -62,6 +63,7 @@ public class ServerHelper {
         intent.putExtra(Game.EXTRA_APP_ID, app.getAppId());
         intent.putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported());
         intent.putExtra(Game.EXTRA_APP_UUID, app.getAppUuid());
+        intent.putExtra(Game.EXTRA_MONITOR_RESUME, app.getRole() == NvApp.Role.REMOTE_MONITOR);
         intent.putExtra(Game.EXTRA_UNIQUEID, managerBinder.getUniqueId());
         intent.putExtra(Game.EXTRA_PC_UUID, computer.uuid);
         intent.putExtra(Game.EXTRA_PC_NAME, computer.name);
@@ -105,7 +107,7 @@ public class ServerHelper {
                 try {
                     httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer), computer.httpsPort,
                             managerBinder.getUniqueId(), computer.serverCert, PlatformBinding.getCryptoProvider(parent));
-                    if (httpConn.quitApp()) {
+                    if (app.getRole() != NvApp.Role.STREAM ? httpConn.disconnectRole(app.getRole()) : httpConn.quitApp()) {
                         message = parent.getResources().getString(R.string.applist_quit_success) + " " + app.getAppName();
                     } else {
                         message = parent.getResources().getString(R.string.applist_quit_fail) + " " + app.getAppName();

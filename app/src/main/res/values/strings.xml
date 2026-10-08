@@ -409,4 +409,15 @@
     <string name="category_about">About</string>
     <string name="title_about">Butterpollo Android</string>
     <string name="summary_about">Version %1$s. Based on Moonlight for Android, GPL-3.0. Tap for source code and licenses.</string>
+    <string name="role_view_only">View only</string>
+    <string name="role_input_only">Input only</string>
+    <string name="stream_monitor_title">Remote Monitor</string>
+    <string name="stream_input_title">Input-only</string>
+    <string name="stream_input_only_help">Input only\nUse touch, a keyboard or a controller.\nBack opens the stream menu.</string>
+    <string name="stream_end_monitor">End monitor session</string>
+    <string name="stream_end_input">End input session</string>
+    <string name="launch_confirm_title">Confirm on this device</string>
+    <string name="launch_confirm_replace">Close the running app and start this one?\n\nConfirm within 60 seconds.</string>
+    <string name="launch_confirm_terminate">Close the running app?\n\nRemote Monitor and Input-only connections will stay connected. Confirm within 60 seconds.</string>
+    <string name="launch_confirm">Confirm</string>
 </resources>

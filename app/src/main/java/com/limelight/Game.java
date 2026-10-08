@@ -23,6 +23,7 @@ import com.limelight.nvstream.PyroWaveBitrateController;
 import com.limelight.nvstream.NvConnectionListener;
 import com.limelight.nvstream.StreamConfiguration;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.nvstream.http.LaunchConfirmation;
 import com.limelight.nvstream.http.NvApp;
 import com.limelight.nvstream.http.NvHTTP;
 import com.limelight.nvstream.input.ControllerPacket;
@@ -150,6 +151,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private Thread connectionStopThread;
     private int suppressPipRefCount = 0;
     private AlertDialog streamMenu;
+    private AlertDialog launchConfirmationDialog;
+    private LaunchConfirmation pendingConfirmation;
+    private String connectionErrorMessage;
     private boolean hostActionInProgress;
     private boolean foreground;
     private int foregroundGeneration;
@@ -243,6 +247,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     public static final String EXTRA_APP_NAME = "AppName";
     public static final String EXTRA_APP_ID = "AppId";
     public static final String EXTRA_APP_UUID = "AppUuid";
+    public static final String EXTRA_MONITOR_RESUME = "MonitorResume";
     public static final String EXTRA_UNIQUEID = "UniqueId";
     public static final String EXTRA_PC_UUID = "UUID";
     public static final String EXTRA_PC_NAME = "PcName";
@@ -391,6 +396,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         app = new NvApp(appName != null ? appName : "app", appId, appSupportsHdr);
         app.setAppUuid(getIntent().getStringExtra(EXTRA_APP_UUID));
+        app.setMonitorResume(getIntent().getBooleanExtra(EXTRA_MONITOR_RESUME, false));
+        boolean mediaStream = app.getRole() != NvApp.Role.INPUT_ONLY && !app.isControlAction();
 
         X509Certificate serverCert = null;
         try {
@@ -402,7 +409,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             e.printStackTrace();
         }
 
-        if (appId == StreamConfiguration.INVALID_APP_ID) {
+        if (appId == StreamConfiguration.INVALID_APP_ID && app.getAppUuid().isEmpty()) {
             finish();
             return;
         }
@@ -413,7 +420,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         // Check if the user has enabled HDR
         boolean willStreamHdr = false;
-        if (prefConfig.enableHdr) {
+        if (mediaStream && prefConfig.enableHdr) {
             // Start our HDR checklist
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 Display display = getWindowManager().getDefaultDisplay();
@@ -441,7 +448,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         // Check if the user has enabled performance stats overlay
-        if (prefConfig.enablePerfOverlay) {
+        if (mediaStream && prefConfig.enablePerfOverlay) {
             performanceOverlayView.setVisibility(View.VISIBLE);
         }
 
@@ -473,16 +480,16 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         // Display a message to the user if HEVC was forced on but we still didn't find a decoder
-        if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer.isHevcSupported()) {
+        if (mediaStream && prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer.isHevcSupported()) {
             Toast.makeText(this, "No HEVC decoder found", Toast.LENGTH_LONG).show();
         }
 
         // Display a message to the user if AV1 was forced on but we still didn't find a decoder
-        if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1 && !decoderRenderer.isAv1Supported()) {
+        if (mediaStream && prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1 && !decoderRenderer.isAv1Supported()) {
             Toast.makeText(this, "No AV1 decoder found", Toast.LENGTH_LONG).show();
         }
 
-        int supportedVideoFormats = decoderRenderer.getSupportedVideoFormats(willStreamHdr);
+        int supportedVideoFormats = mediaStream ? decoderRenderer.getSupportedVideoFormats(willStreamHdr) : MoonBridge.VIDEO_FORMAT_H264;
 
         int gamepadMask = ControllerHandler.getAttachedControllerMask(this);
         if (!prefConfig.multiController) {
@@ -497,7 +504,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         // Set to the optimal mode for streaming
-        float displayRefreshRate = prepareDisplayForRendering();
+        float displayRefreshRate = mediaStream ? prepareDisplayForRendering() :
+                (desiredRefreshRate = getWindowManager().getDefaultDisplay().getRefreshRate());
         LimeLog.info("Display refresh rate: "+displayRefreshRate);
 
         // If the user requested frame pacing using a capped FPS, we will need to change our
@@ -557,7 +565,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         initializeTouchContexts();
 
-        if (prefConfig.onscreenController) {
+        if (prefConfig.onscreenController && app.getRole() != NvApp.Role.REMOTE_MONITOR) {
             // create virtual onscreen controller
             virtualController = new VirtualController(controllerHandler,
                     (FrameLayout)streamView.getParent(),
@@ -566,13 +574,13 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             virtualController.show();
         }
 
-        if (prefConfig.usbDriver) {
+        if (prefConfig.usbDriver && app.getRole() != NvApp.Role.REMOTE_MONITOR) {
             // Start the USB driver
             bindService(new Intent(this, UsbDriverService.class),
                     usbDriverServiceConnection, Service.BIND_AUTO_CREATE);
         }
 
-        if (!decoderRenderer.isAvcSupported()) {
+        if (mediaStream && !decoderRenderer.isAvcSupported()) {
             if (spinner != null) {
                 spinner.dismiss();
                 spinner = null;
@@ -719,7 +727,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             return;
         }
 
-        boolean autoEnter = connected && suppressPipRefCount == 0;
+        boolean autoEnter = connected && app.getRole() != NvApp.Role.INPUT_ONLY && suppressPipRefCount == 0;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             setPictureInPictureParams(getPictureInPictureParams(autoEnter));
@@ -1163,6 +1171,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     protected void onPause() {
         foreground = false;
         foregroundGeneration++;
+        if (pendingConfirmation != null) {
+            pendingConfirmation.cancel();
+            launchConfirmationFinished();
+        }
         if (streamMenu != null) {
             restoreInputOnResume = restoreInputAfterMenu;
             streamMenu.dismiss();
@@ -1297,40 +1309,44 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         // Everyday controls first, host tools next, and leaving the stream last
         labels.add(getString(R.string.stream_continue));
         actions.add(() -> {});
-        labels.add(getString(R.string.stream_keyboard));
-        actions.add(this::toggleKeyboard);
-        labels.add(getString(R.string.stream_touch_mode));
-        actions.add(this::showTouchModeDialog);
-        labels.add(getString(prefConfig.onscreenController ? R.string.stream_controls_hide : R.string.stream_controls_show));
-        actions.add(() -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
-        if (prefConfig.onscreenController) {
-            labels.add(getString(R.string.stream_controls_layout));
-            actions.add(this::showControllerLayoutDialog);
-        }
-        labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
-        actions.add(this::togglePerformanceOverlay);
-        if (details.rustHostVersion != null &&
-                details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
-            labels.add(getString(R.string.stream_bitrate));
-            actions.add(this::showBitrateDialog);
-            if (supportsAdaptiveBitrate()) {
-                labels.add(getString(!isAdaptiveBitrateEnabled() ? R.string.stream_auto_bitrate_enable :
-                        R.string.stream_auto_bitrate_disable));
-                actions.add(() -> {
-                    boolean enable = !isAdaptiveBitrateEnabled();
-                    if (!enable || !hostActionInProgress) {
-                        setAdaptiveBitrateEnabled(enable);
-                        if (enable) {
-                            Toast.makeText(this, pyroWaveBitrate != null ? R.string.stream_pyrowave_bitrate_help :
-                                    R.string.stream_auto_bitrate_help, Toast.LENGTH_LONG).show();
-                        }
-                    } else {
-                        Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
-                    }
-                });
+        if (conn.canSendInput()) {
+            labels.add(getString(R.string.stream_keyboard));
+            actions.add(this::toggleKeyboard);
+            labels.add(getString(R.string.stream_touch_mode));
+            actions.add(this::showTouchModeDialog);
+            labels.add(getString(prefConfig.onscreenController ? R.string.stream_controls_hide : R.string.stream_controls_show));
+            actions.add(() -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
+            if (prefConfig.onscreenController) {
+                labels.add(getString(R.string.stream_controls_layout));
+                actions.add(this::showControllerLayoutDialog);
             }
         }
-        if (details.canWriteClipboard()) {
+        if (app.getRole() != NvApp.Role.INPUT_ONLY) {
+            labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
+            actions.add(this::togglePerformanceOverlay);
+            if (details.rustHostVersion != null &&
+                    details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
+                labels.add(getString(R.string.stream_bitrate));
+                actions.add(this::showBitrateDialog);
+                if (supportsAdaptiveBitrate()) {
+                    labels.add(getString(!isAdaptiveBitrateEnabled() ? R.string.stream_auto_bitrate_enable :
+                            R.string.stream_auto_bitrate_disable));
+                    actions.add(() -> {
+                        boolean enable = !isAdaptiveBitrateEnabled();
+                        if (!enable || !hostActionInProgress) {
+                            setAdaptiveBitrateEnabled(enable);
+                            if (enable) {
+                                Toast.makeText(this, pyroWaveBitrate != null ? R.string.stream_pyrowave_bitrate_help :
+                                        R.string.stream_auto_bitrate_help, Toast.LENGTH_LONG).show();
+                            }
+                        } else {
+                            Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            }
+        }
+        if (app.getRole() != NvApp.Role.REMOTE_MONITOR && details.canWriteClipboard()) {
             labels.add(getString(R.string.stream_clipboard_send));
             actions.add(() -> transferClipboard(true));
         }
@@ -1338,7 +1354,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             labels.add(getString(R.string.stream_clipboard_receive));
             actions.add(() -> transferClipboard(false));
         }
-        if (details.canRunServerCommand(0)) {
+        if (app.getRole() != NvApp.Role.REMOTE_MONITOR && details.canRunServerCommand(0)) {
             labels.add(getString(R.string.stream_server_commands));
             actions.add(() -> showServerCommands(details));
         }
@@ -1346,14 +1362,38 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         actions.add(this::refreshHostStatus);
         labels.add(getString(R.string.stream_reconnect));
         actions.add(this::reconnectStream);
+        if (app.getRole() != NvApp.Role.STREAM && details.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+            labels.add(getString(app.getRole() == NvApp.Role.REMOTE_MONITOR ?
+                    R.string.stream_end_monitor : R.string.stream_end_input));
+            actions.add(this::endRemoteSession);
+        }
         labels.add(getString(R.string.stream_disconnect));
         actions.add(this::finish);
         showStreamDialog(new AlertDialog.Builder(this)
-                .setTitle(R.string.stream_menu)
+                .setTitle(app.getRole() == NvApp.Role.REMOTE_MONITOR ? R.string.stream_monitor_title :
+                        app.getRole() == NvApp.Role.INPUT_ONLY ? R.string.stream_input_title : R.string.stream_menu)
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> {
                     dialog.dismiss();
                     actions.get(which).run();
                 }).create());
+    }
+
+    private void endRemoteSession() {
+        if (hostActionInProgress) {
+            return;
+        }
+        final int generation = foregroundGeneration;
+        hostActionInProgress = true;
+        new Thread(() -> {
+            try {
+                conn.disconnectRemoteSession();
+                runOnUiThread(this::finish);
+            } catch (IOException | XmlPullParserException e) {
+                showHostActionError(e, generation);
+            } finally {
+                runOnUiThread(() -> hostActionInProgress = false);
+            }
+        }, "End remote session").start();
     }
 
     private void refreshHostStatus() {
@@ -1380,6 +1420,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void togglePerformanceOverlay() {
+        if (app.getRole() == NvApp.Role.INPUT_ONLY) {
+            return;
+        }
         prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
         performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay && !isHidingOverlays ? View.VISIBLE : View.GONE);
         PreferenceManager.getDefaultSharedPreferences(this).edit()
@@ -1429,6 +1472,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void setOnscreenControlsEnabled(boolean enabled) {
+        if (!conn.canSendInput()) {
+            return;
+        }
         prefConfig.onscreenController = enabled;
         if (enabled) {
             if (virtualController == null) {
@@ -1655,7 +1701,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     private boolean supportsAdaptiveBitrate() {
         ComputerDetails details = conn.getHostDetails();
-        return details.rustHostVersion != null &&
+        return app.getRole() != NvApp.Role.INPUT_ONLY && details.rustHostVersion != null &&
                 details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH);
     }
 
@@ -1729,6 +1775,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void setInputGrabState(boolean grab) {
+        grab = grab && conn != null && conn.canSendInput();
         // Grab/ungrab the mouse cursor
         if (grab) {
             inputCaptureProvider.enableCapture();
@@ -2096,6 +2143,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     public void toggleKeyboard() {
+        if (conn == null || !conn.canSendInput()) {
+            return;
+        }
         LimeLog.info("Toggling keyboard overlay");
         InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         inputManager.toggleSoftInput(0, 0);
@@ -2859,7 +2909,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     public void stageFailed(final String stage, final int portFlags, final int errorCode) {
         // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread.
-        final int portTestResult = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags);
+        final int portTestResult = portFlags == 0 ? MoonBridge.ML_TEST_RESULT_INCONCLUSIVE :
+                MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags);
 
         runOnUiThread(new Runnable() {
             @Override
@@ -2869,7 +2920,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     spinner = null;
                 }
 
-                if (!displayedFailureDialog) {
+                if (!displayedFailureDialog && foreground && !isFinishing()) {
                     displayedFailureDialog = true;
                     LimeLog.severe(stage + " failed: " + errorCode);
 
@@ -2878,7 +2929,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         Toast.makeText(Game.this, getResources().getText(R.string.video_decoder_init_failed), Toast.LENGTH_LONG).show();
                     }
 
-                    String dialogText = getResources().getString(R.string.conn_error_msg) + " " + stage +" (error "+errorCode+")";
+                    String dialogText = connectionErrorMessage != null ? connectionErrorMessage :
+                            getResources().getString(R.string.conn_error_msg) + " " + stage +" (error "+errorCode+")";
 
                     if (portFlags != 0) {
                         dialogText += "\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
@@ -3024,6 +3076,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                 connected = true;
                 connecting = false;
+                if (!conn.canSendInput()) {
+                    if (virtualController != null) {
+                        virtualController.hide();
+                    }
+                    controllerHandler.stop();
+                    setInputGrabState(false);
+                }
+                findViewById(R.id.inputOnlyStatus).setVisibility(
+                        app.getRole() == NvApp.Role.INPUT_ONLY ? View.VISIBLE : View.GONE);
                 currentBitrate = prefConfig.bitrate;
                 if (supportsAdaptiveBitrate() && getSharedPreferences(adaptiveBitratePreferences(), MODE_PRIVATE)
                         .getBoolean(getIntent().getStringExtra(EXTRA_PC_UUID), false)) {
@@ -3077,7 +3138,62 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                connectionErrorMessage = message;
                 Toast.makeText(Game.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    @Override
+    public void launchConfirmationRequired(LaunchConfirmation confirmation) {
+        runOnUiThread(() -> {
+            if (!foreground || isFinishing() || confirmation.getState(LaunchConfirmation.nowMs()) != LaunchConfirmation.State.WAITING) {
+                confirmation.cancel();
+                return;
+            }
+            if (spinner != null) {
+                spinner.dismiss();
+                spinner = null;
+            }
+            pendingConfirmation = confirmation;
+            launchConfirmationDialog = new AlertDialog.Builder(this)
+                    .setTitle(R.string.launch_confirm_title)
+                    .setMessage(confirmation.isTerminate() ? R.string.launch_confirm_terminate : R.string.launch_confirm_replace)
+                    .setPositiveButton(R.string.launch_confirm, (dialog, which) -> {
+                        confirmation.confirm(LaunchConfirmation.nowMs());
+                        spinner = SpinnerDialog.displayDialog(this, getString(R.string.conn_establishing_title),
+                                getString(R.string.conn_establishing_msg), true);
+                    })
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
+                        confirmation.cancel();
+                        finish();
+                    }).create();
+            launchConfirmationDialog.setOnCancelListener(dialog -> {
+                confirmation.cancel();
+                finish();
+            });
+            launchConfirmationDialog.setCanceledOnTouchOutside(false);
+            launchConfirmationDialog.show();
+        });
+    }
+
+    @Override
+    public void launchConfirmationFinished() {
+        runOnUiThread(() -> {
+            pendingConfirmation = null;
+            if (launchConfirmationDialog != null) {
+                launchConfirmationDialog.dismiss();
+                launchConfirmationDialog = null;
+            }
+        });
+    }
+
+    @Override
+    public void launchActionCompleted(String message) {
+        runOnUiThread(() -> {
+            if (!isFinishing()) {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                finish();
             }
         });
     }
