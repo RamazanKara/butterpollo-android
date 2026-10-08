@@ -272,6 +272,7 @@ public class StreamSettings extends AppCompatActivity {
         }
     }
 
+    @SuppressLint("MissingSuperCall") // finish() is called below; super would only add the default back handling
     @Override
     // NOTE: This will NOT be called on Android 13+ with android:enableOnBackInvokedCallback="true"
     public void onBackPressed() {
