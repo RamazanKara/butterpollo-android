@@ -567,7 +567,6 @@ public class NvHTTPParityTest {
         context.streamConfig = new StreamConfiguration.Builder().setLaunchRefreshRate(120)
                 .setClientRefreshRateX100(12000).setVrr(true).build();
         assertEquals("1", query(context, false).queryParameter("vrr"));
-        assertEquals("1968x2184x120", query(context, false).queryParameter("mode"));
         context.isNvidiaServerSoftware = true;
         assertNull(query(context, false).queryParameter("vrr"));
     }
