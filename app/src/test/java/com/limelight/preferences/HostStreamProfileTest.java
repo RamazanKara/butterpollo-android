@@ -96,7 +96,7 @@ public class HostStreamProfileTest {
                 "0,720,6000,10000,100,AUTO,false,false,false,false",
                 "1280,16385,6000,10000,100,AUTO,false,false,false,false",
                 "1280,720,6000,499,100,AUTO,false,false,false,false",
-                "1280,720,6000,1000001,100,AUTO,false,false,false,false",
+                "1280,720,6000,2000001,100,AUTO,false,false,false,false",
                 "1280,720,6000,10000,201,AUTO,false,false,false,false"}) {
             assertThrows(IllegalArgumentException.class, () -> HostStreamProfile.deserialize(value));
         }
