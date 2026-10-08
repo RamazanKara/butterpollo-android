@@ -24,6 +24,7 @@ import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.FrontendExporter;
 import com.limelight.utils.HelpLauncher;
 import com.limelight.utils.HostDetailsDialog;
 import com.limelight.utils.PyroWaveBandwidthTest;
@@ -35,11 +36,13 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.Service;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
@@ -74,6 +77,8 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
     private PyroWaveBandwidthTest bandwidthTest;
+    private ComputerDetails exportComputer;
+    private Uri exportRomsTree;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
     private final ServiceConnection serviceConnection = new ServiceConnection() {
@@ -132,6 +137,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     private final static int HOST_SETTINGS_ID = 12;
     private final static int BANDWIDTH_PROBE_ID = 14;
     private final static int OTP_PAIR_ID = 13;
+    private final static int FRONTEND_EXPORT_ID = 15;
+
+    private final static int PICK_ROMS_REQUEST = 1;
+    private final static int PICK_ESDE_REQUEST = 2;
     private final static String FIRST_RUN_PREFS = "FirstRun";
     private final static String PAIRING_GUIDE_SHOWN = "pairing_guide_shown";
 
@@ -321,6 +330,78 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         }
     }
 
+    private void startFrontendExport(ComputerDetails computer) {
+        if (new FrontendExporter(this, computer).loadApps().isEmpty()) {
+            Toast.makeText(this, R.string.frontend_export_no_apps, Toast.LENGTH_LONG).show();
+            return;
+        }
+        exportComputer = computer;
+        exportRomsTree = null;
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.frontend_export_roms_title)
+                .setMessage(R.string.frontend_export_roms_message)
+                .setPositiveButton(R.string.frontend_export_pick, (dialog, which) -> pickFolder(PICK_ROMS_REQUEST))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void pickFolder(int request) {
+        try {
+            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), request);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, R.string.frontend_export_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Uri picked = resultCode == RESULT_OK && data != null ? data.getData() : null;
+        if (exportComputer == null) {
+            return;
+        }
+        if (requestCode == PICK_ROMS_REQUEST) {
+            if (picked == null) {
+                exportComputer = null;
+                return;
+            }
+            exportRomsTree = picked;
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.frontend_export_esde_title)
+                    .setMessage(R.string.frontend_export_esde_message)
+                    .setPositiveButton(R.string.frontend_export_pick, (dialog, which) -> pickFolder(PICK_ESDE_REQUEST))
+                    .setNegativeButton(R.string.frontend_export_skip, (dialog, which) -> runFrontendExport(null))
+                    .setOnCancelListener(dialog -> runFrontendExport(null))
+                    .show();
+        } else if (requestCode == PICK_ESDE_REQUEST && exportRomsTree != null) {
+            runFrontendExport(picked);
+        }
+    }
+
+    private void runFrontendExport(final Uri esdeTree) {
+        final ComputerDetails computer = exportComputer;
+        final Uri romsTree = exportRomsTree;
+        exportComputer = null;
+        exportRomsTree = null;
+        if (computer == null || romsTree == null) {
+            return;
+        }
+        Toast.makeText(this, R.string.frontend_export_working, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String message;
+            try {
+                FrontendExporter exporter = new FrontendExporter(PcView.this, computer);
+                int count = exporter.export(exporter.loadApps(), romsTree, esdeTree);
+                message = getResources().getQuantityString(R.plurals.frontend_export_done, count, count);
+            } catch (IOException | RuntimeException e) {
+                LimeLog.warning("Frontend export failed: " + e);
+                message = getString(R.string.frontend_export_failed);
+            }
+            final String result = message;
+            runOnUiThread(() -> Toast.makeText(PcView.this, result, Toast.LENGTH_LONG).show());
+        }, "Frontend export").start();
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -417,6 +498,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             }
 
             menu.add(Menu.NONE, FULL_APP_LIST_ID, 4, getResources().getString(R.string.pcview_menu_app_list));
+            menu.add(Menu.NONE, FRONTEND_EXPORT_ID, 6, getResources().getString(R.string.frontend_export_menu));
         }
 
         // Per-PC tools next, then details, and the destructive action last
@@ -795,6 +877,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
             case GAMESTREAM_EOL_ID:
                 HelpLauncher.launchGameStreamEolFaq(PcView.this);
+                return true;
+
+            case FRONTEND_EXPORT_ID:
+                startFrontendExport(computer.details);
                 return true;
 
             default:

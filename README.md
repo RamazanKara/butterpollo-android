@@ -9,6 +9,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Multiple USB/Bluetooth controllers with device mappings, per-controller button remapping
   (**Settings → Controller buttons**), feedback and motion where supported;
   hardware keyboard/mouse input, Wake-on-LAN, pinned app shortcuts and picture-in-picture.
+- Launch games from ES-DE, Daijisho or Pegasus: long-press a PC and select **Add games to ES-DE**.
+  Game files use the Artemis `.art` format; see [frontends](docs/FRONTENDS.md).
 - An instant stream menu for input modes, keyboard, overlay, disconnect and reconnect.
   **Ctrl+Alt+Shift+S** toggles the performance overlay; **Ctrl+Alt+Shift+M** opens the menu.
 - Opt-in automatic bitrate for Butterpollo H.264/HEVC/AV1 streams, saved per PC, with loss-driven
@@ -34,7 +36,8 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - A short, skippable pairing guide on first launch (also behind the **?** button), and readable
   host details with **Copy debug info** for support reports.
 
-See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
+See [the low-latency roadmap](docs/ROADMAP-LOWLATENCY.md) for what is measured, what is next and how this
+client compares with Moonlight and Artemis. See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
 findings, supported host extras and known limits. Having trouble? See [troubleshooting](docs/TROUBLESHOOTING.md)
 for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave requirements.
 
