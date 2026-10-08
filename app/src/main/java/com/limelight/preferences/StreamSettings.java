@@ -602,9 +602,12 @@ public class StreamSettings extends Activity {
         }
 
         private void updateCodecSummary(ListPreference codec, String value, boolean hdr) {
-            codec.setSummary("forcepyrowave".equals(value) ?
-                    "%s\n" + getString(PyroWaveDecoderRenderer.getReadinessSummary(hdr)) :
+            // updateValueSummaries() rebuilds this summary as "<value>\n<description>" on every change,
+            // so the readiness line has to live in the cached description, not in the summary itself.
+            descriptions.put("video_format", "forcepyrowave".equals(value) ?
+                    getString(PyroWaveDecoderRenderer.getReadinessSummary(hdr)) :
                     getString(R.string.summary_video_format));
+            updateValueSummaries(getPreferenceScreen());
         }
 
         @Override
