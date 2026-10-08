@@ -48,8 +48,22 @@ final class PyroWaveDecoderRenderer {
     }
 
     // CLOCK_MONOTONIC at the decode fence, before acquiring/presenting a swapchain image.
-    synchronized long submitFrame(byte[] data, int length) {
-        return handle != 0 ? nativeSubmitFrame(handle, data, length) : -1;
+    synchronized long submitFrame(byte[] data, int length, long ptsUs, FrameLatencyStats stats) {
+        if (handle == 0) return -1;
+        long outputNs = nativeSubmitFrame(handle, data, length, ptsUs);
+        if (outputNs > 0) {
+            stats.onDecoderOutput(0, ptsUs, outputNs);
+            stats.onOutputReleased(0, System.nanoTime(), true, true);
+        }
+        // Keep output registration and polling under the same lock: a present can already be ready.
+        if (!nativePollRenderedFrames(handle, stats) && outputNs > 0) {
+            stats.discard(ptsUs, "render_unavailable");
+        }
+        return outputNs;
+    }
+
+    synchronized void pollRenderedFrames(FrameLatencyStats stats) {
+        if (handle != 0) nativePollRenderedFrames(handle, stats);
     }
 
     synchronized int getLastGpuDecodeUs() {
@@ -69,7 +83,8 @@ final class PyroWaveDecoderRenderer {
     private static native boolean nativeIsAvailable();
     private static native long nativeCreate(Surface surface, int width, int height, int fps,
                                            boolean chroma444, boolean tenBit, boolean fullRange);
-    private static native long nativeSubmitFrame(long handle, byte[] data, int length);
+    private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
+    private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] metadata);
     private static native void nativeDestroy(long handle);

@@ -299,8 +299,8 @@
     <string name="latency_header">Latency in ms: avg / p95 / p99 (last %1$d frames)</string>
     <string name="latency_receive_input">Receive → decoder input</string>
     <string name="latency_input_output">Decoder input → output</string>
-    <string name="latency_output_render">Decoder output → render</string>
-    <string name="latency_receive_render">Receive → render</string>
+    <string name="latency_output_render">Decode → present</string>
+    <string name="latency_receive_render">Client latency (receive → present)</string>
     <string name="latency_host_processing">Host processing</string>
     <string name="title_yuv444">Prefer YUV 4:4:4</string>
     <string name="summary_yuv444">Sharper color for text and UI when the host and decoder support it. Otherwise uses 4:2:0. HDR takes priority.</string>

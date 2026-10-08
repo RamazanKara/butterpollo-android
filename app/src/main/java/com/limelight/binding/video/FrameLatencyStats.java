@@ -17,7 +17,8 @@ class FrameLatencyStats {
     private static final long CALLBACK_TIMEOUT_NS = 5000000000L;
     static final String CSV_HEADER = "frame_number,pts_us,receive_ns,decoder_input_ns,decoder_output_ns," +
             "render_ns,release_ns,status,receive_to_input_ms,input_to_output_ms,output_to_render_ms," +
-            "receive_to_render_ms,csv_rows_lost,host_processing_ms\n";
+            "receive_to_render_ms,csv_rows_lost,host_processing_ms," +
+            "decode_to_present_ms,receive_to_present_ms\n";
 
     private final LinkedHashMap<Long, Frame> pending = new LinkedHashMap<>();
     private final HashMap<Integer, Frame> outputs = new HashMap<>();
@@ -85,7 +86,7 @@ class FrameLatencyStats {
         Frame frame = pending.get(ptsUs);
         if (frame != null) {
             frame.renderNs = renderNs;
-            boolean valid = frame.outputNs >= frame.inputNs && renderNs >= frame.outputNs;
+            boolean valid = frame.inputNs > 0 && frame.outputNs >= frame.inputNs && renderNs >= frame.outputNs;
             if (valid) {
                 addSample(2, frame.outputNs, renderNs);
                 addSample(3, frame.receiveNs, renderNs);
@@ -181,12 +182,15 @@ class FrameLatencyStats {
         }
         // Disk I/O and formatting must never hold the lock used by the decoder threads.
         for (Frame frame : frames) {
+            String decodeToPresent = "rendered".equals(frame.status) ? duration(frame.outputNs, frame.renderNs) : "";
+            String receiveToPresent = "rendered".equals(frame.status) ? duration(frame.receiveNs, frame.renderNs) : "";
             writer.write(frame.number + "," + frame.ptsUs + "," + timestamp(frame.receiveNs) + "," +
                     timestamp(frame.inputNs) + "," + timestamp(frame.outputNs) + "," + timestamp(frame.renderNs) + "," +
                     timestamp(frame.releaseNs) + "," + frame.status + "," +
                     duration(frame.receiveNs, frame.inputNs) + "," + duration(frame.inputNs, frame.outputNs) + "," +
-                    duration(frame.outputNs, frame.renderNs) + "," + duration(frame.receiveNs, frame.renderNs) + "," + lost + "," +
-                    (frame.hostProcessingNs == 0 ? "" : String.format(Locale.ROOT, "%.6f", frame.hostProcessingNs / 1000000.0)) + "\n");
+                    decodeToPresent + "," + receiveToPresent + "," + lost + "," +
+                    (frame.hostProcessingNs == 0 ? "" : String.format(Locale.ROOT, "%.6f", frame.hostProcessingNs / 1000000.0)) + "," +
+                    decodeToPresent + "," + receiveToPresent + "\n");
         }
     }
 

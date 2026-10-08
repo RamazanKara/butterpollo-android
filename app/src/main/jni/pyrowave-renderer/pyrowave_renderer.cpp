@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <iterator>
 #include <memory>
 #include <mutex>
@@ -148,6 +149,7 @@ namespace {
         void *library = nullptr;
         PFN_vkGetInstanceProcAddr GetInstanceProcAddr = nullptr;
         PFN_vkSetHdrMetadataEXT SetHdrMetadataEXT = nullptr;
+        PFN_vkGetPastPresentationTimingGOOGLE GetPastPresentationTimingGOOGLE = nullptr;
 #define X(name) PFN_vk##name name = nullptr;
         VK_GLOBAL_FUNCTIONS(X)
         VK_INSTANCE_FUNCTIONS(X)
@@ -196,6 +198,8 @@ namespace {
             VK_DEVICE_FUNCTIONS(X)
 #undef X
             SetHdrMetadataEXT = reinterpret_cast<PFN_vkSetHdrMetadataEXT>(GetDeviceProcAddr(device, "vkSetHdrMetadataEXT"));
+            GetPastPresentationTimingGOOGLE = reinterpret_cast<PFN_vkGetPastPresentationTimingGOOGLE>(
+                GetDeviceProcAddr(device, "vkGetPastPresentationTimingGOOGLE"));
             return ok;
         }
     };
@@ -303,7 +307,7 @@ namespace {
                    createPipeline() && createFrameResources() && warmUpDecoder();
         }
 
-        int submit(const uint8_t *data, size_t length) {
+        int submit(const uint8_t *data, size_t length, int64_t ptsUs) {
             completedDecodeNs = 0;
             lastGpuDecodeUs = 0;
             if (failed) return SUBMIT_ERROR;
@@ -316,7 +320,7 @@ namespace {
             if (!pyrowave_decoder_decode_is_ready(decoder, false)) {
                 return SUBMIT_SKIPPED;
             }
-            if (present()) return SUBMIT_OK;
+            if (present(true, ptsUs)) return SUBMIT_OK;
             failed = true;
             return SUBMIT_ERROR;
         }
@@ -448,16 +452,20 @@ namespace {
             deviceInfo.queueCreateInfoCount = 1;
             deviceInfo.pQueueCreateInfos = &queueInfo;
             deviceExtensions.assign(std::begin(DEVICE_EXTENSIONS), std::end(DEVICE_EXTENSIONS));
+            uint32_t extensionCount = 0;
+            if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr), "device extension count")) return false;
+            std::vector<VkExtensionProperties> extensions(extensionCount);
+            if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensions.data()), "device extensions")) return false;
+            extensions.resize(extensionCount);
+            bool metadata = false;
+            for (const auto &ext : extensions) {
+                if (!strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
+                if (!strcmp(ext.extensionName, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME)) displayTimingSupported = true;
+            }
+            if (displayTimingSupported) deviceExtensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+            // KHR present_id + present_wait provide no timestamp, and can signal for replaced images.
+            // Sampling CLOCK_MONOTONIC after a wait would invent a per-frame presentation time.
             if (tenBit) {
-                uint32_t count = 0;
-                if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, nullptr), "device extension count")) return false;
-                std::vector<VkExtensionProperties> extensions(count);
-                if (!check(vk.EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &count, extensions.data()), "device extensions")) return false;
-                extensions.resize(count);
-                bool metadata = false;
-                for (const auto &ext : extensions) {
-                    if (!strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
-                }
                 if (!metadata) return false;
                 deviceExtensions.push_back(VK_EXT_HDR_METADATA_EXTENSION_NAME);
             }
@@ -476,6 +484,8 @@ namespace {
                 return false;
             }
             if (tenBit && vk.SetHdrMetadataEXT == nullptr) return false;
+            displayTimingSupported = displayTimingSupported && vk.GetPastPresentationTimingGOOGLE != nullptr;
+            LOGI("Actual presentation timestamps: %s", displayTimingSupported ? "VK_GOOGLE_display_timing" : "unavailable");
             vk.GetDeviceQueue(device, queueFamily, 0, &queue);
             VkPhysicalDeviceProperties props;
             vk.GetPhysicalDeviceProperties(physicalDevice, &props);
@@ -710,6 +720,8 @@ namespace {
             }
             destroySwapchainResources();
             if (swapchain != VK_NULL_HANDLE) {
+                pollRenderedFrames();
+                pendingPresents.clear();
                 vk.DestroySwapchainKHR(device, swapchain, nullptr);
             }
             swapchain = newSwapchain;
@@ -1030,7 +1042,7 @@ namespace {
             vk.CmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 3, barriers);
         }
 
-        bool present(bool display = true) {
+        bool present(bool display = true, int64_t ptsUs = 0) {
             const uint64_t frameStart = nowUs();
 
             // One frame in flight: after this wait the previous frame's sampling of the
@@ -1172,7 +1184,18 @@ namespace {
             presentInfo.swapchainCount = 1;
             presentInfo.pSwapchains = &swapchain;
             presentInfo.pImageIndices = &imageIndex;
+            VkPresentTimeGOOGLE presentTime = {++nextPresentId, 0};
+            VkPresentTimesInfoGOOGLE presentTimes = {VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};
+            if (displayTimingSupported) {
+                presentTimes.swapchainCount = 1;
+                presentTimes.pTimes = &presentTime;
+                presentInfo.pNext = &presentTimes;
+            }
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
+            if (displayTimingSupported && (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR)) {
+                if (pendingPresents.size() == 2048) pendingPresents.pop_front();
+                pendingPresents.emplace_back(presentTime.presentID, ptsUs);
+            }
             const uint64_t frameEnd = nowUs();
 
             stats.frames++;
@@ -1285,6 +1308,8 @@ namespace {
         std::vector<VkImageView> swapchainViews;
         std::vector<VkFramebuffer> framebuffers;
         std::vector<VkSemaphore> renderDone;
+        uint32_t nextPresentId = 0;
+        std::deque<std::pair<uint32_t, int64_t>> pendingPresents;
 
         VkRenderPass renderPass = VK_NULL_HANDLE;
         VkSampler sampler = VK_NULL_HANDLE;
@@ -1316,6 +1341,29 @@ namespace {
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
+        bool displayTimingSupported = false;
+        std::vector<jlong> renderedFrames;
+
+        void pollRenderedFrames() {
+            if (!displayTimingSupported || swapchain == VK_NULL_HANDLE) return;
+            uint32_t count = 0;
+            if (vk.GetPastPresentationTimingGOOGLE(device, swapchain, &count, nullptr) != VK_SUCCESS || count == 0) return;
+            std::vector<VkPastPresentationTimingGOOGLE> timings(count);
+            auto result = vk.GetPastPresentationTimingGOOGLE(device, swapchain, &count, timings.data());
+            if (result != VK_SUCCESS && result != VK_INCOMPLETE) return;
+            for (uint32_t i = 0; i < count; ++i) {
+                const auto &timing = timings[i];
+                auto frame = std::find_if(pendingPresents.begin(), pendingPresents.end(),
+                    [&timing](const auto &entry) { return entry.first == timing.presentID; });
+                if (frame == pendingPresents.end()) continue;
+                // actualPresentTime uses CLOCK_MONOTONIC on Android, like System.nanoTime().
+                if (timing.actualPresentTime != 0) {
+                    renderedFrames.push_back(frame->second);
+                    renderedFrames.push_back(jlong(timing.actualPresentTime));
+                }
+                pendingPresents.erase(frame);
+            }
+        }
 
         void setHdrMode(bool enabled, const uint8_t *metadata) {
             if (!tenBit || failed) return;
@@ -1489,7 +1537,7 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *en
 
 JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEnv *env, jclass, jlong handle,
-                                                                           jbyteArray data, jint length) {
+                                                                           jbyteArray data, jint length, jlong ptsUs) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
     if (renderer == nullptr || data == nullptr || length <= 0) {
         return SUBMIT_ERROR;
@@ -1503,8 +1551,27 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEn
     frame.resize(size_t(length));
     env->GetByteArrayRegion(data, 0, length, reinterpret_cast<jbyte *>(frame.data()));
     if (env->ExceptionCheck()) return SUBMIT_ERROR;
-    int result = renderer->submit(frame.data(), frame.size());
+    int result = renderer->submit(frame.data(), frame.size(), ptsUs);
     return result == SUBMIT_OK ? jlong(renderer->completedDecodeNs) : (result == SUBMIT_ERROR ? -1 : 0);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativePollRenderedFrames(JNIEnv *env, jclass, jlong handle,
+                                                                                 jobject stats) {
+    auto *renderer = reinterpret_cast<Renderer *>(handle);
+    renderer->pollRenderedFrames();
+    if (!renderer->renderedFrames.empty()) {
+        jclass statsClass = env->GetObjectClass(stats);
+        jmethodID callback = env->GetMethodID(statsClass, "onFrameRendered", "(JJ)V");
+        env->DeleteLocalRef(statsClass);
+        if (callback == nullptr) return JNI_FALSE;
+        for (size_t i = 0; i < renderer->renderedFrames.size(); i += 2) {
+            env->CallVoidMethod(stats, callback, renderer->renderedFrames[i], renderer->renderedFrames[i + 1]);
+            if (env->ExceptionCheck()) break;
+        }
+        renderer->renderedFrames.clear();
+    }
+    return renderer->displayTimingSupported ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL

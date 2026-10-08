@@ -3,6 +3,9 @@
 
 # Our code
 -keep class com.limelight.binding.input.evdev.* {*;}
+-keepclassmembers class com.limelight.binding.video.FrameLatencyStats {
+    void onFrameRendered(long, long);
+}
 
 # Moonlight common
 -keep class com.limelight.nvstream.jni.* {*;}
