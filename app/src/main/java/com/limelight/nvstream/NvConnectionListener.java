@@ -1,5 +1,7 @@
 package com.limelight.nvstream;
 
+import com.limelight.nvstream.http.LaunchConfirmation;
+
 public interface NvConnectionListener {
     void stageStarting(String stage);
     void stageComplete(String stage);
@@ -11,6 +13,10 @@ public interface NvConnectionListener {
     
     void displayMessage(String message);
     void displayTransientMessage(String message);
+
+    default void launchConfirmationRequired(LaunchConfirmation confirmation) { confirmation.cancel(); }
+    default void launchConfirmationFinished() {}
+    default void launchActionCompleted(String message) {}
 
     void rumble(short controllerNumber, short lowFreqMotor, short highFreqMotor);
     void rumbleTriggers(short controllerNumber, short leftTrigger, short rightTrigger);

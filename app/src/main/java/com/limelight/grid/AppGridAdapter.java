@@ -15,6 +15,7 @@ import com.limelight.grid.assets.DiskAssetLoader;
 import com.limelight.grid.assets.MemoryAssetLoader;
 import com.limelight.grid.assets.NetworkAssetLoader;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.nvstream.http.NvApp;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.util.ArrayList;
@@ -171,6 +172,15 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
     public void populateView(View parentView, ImageView imgView, ProgressBar prgView, TextView txtView, ImageView overlayView, AppView.AppObject obj) {
         // Let the cached asset loader handle it
         loader.populateImageView(obj.app, imgView, txtView);
+
+        TextView roleView = parentView.findViewById(R.id.grid_role);
+        NvApp.Role role = obj.app.getRole();
+        roleView.setVisibility(role == NvApp.Role.STREAM ? View.GONE : View.VISIBLE);
+        if (role != NvApp.Role.STREAM) {
+            roleView.setText(role == NvApp.Role.REMOTE_MONITOR ? R.string.role_view_only : R.string.role_input_only);
+            roleView.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                    role == NvApp.Role.REMOTE_MONITOR ? R.drawable.ic_remote_monitor : R.drawable.ic_input_only, 0, 0, 0);
+        }
 
         if (obj.isRunning) {
             // Show the play button overlay

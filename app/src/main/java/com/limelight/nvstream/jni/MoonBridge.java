@@ -378,7 +378,8 @@ public class MoonBridge {
                                               byte[] riAesKey, byte[] riAesIv,
                                               int videoCapabilities,
                                               int colorSpace, int colorRange,
-                                              boolean unbatchedInput, boolean networkPriority, String rustHostVersion);
+                                              boolean unbatchedInput, boolean networkPriority, String rustHostVersion,
+                                              boolean inputOnly, boolean remoteMonitor);
 
     public static native void stopConnection();
 

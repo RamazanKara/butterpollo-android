@@ -496,6 +496,9 @@ hasFastAes() {
     }
 }
 
+extern bool AndroidInputOnly;
+extern bool AndroidRemoteMonitor;
+
 JNIEXPORT jint JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass clazz,
                                                            jstring address, jstring appVersion, jstring gfeVersion,
@@ -508,7 +511,10 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint videoCapabilities,
                                                            jint colorSpace, jint colorRange,
                                                            jboolean unbatchedInput, jboolean networkPriority,
-                                                           jstring rustHostVersion) {
+                                                           jstring rustHostVersion,
+                                                           jboolean inputOnly, jboolean remoteMonitor) {
+    AndroidInputOnly = inputOnly;
+    AndroidRemoteMonitor = remoteMonitor;
     const char* rustVersion = rustHostVersion ? (*env)->GetStringUTFChars(env, rustHostVersion, NULL) : NULL;
     PyroWaveRecordsSupported = supportsPyroWaveRecords(rustVersion);
     PyroWaveRecordsEnabled = 0;
@@ -522,7 +528,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .serverInfoAppVersion = (*env)->GetStringUTFChars(env, appVersion, 0),
             .serverInfoGfeVersion = gfeVersion ? (*env)->GetStringUTFChars(env, gfeVersion, 0) : NULL,
             .rtspSessionUrl = rtspSessionUrl ? (*env)->GetStringUTFChars(env, rtspSessionUrl, 0) : NULL,
-            .serverCodecModeSupport = serverCodecModeSupport,
+            .serverCodecModeSupport = inputOnly ? 1 : serverCodecModeSupport,
     };
     STREAM_CONFIGURATION streamConfig = {
             .width = width,

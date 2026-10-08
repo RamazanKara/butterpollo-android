@@ -397,7 +397,9 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         menu.setHeaderTitle(selectedApp.app.getAppName());
 
-        if (lastRunningAppId != 0) {
+        if (selectedApp.app.getControl() != NvApp.Control.NONE) {
+            menu.add(Menu.NONE, START_OR_RESUME_ID, 1, selectedApp.app.getAppName().trim());
+        } else if (lastRunningAppId != 0) {
             if (selectedApp.isRunning) {
                 menu.add(Menu.NONE, START_OR_RESUME_ID, 1, getResources().getString(R.string.applist_menu_resume));
                 menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit))
@@ -564,6 +566,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                                     !existingApp.app.getAppUuid().equals(app.getAppUuid()) ||
                                     existingApp.app.getHostIndex() != app.getHostIndex() ||
                                     !existingApp.app.getArtVersion().equals(app.getArtVersion()) ||
+                                    existingApp.app.getRole() != app.getRole() ||
                                     existingApp.app.isHdrSupported() != app.isHdrSupported()) {
                                 existingApp.app = app;
                                 updated = true;
@@ -639,7 +642,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                 AppObject app = (AppObject) appGridAdapter.getItem(pos);
 
                 // Only open the context menu if something is running, otherwise start it
-                if (lastRunningAppId != 0) {
+                if (lastRunningAppId != 0 && app.app.getControl() == NvApp.Control.NONE) {
                     openContextMenu(arg1);
                 } else {
                     ServerHelper.doStart(AppView.this, app.app, computer, managerBinder);
