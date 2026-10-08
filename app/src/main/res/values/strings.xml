@@ -174,8 +174,8 @@
     <string name="title_seekbar_deadzone">Analog stick deadzone</string>
     <string name="summary_seekbar_deadzone">Some games enforce a larger deadzone than this</string>
     <string name="suffix_seekbar_deadzone">%</string>
-    <string name="title_checkbox_xb1_driver">Xbox USB gamepad driver</string>
-    <string name="summary_checkbox_xb1_driver">Built-in driver for Xbox 360 and Xbox One gamepads on devices without native support</string>
+    <string name="title_checkbox_xb1_driver">USB controller driver</string>
+    <string name="summary_checkbox_xb1_driver">Built-in drivers for Xbox and USB DualSense / DualSense Edge controllers. DualSense trigger effects require USB; Bluetooth uses Android controller support. No root required.</string>
     <string name="title_checkbox_usb_bind_all">Always use the USB driver</string>
     <string name="summary_checkbox_usb_bind_all">Use the built-in driver for supported Xbox gamepads even when Android supports them natively</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>

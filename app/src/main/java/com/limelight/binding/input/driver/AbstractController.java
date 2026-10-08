@@ -6,7 +6,7 @@ public abstract class AbstractController {
     private final int vendorId;
     private final int productId;
 
-    private UsbDriverListener listener;
+    protected final UsbDriverListener listener;
 
     protected int buttonFlags, supportedButtonFlags;
     protected float leftTrigger, rightTrigger;
@@ -66,6 +66,14 @@ public abstract class AbstractController {
     public abstract void rumble(short lowFreqMotor, short highFreqMotor);
 
     public abstract void rumbleTriggers(short leftTrigger, short rightTrigger);
+
+    public void setAdaptiveTriggers(byte eventFlags, byte typeLeft, byte typeRight, byte[] left, byte[] right) {}
+
+    public void setLed(byte r, byte g, byte b) {}
+
+    public void setPlayerNumber(int playerNumber) {}
+
+    public void setMotionEventState(byte motionType, short reportRateHz) {}
 
     protected void notifyDeviceRemoved() {
         listener.deviceRemoved(this);

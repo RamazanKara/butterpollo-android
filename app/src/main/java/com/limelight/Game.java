@@ -3075,6 +3075,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     @Override
+    public void setAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                    byte typeRight, byte[] left, byte[] right) {
+        controllerHandler.handleSetAdaptiveTriggers(controllerNumber, eventFlags, typeLeft, typeRight, left, right);
+    }
+
+    @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         startConnectionOnSurface();
     }
