@@ -5,6 +5,7 @@ import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 
@@ -18,6 +19,7 @@ import com.limelight.nvstream.http.PairingManager;
 import com.limelight.nvstream.wol.WakeOnLanSender;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.FrontendEntry;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
@@ -25,9 +27,13 @@ import com.limelight.utils.UiHelper;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class ShortcutTrampoline extends Activity {
@@ -277,6 +283,15 @@ public class ShortcutTrampoline extends Activity {
         ComputerDatabaseManager dbManager = new ComputerDatabaseManager(this);
         ComputerDetails _computer = null;
 
+        // ES-DE, Daijisho and other frontends hand us a game entry file instead of extras
+        if (Intent.ACTION_VIEW.equals(getIntent().getAction()) && getIntent().getData() != null) {
+            Intent entryIntent = readFrontendEntry(getIntent().getData());
+            if (entryIntent == null) {
+                return;
+            }
+            setIntent(entryIntent);
+        }
+
         // PC arguments, both are optional, but at least one must be provided
         uuidString = getIntent().getStringExtra(AppView.UUID_EXTRA);
         String nameString = getIntent().getStringExtra(AppView.NAME_EXTRA);
@@ -284,6 +299,7 @@ public class ShortcutTrampoline extends Activity {
         // App arguments, both are optional, but one must be provided in order to start an app
         String appIdString = getIntent().getStringExtra(Game.EXTRA_APP_ID);
         String appNameString = getIntent().getStringExtra(Game.EXTRA_APP_NAME);
+        String appUuidString = getIntent().getStringExtra(Game.EXTRA_APP_UUID);
 
         if (!validateInput(uuidString, appIdString, nameString)) {
             // Invalid input, so just return
@@ -313,6 +329,20 @@ public class ShortcutTrampoline extends Activity {
                     Integer.parseInt(appIdString),
                     getIntent().getBooleanExtra(Game.EXTRA_APP_HDR, false));
             app.setAppUuid(getIntent().getStringExtra(Game.EXTRA_APP_UUID));
+        }
+        else if (appUuidString != null && !appUuidString.isEmpty()) {
+            // The host resolves UUIDs at launch, so renamed apps and changed numeric IDs still work.
+            // The cached list only supplies the display name and HDR flag when it has them.
+            app = findCachedApp(appUuidString, null);
+            if (app == null) {
+                app = new NvApp(appNameString != null ? appNameString : "",
+                        0, getIntent().getBooleanExtra(Game.EXTRA_APP_HDR, false));
+                app.setAppUuid(appUuidString);
+            }
+            setIntent(new Intent(getIntent())
+                    .putExtra(Game.EXTRA_APP_ID, Integer.toString(app.getAppId()))
+                    .putExtra(Game.EXTRA_APP_NAME, app.getAppName())
+                    .putExtra(Game.EXTRA_APP_HDR, app.isHdrSupported()));
         }
         else if (appNameString != null && !appNameString.isEmpty()) {
             // Use appNameString to find the corresponding AppId
@@ -361,6 +391,59 @@ public class ShortcutTrampoline extends Activity {
 
         blockingLoadSpinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
                 getResources().getString(R.string.applist_connect_msg), true);
+    }
+
+    private Intent readFrontendEntry(Uri uri) {
+        Map<String, String> entry;
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                throw new IOException("No data");
+            }
+            entry = FrontendEntry.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
+        } catch (IOException | SecurityException e) {
+            LimeLog.warning("Unreadable frontend entry: " + e.getMessage());
+            Dialog.displayDialog(this,
+                    getResources().getString(R.string.conn_error_title),
+                    getResources().getString(R.string.scut_invalid_entry),
+                    true);
+            return null;
+        }
+
+        Intent i = new Intent(getIntent());
+        i.setData(null);
+        putIfPresent(i, AppView.UUID_EXTRA, entry.get(FrontendEntry.KEY_HOST_UUID));
+        putIfPresent(i, AppView.NAME_EXTRA, entry.get(FrontendEntry.KEY_HOST_NAME));
+        putIfPresent(i, Game.EXTRA_APP_UUID, entry.get(FrontendEntry.KEY_APP_UUID));
+        putIfPresent(i, Game.EXTRA_APP_NAME, entry.get(FrontendEntry.KEY_APP_NAME));
+        putIfPresent(i, Game.EXTRA_APP_ID, entry.get(FrontendEntry.KEY_APP_ID));
+        return i;
+    }
+
+    private static void putIfPresent(Intent intent, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            intent.putExtra(key, value);
+        }
+    }
+
+    private NvApp findCachedApp(String appUuid, String appName) {
+        try {
+            String rawAppList = CacheHelper.readInputStreamToString(
+                    CacheHelper.openCacheFileForInput(getCacheDir(), "applist", uuidString));
+            if (rawAppList.isEmpty()) {
+                return null;
+            }
+            for (NvApp candidate : NvHTTP.getAppListByReader(new StringReader(rawAppList))) {
+                if (appUuid != null && appUuid.equalsIgnoreCase(candidate.getAppUuid())) {
+                    return candidate;
+                }
+                if (appName != null && appName.equals(candidate.getAppName())) {
+                    return candidate;
+                }
+            }
+        } catch (IOException | XmlPullParserException e) {
+            // No usable cache yet; the caller falls back to host-side resolution
+        }
+        return null;
     }
 
     @Override
