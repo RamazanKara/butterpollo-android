@@ -123,6 +123,11 @@
             android:summary="@string/summary_codec_performance"
             android:defaultValue="true" />
         <CheckBoxPreference
+            android:key="checkbox_phone_performance_hints"
+            android:title="@string/title_phone_performance_hints"
+            android:summary="@string/summary_phone_performance_hints"
+            android:defaultValue="true" />
+        <CheckBoxPreference
             android:key="checkbox_drop_late_frames"
             android:title="@string/title_drop_late_frames"
             android:summary="@string/summary_drop_late_frames"

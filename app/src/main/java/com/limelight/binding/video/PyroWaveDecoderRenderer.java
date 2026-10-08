@@ -1,5 +1,6 @@
 package com.limelight.binding.video;
 
+import android.content.Context;
 import android.os.Build;
 import android.os.Process;
 import android.view.Surface;
@@ -13,6 +14,7 @@ public final class PyroWaveDecoderRenderer {
     private static final boolean LIBRARY_LOADED = loadLibrary();
     private long handle;
     private int format;
+    private DecoderPerformanceHints performanceHints;
 
     private static boolean loadLibrary() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
@@ -76,9 +78,21 @@ public final class PyroWaveDecoderRenderer {
     }
 
     // CLOCK_MONOTONIC at the decode fence, before acquiring/presenting a swapchain image.
-    synchronized long submitFrame(byte[] data, int length, long ptsUs, FrameLatencyStats stats) {
+    synchronized long submitFrame(byte[] data, int length, long ptsUs, FrameLatencyStats stats,
+                                  Context context, boolean enablePerformanceHints, int frameRate) {
         if (handle == 0) return -1;
-        long outputNs = nativeSubmitFrame(handle, data, length, ptsUs);
+        // setup() runs on the connection thread; submission runs on the actual decode thread.
+        if (performanceHints == null) {
+            performanceHints = new DecoderPerformanceHints(context, enablePerformanceHints, frameRate);
+        }
+        long workStartNs = System.nanoTime();
+        long outputNs = 0;
+        try {
+            outputNs = nativeSubmitFrame(handle, data, length, ptsUs);
+        } finally {
+            // The decode fence excludes the subsequent wait for a swapchain image/presentation.
+            performanceHints.reportWorkDuration((outputNs > 0 ? outputNs : System.nanoTime()) - workStartNs, frameRate);
+        }
         if (outputNs > 0) {
             stats.onDecoderOutput(0, ptsUs, outputNs);
             stats.onOutputReleased(0, System.nanoTime(), true, true);
@@ -111,6 +125,10 @@ public final class PyroWaveDecoderRenderer {
     }
 
     synchronized void cleanup() {
+        if (performanceHints != null) {
+            performanceHints.close();
+            performanceHints = null;
+        }
         if (handle != 0) nativeDestroy(handle);
         handle = 0;
         format = 0;

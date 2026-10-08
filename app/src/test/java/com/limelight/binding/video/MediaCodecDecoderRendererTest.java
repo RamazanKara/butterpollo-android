@@ -12,6 +12,53 @@ import static org.junit.Assert.*;
 
 public class MediaCodecDecoderRendererTest {
     @Test
+    public void outputUsesFirstVsyncWhosePresentationDeadlineIsStillAhead() {
+        long vsyncNs = 1000000000L;
+        long intervalNs = 10000000L;
+        long deadlineNs = 2000000L;
+        assertEquals(vsyncNs + intervalNs, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                vsyncNs + 7999999L, vsyncNs, intervalNs, deadlineNs));
+        assertEquals(vsyncNs + 2 * intervalNs, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                vsyncNs + 8000000L, vsyncNs, intervalNs, deadlineNs));
+        assertEquals(vsyncNs + 2 * intervalNs, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                vsyncNs + 9000000L, vsyncNs, intervalNs, deadlineNs));
+    }
+
+    @Test
+    public void delayedChoreographerCallbacksSkipExpiredVsyncs() {
+        assertEquals(1060000000L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                1059000000L, 1000000000L, 10000000L, 500000L));
+        assertEquals(1080000000L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                1059000000L, 1000000000L, 10000000L, 20000000L));
+    }
+
+    @Test
+    public void outputTracksDisplayRateRatherThanStreamRate() {
+        long vsyncNs = 1000000000L;
+        long nowNs = vsyncNs + 7000000L;
+        assertEquals(vsyncNs + 16666666L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                nowNs, vsyncNs, 16666666L, 2000000L));
+        assertEquals(vsyncNs + 2 * 8333333L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                nowNs, vsyncNs, 8333333L, 2000000L));
+        assertEquals(vsyncNs + 11111111L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                nowNs, vsyncNs, 11111111L, 2000000L));
+    }
+
+    @Test
+    public void missingVsyncSampleDoesNotInventAPresentationTime() {
+        assertEquals(1234L, MediaCodecDecoderRenderer.nextVsyncTimeNs(1234L, 0, 16666666L, 2000000L));
+        assertEquals(1234L, MediaCodecDecoderRenderer.nextVsyncTimeNs(1234L, 1000L, 0, 2000000L));
+    }
+
+    @Test
+    public void performanceHintsAreANoOpBelowAndroid12() {
+        try (DecoderPerformanceHints hints = new DecoderPerformanceHints(null, true, 60)) {
+            hints.reportWorkDuration(1000000L, 60);
+            hints.reportWorkDuration(2000000L, 120);
+        }
+    }
+
+    @Test
     public void main10AloneIsNotAnHdrDisplayPipeline() {
         assertEquals(VIDEO_FORMAT_H265, MediaCodecDecoderRenderer.videoFormatsForProfiles("video/hevc",
                 new int[] {CodecProfileLevel.HEVCProfileMain10}, true, true));

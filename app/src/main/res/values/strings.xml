@@ -334,11 +334,13 @@
     <string name="latency_csv_failed">Latency CSV unavailable: file access failed.</string>
     <string name="latency_csv_lost">CSV rows lost to backlog: %1$d</string>
     <string name="title_codec_low_latency">Android low-latency mode</string>
-    <string name="summary_codec_low_latency">Less decoder buffering on Android 11 and later. Turn off if video becomes unstable.</string>
+    <string name="summary_codec_low_latency">Less decoder buffering on Android 11 and later. Minimum latency pacing also aligns frames to the next available display refresh. Turn off if video becomes unstable.</string>
     <string name="title_vendor_low_latency">Chipset low-latency mode</string>
     <string name="summary_vendor_low_latency">Decoder tweaks for Qualcomm, Exynos, MediaTek and other chips. Turn off if video freezes or shows artifacts.</string>
     <string name="title_codec_performance">Decoder performance hints</string>
     <string name="summary_codec_performance">Ask for faster decoding on Android 6 and later. May use more power and run warmer.</string>
+    <string name="title_phone_performance_hints">Phone performance hints</string>
+    <string name="summary_phone_performance_hints">Help Android 12 and later schedule decoding within each frame. Turn off to compare latency and power use.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
     <string name="summary_drop_late_frames">Lower latency, but may stutter on weak Wi-Fi. Needs Balanced frame pacing.</string>
     <string name="title_texture_view">Compatibility video view</string>
