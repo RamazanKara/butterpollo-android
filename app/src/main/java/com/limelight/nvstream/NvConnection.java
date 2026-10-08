@@ -536,7 +536,8 @@ public class NvConnection {
                                 context.riKey.getEncoded(), ib.array(),
                                 context.videoCapabilities,
                                 context.streamConfig.getColorSpace(),
-                                context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority);
+                                context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority,
+                                hostDetails.rustHostVersion);
                         if (ret != 0) {
                             return;
                         }

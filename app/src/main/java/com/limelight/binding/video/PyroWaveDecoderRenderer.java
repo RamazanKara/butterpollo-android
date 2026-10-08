@@ -70,6 +70,10 @@ final class PyroWaveDecoderRenderer {
         return handle != 0 ? nativeGetLastGpuDecodeUs(handle) : 0;
     }
 
+    synchronized float getLastRecordLossPercent() {
+        return handle != 0 ? nativeGetLastRecordLossPercent(handle) : 0;
+    }
+
     synchronized void setHdrMode(boolean enabled, byte[] metadata) {
         if (handle != 0) nativeSetHdrMode(handle, enabled, metadata);
     }
@@ -86,6 +90,7 @@ final class PyroWaveDecoderRenderer {
     private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
+    private static native float nativeGetLastRecordLossPercent(long handle);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] metadata);
     private static native void nativeDestroy(long handle);
 }

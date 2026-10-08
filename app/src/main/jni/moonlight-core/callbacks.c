@@ -7,6 +7,7 @@
 #include <Limelight.h>
 #include <Platform.h>
 #include "latency.h"
+#include "pyrowave_protocol.h"
 
 #include <opus_multistream.h>
 #include <android/log.h>
@@ -506,7 +507,12 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
                                                            jint videoCapabilities,
                                                            jint colorSpace, jint colorRange,
-                                                           jboolean unbatchedInput, jboolean networkPriority) {
+                                                           jboolean unbatchedInput, jboolean networkPriority,
+                                                           jstring rustHostVersion) {
+    const char* rustVersion = rustHostVersion ? (*env)->GetStringUTFChars(env, rustHostVersion, NULL) : NULL;
+    PyroWaveRecordsSupported = supportsPyroWaveRecords(rustVersion);
+    PyroWaveRecordsEnabled = 0;
+    if (rustVersion) (*env)->ReleaseStringUTFChars(env, rustHostVersion, rustVersion);
     atomic_store(&AndroidUnbatchedInput, unbatchedInput);
     atomic_store(&AndroidNetworkPriority, networkPriority);
     __android_log_print(ANDROID_LOG_INFO, "moonlight-core", "Latency options: unbatched input=%d, network priority=%d",

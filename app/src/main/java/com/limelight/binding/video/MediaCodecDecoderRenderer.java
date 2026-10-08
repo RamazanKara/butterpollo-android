@@ -119,6 +119,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private final PyroWaveDecoderRenderer pyroWaveRenderer = new PyroWaveDecoderRenderer();
     private long pyroWaveDecodeRemainderNs;
     private int pyroWaveFailures;
+    private float pyroWaveLossTotal;
+    private int pyroWaveLossSamples;
+    private float pyroWaveQueueDelayTotal;
+    private volatile float pyroWaveLossPercent;
+    private volatile float pyroWaveQueueDelayMs;
 
     private final FrameLatencyStats frameLatencyStats = new FrameLatencyStats();
     private HandlerThread latencyThread;
@@ -168,6 +173,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public float getNetworkFrameLossPercent() {
         return networkFrameLossPercent;
+    }
+
+    public float getPyroWaveLossPercent() {
+        return Math.max(networkFrameLossPercent, pyroWaveLossPercent);
+    }
+
+    public float getPyroWaveQueueDelayMs() {
+        return pyroWaveQueueDelayMs;
     }
 
     private long lastTimestampUs;
@@ -1670,6 +1683,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Flip stats windows roughly every second
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
+            if (pyroWaveLossSamples != 0) {
+                pyroWaveLossPercent = pyroWaveLossTotal / pyroWaveLossSamples;
+                pyroWaveQueueDelayMs = pyroWaveQueueDelayTotal / pyroWaveLossSamples;
+                pyroWaveLossTotal = pyroWaveQueueDelayTotal = 0;
+                pyroWaveLossSamples = 0;
+            }
             VideoStats lastTwo = new VideoStats();
             lastTwo.add(lastWindowVideoStats);
             lastTwo.add(activeWindowVideoStats);
@@ -1726,10 +1745,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             long inputNs = System.nanoTime();
+            long enqueueNs = receiveTimeNs + (enqueueTimeUs - receiveTimeUs) * 1000;
+            pyroWaveQueueDelayTotal += Math.max(0, inputNs - enqueueNs) / 1000000.0f;
             long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
             lastTimestampUs = ptsUs;
             frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, inputNs, frameHostProcessingLatency);
             long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength, ptsUs, frameLatencyStats);
+            pyroWaveLossTotal += pyroWaveRenderer.getLastRecordLossPercent();
+            pyroWaveLossSamples++;
             activeWindowVideoStats.totalFrames++;
             activeWindowVideoStats.totalFramesReceived++;
             if (outputNs > 0) {

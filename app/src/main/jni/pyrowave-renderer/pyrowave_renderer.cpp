@@ -290,6 +290,7 @@ namespace {
 
     class Renderer {
     public:
+        PyroWaveRecords records;
         ~Renderer() {
             destroy();
         }
@@ -302,6 +303,7 @@ namespace {
             frameRateHz = frameRate > 0 ? frameRate : 60;
             width = uint32_t(streamWidth);
             height = uint32_t(streamHeight);
+            records = PyroWaveRecords(width, height, chroma444);
             return apiVersionSupported() && createInstanceAndSurface() && createDevice() &&
                    createSwapchain() && checkDecoderLimits() && createDecoder() && createPlanes() &&
                    createPipeline() && createFrameResources() && warmUpDecoder();
@@ -1010,9 +1012,12 @@ namespace {
         }
 
         bool pushFrame(const uint8_t *data, size_t length) {
-            return pushPyroWaveFrame(data, length, [this](const uint8_t *packet, size_t size) {
+            auto push = [this](const uint8_t *packet, size_t size) {
                 return pyrowave_decoder_push_packet(decoder, packet, size) == PYROWAVE_SUCCESS;
-            });
+            };
+            if (length >= 4 && pyroReadLe32(data) == 0) return records.pushFrame(data, length, push);
+            records.lossPercent = 0;
+            return pushPyroWaveFrame(data, length, push);
         }
 
         // Where the decoder writes the planes: compute storage writes, or colour
@@ -1578,6 +1583,12 @@ JNIEXPORT jint JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastGpuDecodeUs(JNIEnv *, jclass, jlong handle) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
     return renderer != nullptr ? jint(renderer->lastGpuDecodeUs) : 0;
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastRecordLossPercent(JNIEnv *, jclass, jlong handle) {
+    auto *renderer = reinterpret_cast<Renderer *>(handle);
+    return renderer != nullptr ? renderer->records.lossPercent : 0;
 }
 
 JNIEXPORT void JNICALL
