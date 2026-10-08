@@ -18,7 +18,8 @@ class FrameLatencyStats {
     static final String CSV_HEADER = "frame_number,pts_us,receive_ns,decoder_input_ns,decoder_output_ns," +
             "render_ns,release_ns,status,receive_to_input_ms,input_to_output_ms,output_to_render_ms," +
             "receive_to_render_ms,csv_rows_lost,host_processing_ms," +
-            "decode_to_present_ms,receive_to_present_ms\n";
+            "decode_to_present_ms,receive_to_present_ms," +
+            "decode_to_release_ms,decode_interval_ms,release_interval_ms\n";
 
     private final LinkedHashMap<Long, Frame> pending = new LinkedHashMap<>();
     private final HashMap<Integer, Frame> outputs = new HashMap<>();
@@ -27,6 +28,19 @@ class FrameLatencyStats {
     private final int[] counts = new int[5];
     private final int[] positions = new int[5];
     private long csvRowsLost;
+    private final boolean vrr;
+    private long lastOutputNs;
+    private long lastReleaseNs;
+    private long releaseIntervalTotalNs;
+    private int releaseIntervalCount;
+
+    FrameLatencyStats() {
+        this(false);
+    }
+
+    FrameLatencyStats(boolean vrr) {
+        this.vrr = vrr;
+    }
 
     private static class Frame {
         int number;
@@ -38,6 +52,8 @@ class FrameLatencyStats {
         long renderNs;
         long releaseNs;
         long hostProcessingNs;
+        long previousOutputNs;
+        long previousReleaseNs;
         String status;
     }
 
@@ -64,6 +80,10 @@ class FrameLatencyStats {
         if (frame != null) {
             frame.outputIndex = index;
             frame.outputNs = outputNs;
+            if (vrr) {
+                frame.previousOutputNs = lastOutputNs;
+                lastOutputNs = outputNs;
+            }
             outputs.put(index, frame);
             addSample(1, frame.inputNs, outputNs);
         }
@@ -74,6 +94,14 @@ class FrameLatencyStats {
         if (frame != null) {
             frame.outputIndex = -1;
             frame.releaseNs = releaseNs;
+            if (vrr && render && frame.outputNs > 0 && releaseNs >= frame.outputNs) {
+                frame.previousReleaseNs = lastReleaseNs;
+                if (lastReleaseNs > 0 && releaseNs > lastReleaseNs) {
+                    releaseIntervalTotalNs += releaseNs - lastReleaseNs;
+                    releaseIntervalCount++;
+                }
+                lastReleaseNs = releaseNs;
+            }
             if (!render) {
                 finish(frame, "dropped");
             } else if (!hasRenderCallback) {
@@ -106,6 +134,16 @@ class FrameLatencyStats {
         for (Frame frame : new ArrayList<>(pending.values())) {
             finish(frame, reason);
         }
+        lastOutputNs = lastReleaseNs = releaseIntervalTotalNs = 0;
+        releaseIntervalCount = 0;
+    }
+
+    synchronized float takeReleaseFrameRate() {
+        float frameRate = releaseIntervalCount == 0 ? 0 :
+                (float) (releaseIntervalCount * 1000000000.0 / releaseIntervalTotalNs);
+        releaseIntervalTotalNs = 0;
+        releaseIntervalCount = 0;
+        return frameRate;
     }
 
     synchronized void expire(long nowNs) {
@@ -190,7 +228,10 @@ class FrameLatencyStats {
                     duration(frame.receiveNs, frame.inputNs) + "," + duration(frame.inputNs, frame.outputNs) + "," +
                     decodeToPresent + "," + receiveToPresent + "," + lost + "," +
                     (frame.hostProcessingNs == 0 ? "" : String.format(Locale.ROOT, "%.6f", frame.hostProcessingNs / 1000000.0)) + "," +
-                    decodeToPresent + "," + receiveToPresent + "\n");
+                    decodeToPresent + "," + receiveToPresent + "," +
+                    (vrr ? duration(frame.outputNs, frame.releaseNs) : "") + "," +
+                    duration(frame.previousOutputNs, frame.outputNs) + "," +
+                    duration(frame.previousReleaseNs, frame.releaseNs) + "\n");
         }
     }
 
