@@ -22,7 +22,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/PlatformCrypto.c \
                    moonlight-common-c/src/PlatformSockets.c \
                    moonlight-common-c/src/RtpAudioQueue.c \
-                   moonlight-common-c/src/RtpVideoQueue.c \
+                   android_rtp_video.c \
                    android_rtsp.c \
                    moonlight-common-c/src/RtspParser.c \
                    android_sdp.c \

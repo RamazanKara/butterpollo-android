@@ -436,7 +436,9 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
 
         if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_PYROWAVE) {
             err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "3");
-            // Omit pyrowaveAdaptiveFec and pyrowaveFeatures: their presence selects record framing.
+            if (PyroWaveRecordsEnabled) {
+                err |= addAttributeString(&optionHead, "x-ss-video[0].pyrowaveFeatures", "1");
+            }
         }
         else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
             err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "2");

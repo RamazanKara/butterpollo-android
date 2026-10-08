@@ -2,6 +2,9 @@
 #include "Rtsp.h"
 #include "pyrowave_protocol.h"
 
+int PyroWaveRecordsSupported;
+int PyroWaveRecordsEnabled;
+
 // Moonlight common-c 874ac954 (GPL-3.0), with Butterpollo PyroWave negotiation.
 
 #define RTSP_CONNECT_TIMEOUT_SEC 10
@@ -1092,6 +1095,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
 
         int pyroWaveFormat = selectPyroWaveFormat(StreamConfig.supportedVideoFormats,
                                                  serverInfo->serverCodecModeSupport, response.payload);
+        PyroWaveRecordsEnabled = pyroWaveFormat != 0 && PyroWaveRecordsSupported;
         if (pyroWaveFormat != 0) {
             NegotiatedVideoFormat = pyroWaveFormat;
             // GPU/display waits must not block the UDP receive thread.
