@@ -79,6 +79,7 @@ public class PreferenceConfiguration {
     private static final String VIRTUAL_DISPLAY_PREF_STRING = "checkbox_virtual_display";
     private static final String VIRTUAL_DISPLAY_SCALE_PREF_STRING = "seekbar_virtual_display_scale";
     private static final String YUV444_PREF_STRING = "checkbox_yuv444";
+    private static final String VRR_PREF_STRING = "checkbox_vrr";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -169,7 +170,7 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensorsFallbackToDevice;
     public boolean codecLowLatency, vendorLowLatency, codecPerformance;
     public boolean dropLateFrames, useTextureView, unbatchedInput, networkPriority;
-    public boolean virtualDisplay, enableYuv444;
+    public boolean virtualDisplay, enableYuv444, vrr;
     public int virtualDisplayScale;
 
     public static boolean isNativeResolution(int width, int height) {
@@ -645,6 +646,13 @@ public class PreferenceConfiguration {
         config.virtualDisplay = prefs.getBoolean(VIRTUAL_DISPLAY_PREF_STRING, false);
         config.virtualDisplayScale = Math.max(50, Math.min(200, prefs.getInt(VIRTUAL_DISPLAY_SCALE_PREF_STRING, 100)));
         config.enableYuv444 = prefs.getBoolean(YUV444_PREF_STRING, false);
+        config.vrr = prefs.getBoolean(VRR_PREF_STRING, false);
+        if (config.vrr) {
+            // VRR streams arrive at the game's own cadence: show each frame as soon as it is
+            // decoded on the panel's highest refresh rate instead of pacing to a fixed rate.
+            config.framePacing = FRAME_PACING_MIN_LATENCY;
+            config.reduceRefreshRate = false;
+        }
 
         return config;
     }

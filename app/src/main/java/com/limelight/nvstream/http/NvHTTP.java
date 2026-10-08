@@ -968,6 +968,9 @@ public class NvHTTP {
             "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + launchRate +
             (context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
                     "&virtualDisplay=1&scaleFactor=" + context.streamConfig.getVirtualDisplayScale() : "") +
+            // Butterpollo and Vibepollo pace a VRR stream at the game's frame rate (Nonary's 1000 Hz
+            // virtual display mode). Other hosts ignore the parameter; GFE never receives it.
+            (context.streamConfig.getVrr() && !context.isNvidiaServerSoftware ? "&vrr=1" : "") +
             "&additionalStates=1&sops=" + (enableSops ? 1 : 0) +
             "&rikey="+bytesToHex(context.riKey.getEncoded()) +
             "&rikeyid="+context.riKeyId +
