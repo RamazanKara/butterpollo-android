@@ -1,19 +1,22 @@
 package com.limelight.binding.video;
 
 import android.os.Build;
+import android.os.Process;
 import android.view.Surface;
 
 import com.limelight.LimeLog;
+import com.limelight.R;
 import com.limelight.nvstream.jni.MoonBridge;
 
 // Adapted from joemossjr16/artemis-android-pyrowave 387d3a5c (GPL-3.0).
-final class PyroWaveDecoderRenderer {
+public final class PyroWaveDecoderRenderer {
     private static final boolean LIBRARY_LOADED = loadLibrary();
     private long handle;
     private int format;
 
     private static boolean loadLibrary() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
+        if (!Process.is64Bit()) return false;
         try {
             System.loadLibrary("pyrowave-renderer");
             return true;
@@ -24,14 +27,39 @@ final class PyroWaveDecoderRenderer {
     }
 
     static boolean isAvailable() {
-        return LIBRARY_LOADED && nativeIsAvailable();
+        return getReadiness(false) == 0;
     }
 
-    synchronized boolean setup(Surface surface, int format, int width, int height, int fps, boolean fullRange) {
+    private static int getReadiness(boolean hdr) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return -1;
+        if (!Process.is64Bit()) return -2;
+        return LIBRARY_LOADED ? nativeGetReadiness(hdr) : -3;
+    }
+
+    public static int getReadinessSummary(boolean hdr) {
+        // Native reason codes are shared with the renderer's device checks.
+        switch (getReadiness(hdr)) {
+            case 0: return R.string.pyrowave_ready;
+            case -1: return R.string.pyrowave_needs_android;
+            case -2: return R.string.pyrowave_needs_64_bit;
+            case -3: return R.string.pyrowave_decoder_unavailable;
+            case 1: return R.string.pyrowave_needs_vulkan;
+            case 2: return R.string.pyrowave_needs_subgroups;
+            case 3: return R.string.pyrowave_missing_features;
+            case 4: return R.string.pyrowave_missing_formats;
+            case 5: return R.string.pyrowave_device_limits;
+            case 6: return R.string.pyrowave_missing_queue;
+            case 7: return R.string.pyrowave_missing_swapchain;
+            case 8: return R.string.pyrowave_missing_hdr;
+            default: return R.string.pyrowave_check_failed;
+        }
+    }
+
+    synchronized boolean setup(Surface surface, int format, int width, int height, int fps, float displayRefreshRate, boolean fullRange) {
         cleanup();
         if (!LIBRARY_LOADED || surface == null || !surface.isValid()) return false;
         try {
-            handle = nativeCreate(surface, width, height, fps,
+            handle = nativeCreate(surface, width, height, fps, displayRefreshRate,
                     (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0,
                     (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange);
         } catch (IllegalArgumentException e) {
@@ -70,6 +98,10 @@ final class PyroWaveDecoderRenderer {
         return handle != 0 ? nativeGetLastGpuDecodeUs(handle) : 0;
     }
 
+    synchronized String getPresentMode() {
+        return handle != 0 ? nativeGetPresentMode(handle) : "unavailable";
+    }
+
     synchronized float getLastRecordLossPercent() {
         return handle != 0 ? nativeGetLastRecordLossPercent(handle) : 0;
     }
@@ -84,12 +116,13 @@ final class PyroWaveDecoderRenderer {
         format = 0;
     }
 
-    private static native boolean nativeIsAvailable();
-    private static native long nativeCreate(Surface surface, int width, int height, int fps,
+    private static native int nativeGetReadiness(boolean hdr);
+    private static native long nativeCreate(Surface surface, int width, int height, int fps, float displayRefreshRate,
                                            boolean chroma444, boolean tenBit, boolean fullRange);
     private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
+    private static native String nativeGetPresentMode(long handle);
     private static native float nativeGetLastRecordLossPercent(long handle);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] metadata);
     private static native void nativeDestroy(long handle);

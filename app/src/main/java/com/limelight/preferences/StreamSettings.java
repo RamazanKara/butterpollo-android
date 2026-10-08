@@ -47,6 +47,7 @@ import com.limelight.PcView;
 import com.limelight.R;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
+import com.limelight.binding.video.PyroWaveDecoderRenderer;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.UiHelper;
 
@@ -600,6 +601,12 @@ public class StreamSettings extends Activity {
                     .apply();
         }
 
+        private void updateCodecSummary(ListPreference codec, String value, boolean hdr) {
+            codec.setSummary("forcepyrowave".equals(value) ?
+                    "%s\n" + getString(PyroWaveDecoderRenderer.getReadinessSummary(hdr)) :
+                    getString(R.string.summary_video_format));
+        }
+
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
@@ -627,10 +634,12 @@ public class StreamSettings extends Activity {
             texture.setEnabled(!hdr.isChecked() && !"forcepyrowave".equals(codec.getValue()));
             codec.setOnPreferenceChangeListener((preference, value) -> {
                 texture.setEnabled(!hdr.isChecked() && !"forcepyrowave".equals(value));
+                updateCodecSummary(codec, (String) value, hdr.isChecked());
                 return true;
             });
             hdr.setOnPreferenceChangeListener((preference, value) -> {
                 texture.setEnabled(!(Boolean) value && !"forcepyrowave".equals(codec.getValue()));
+                updateCodecSummary(codec, codec.getValue(), (Boolean) value);
                 return true;
             });
             findPreference("about_app").setSummary(getString(R.string.summary_about, BuildConfig.VERSION_NAME));
@@ -1037,6 +1046,7 @@ public class StreamSettings extends Activity {
                 }
             });
 
+            updateCodecSummary(codec, codec.getValue(), hdr.isChecked());
             keepOnlySection(screen);
         }
     }
