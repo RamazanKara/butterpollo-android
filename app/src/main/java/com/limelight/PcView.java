@@ -32,16 +32,16 @@ import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.UiHelper;
 
-import android.app.Activity;
+import androidx.appcompat.app.AppCompatActivity;
 import android.app.ActivityManager;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.app.Service;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
@@ -54,6 +54,7 @@ import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.AbsListView;
@@ -61,7 +62,6 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageButton;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -72,7 +72,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class PcView extends Activity implements AdapterFragmentCallbacks {
+public class PcView extends AppCompatActivity implements AdapterFragmentCallbacks {
     private RelativeLayout noPcFoundLayout;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
@@ -276,7 +276,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     }
 
     private void showPairingGuide() {
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.guide_title)
                 .setMessage(R.string.guide_text)
                 .setPositiveButton(R.string.guide_done, null)
@@ -337,7 +337,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         }
         exportComputer = computer;
         exportRomsTree = null;
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.frontend_export_roms_title)
                 .setMessage(R.string.frontend_export_roms_message)
                 .setPositiveButton(R.string.frontend_export_pick, (dialog, which) -> pickFolder(PICK_ROMS_REQUEST))
@@ -366,7 +366,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                 return;
             }
             exportRomsTree = picked;
-            new AlertDialog.Builder(this)
+            new MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.frontend_export_esde_title)
                     .setMessage(R.string.frontend_export_esde_message)
                     .setPositiveButton(R.string.frontend_export_pick, (dialog, which) -> pickFolder(PICK_ESDE_REQUEST))
@@ -524,25 +524,17 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     }
 
     private void showOneTimePinDialog(final ComputerDetails computer) {
-        LinearLayout fields = new LinearLayout(this);
-        fields.setOrientation(LinearLayout.VERTICAL);
-        int padding = (int) (24 * getResources().getDisplayMetrics().density);
-        fields.setPadding(padding, padding / 3, padding, 0);
-        EditText pin = new EditText(this);
-        pin.setId(View.generateViewId());
+        View fields = getLayoutInflater().inflate(R.layout.dialog_pair_otp, null);
+        EditText pin = fields.findViewById(R.id.pair_pin);
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         pin.setFilters(new InputFilter[] {new InputFilter.LengthFilter(4)});
         pin.setSaveEnabled(false);
-        addLabeledField(fields, R.string.pair_otp_pin, pin);
-        EditText passphrase = new EditText(this);
-        passphrase.setId(View.generateViewId());
+        EditText passphrase = fields.findViewById(R.id.pair_passphrase);
         passphrase.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         passphrase.setSingleLine(true);
         passphrase.setSaveEnabled(false);
-        addLabeledField(fields, R.string.pair_otp_passphrase, passphrase);
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.pair_otp_title)
-                .setMessage(R.string.pair_otp_help)
                 .setView(fields)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.pcview_menu_pair_pc, null)
@@ -565,17 +557,8 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             pin.getText().clear();
             passphrase.getText().clear();
         });
+        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         dialog.show();
-    }
-
-    private void addLabeledField(LinearLayout fields, int label, EditText field) {
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setLabelFor(field.getId());
-        fields.addView(title);
-        // Password input types switch to a monospace font; keep the dialog's font
-        field.setTypeface(Typeface.DEFAULT);
-        fields.addView(field);
     }
 
     private void doPair(final ComputerDetails computer, final String oneTimePin, final String passphrase) {
@@ -974,7 +957,6 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                 }
             }
         });
-        UiHelper.applyStatusBarPadding(listView);
         registerForContextMenu(listView);
     }
 

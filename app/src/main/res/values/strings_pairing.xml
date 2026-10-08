@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="pair_otp_title">Pair with one-time PIN</string>
-    <string name="pair_otp_help">Use this when the host has created a one-time PIN for this device. Enter the four-digit PIN and its passphrase. The PIN works for three minutes.</string>
+    <string name="pair_otp_help">Enter the four-digit PIN and passphrase from your host. The PIN expires after three minutes.</string>
     <string name="pair_otp_pin">One-time PIN</string>
     <string name="pair_otp_passphrase">Passphrase</string>
     <string name="pair_otp_invalid_pin">Enter the four-digit PIN from the host.</string>
     <string name="pair_otp_invalid_passphrase">Enter the passphrase you chose on the host (at least four characters).</string>
     <string name="guide_title">Connect to your PC</string>
-    <string name="guide_text">1. Start Butterpollo on your PC. This device must be on the same network.\n\n2. Your PC appears here. If it doesn\'t, tap + and enter its IP address.\n\n3. Tap the PC to pair. This app shows a PIN: enter it in the host\'s web console under Devices.\n\nGot a one-time PIN from the host? Long-press the PC and choose Pair with one-time PIN. Long-press also opens per-PC settings and details.</string>
+    <string name="guide_text">1. Start Butterpollo on your PC. Connect both devices to the same network.\n\n2. Tap your PC, or tap + to add its IP address.\n\n3. Enter this app’s pairing PIN under Devices in the host’s web console.\n\nLong-press a PC for settings, details or one-time PIN pairing.</string>
     <string name="guide_done">Got it</string>
     <string name="guide_troubleshooting">Troubleshooting</string>
 </resources>

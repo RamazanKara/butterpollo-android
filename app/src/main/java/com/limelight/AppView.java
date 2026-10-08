@@ -22,7 +22,7 @@ import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
-import android.app.Activity;
+import androidx.appcompat.app.AppCompatActivity;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -49,7 +49,7 @@ import android.widget.AdapterView.AdapterContextMenuInfo;
 
 import org.xmlpull.v1.XmlPullParserException;
 
-public class AppView extends Activity implements AdapterFragmentCallbacks {
+public class AppView extends AppCompatActivity implements AdapterFragmentCallbacks {
     private AppGridAdapter appGridAdapter;
     private String uuidString;
     private ShortcutHelper shortcutHelper;
@@ -292,6 +292,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         UiHelper.setLocale(this);
 
         setContentView(R.layout.activity_app_view);
+        findViewById(R.id.library_back).setOnClickListener(v -> finish());
 
         // Allow floating expanded PiP overlays while browsing apps
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -649,7 +650,6 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                 }
             }
         });
-        UiHelper.applyStatusBarPadding(listView);
         registerForContextMenu(listView);
         listView.requestFocus();
     }

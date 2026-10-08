@@ -86,7 +86,7 @@
 
     <!-- General strings -->
     <string name="ip_hint">IP address or hostname</string>
-    <string name="searching_pc">Looking for Butterpollo hosts on your network…\n\nMake sure Butterpollo is running on your PC, or tap + to add it by address. Sunshine and Apollo hosts work too.</string>
+    <string name="searching_pc">Looking for PCs…\n\nStart Butterpollo on your PC, or tap + to add an address. Sunshine and Apollo work too.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
@@ -175,19 +175,19 @@
     <string name="summary_seekbar_deadzone">Some games enforce a larger deadzone than this</string>
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">USB controller driver</string>
-    <string name="summary_checkbox_xb1_driver">Built-in drivers for Xbox and USB DualSense / DualSense Edge controllers. DualSense trigger effects require USB; Bluetooth uses Android controller support. No root required.</string>
+    <string name="summary_checkbox_xb1_driver">Xbox and USB DualSense drivers, without root. DualSense trigger effects require USB.</string>
     <string name="title_checkbox_usb_bind_all">Always use the USB driver</string>
-    <string name="summary_checkbox_usb_bind_all">Use the built-in driver for supported Xbox gamepads even when Android supports them natively</string>
+    <string name="summary_checkbox_usb_bind_all">Use the built-in Xbox driver instead of Android’s driver.</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Hold Start to switch the gamepad into mouse mode</string>
     <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
     <string name="summary_checkbox_flip_face_buttons">Swap A/B and X/Y on gamepads and on-screen controls</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Touchpad always moves mouse</string>
-    <string name="summary_checkbox_gamepad_touchpad_as_mouse">Gamepad touchpads move the host mouse, even when the host sees a gamepad with a touchpad</string>
+    <string name="summary_checkbox_gamepad_touchpad_as_mouse">Use the gamepad touchpad to move the host’s mouse.</string>
     <string name="title_checkbox_gamepad_motion_sensors">Gamepad motion sensors</string>
-    <string name="summary_checkbox_gamepad_motion_sensors">Let the host use your gamepad\'s gyro and accelerometer. Turn off to save a little power and bandwidth.</string>
+    <string name="summary_checkbox_gamepad_motion_sensors">Send the gamepad’s gyro and accelerometer to the host. Uses more power and data.</string>
     <string name="title_checkbox_gamepad_motion_fallback">Use device motion sensors</string>
-    <string name="summary_checkbox_gamepad_motion_fallback">Use this device\'s gyro when your gamepad has none. The host may then see a PlayStation controller.</string>
+    <string name="summary_checkbox_gamepad_motion_fallback">Use this device’s gyro when the gamepad has none. May appear as a PlayStation controller.</string>
 
     <string name="category_input_settings">Touch and mouse</string>
     <string name="title_checkbox_touchscreen_trackpad">Touchscreen as trackpad</string>
@@ -218,24 +218,24 @@
 
     <string name="category_ui_settings">App</string>
     <string name="title_checkbox_enable_pip">Picture-in-picture viewing</string>
-    <string name="summary_checkbox_enable_pip">Keep watching (without control) in a small window while you use other apps</string>
+    <string name="summary_checkbox_enable_pip">Keep watching in a small window. Controls stay in the full-screen app.</string>
     <string name="title_language_list">Language</string>
     <string name="title_checkbox_small_icon_mode">Use small box art</string>
     <string name="summary_checkbox_small_icon_mode">Fit more apps on screen in the app grid</string>
 
     <string name="category_host_settings">Host PC</string>
     <string name="title_checkbox_enable_sops">Optimize game settings</string>
-    <string name="summary_checkbox_enable_sops">Ask the host to adjust game settings for streaming. Only some hosts and launch scripts use this.</string>
+    <string name="summary_checkbox_enable_sops">Let supported hosts adjust game settings for streaming.</string>
     <string name="title_checkbox_host_audio">Play audio on the host PC</string>
     <string name="summary_checkbox_host_audio">Play sound on the host PC as well as this device</string>
 
     <string name="category_advanced_settings">Advanced</string>
     <string name="title_unlock_fps">Unlock all frame rates</string>
-    <string name="summary_unlock_fps">Offer 90 and 120 FPS even if this screen does not report support. Can lower latency on fast devices but may stutter on others.</string>
+    <string name="summary_unlock_fps">Offer 90 and 120 FPS on unverified screens. May cause stutter.</string>
     <string name="title_checkbox_reduce_refresh_rate">Allow lower refresh rate</string>
-    <string name="summary_checkbox_reduce_refresh_rate">Lets the screen refresh closer to the stream frame rate instead of its maximum. Saves power, but adds some video latency.</string>
+    <string name="summary_checkbox_reduce_refresh_rate">Match the stream’s frame rate more closely. Saves power but adds latency.</string>
     <string name="title_checkbox_disable_warnings">Hide connection warnings</string>
-    <string name="summary_checkbox_disable_warnings">Don\'t show on-screen warnings about a slow or poor connection while streaming</string>
+    <string name="summary_checkbox_disable_warnings">Hide connection warnings during streaming.</string>
     <string name="title_disable_frame_drop">Never drop frames</string>
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Video codec</string>
@@ -254,11 +254,11 @@
     <string name="pyrowave_missing_hdr">Not supported: HDR unavailable</string>
     <string name="pyrowave_check_failed">Not supported: GPU check failed</string>
     <string name="title_enable_hdr">HDR (experimental)</string>
-    <string name="summary_enable_hdr">Needs an HDR10 screen and an HDR-capable host and decoder (HEVC or AV1 Main10, or PyroWave). Falls back to SDR otherwise.</string>
+    <string name="summary_enable_hdr">Needs an HDR10 screen and host plus HEVC/AV1 Main10 or PyroWave. Otherwise uses SDR.</string>
     <string name="title_full_range">Force full-range video</string>
-    <string name="summary_full_range">Experimental. Dark and bright detail can be lost if this screen does not display full-range video correctly.</string>
+    <string name="summary_full_range">Experimental. May lose detail in very dark or bright areas.</string>
     <string name="title_enable_perf_overlay">Show performance overlay</string>
-    <string name="summary_enable_perf_overlay">Frame timing (average, 95th and 99th percentile), host processing time and stream stats while streaming</string>
+    <string name="summary_enable_perf_overlay">Show frame timing, host processing and stream statistics.</string>
     <string name="title_enable_post_stream_toast">Post-stream latency summary</string>
     <string name="summary_enable_post_stream_toast">Show average decoding latency when the stream ends</string>
 
@@ -266,7 +266,7 @@
     <string name="title_setup_guide">Setup guide</string>
     <string name="summary_setup_guide">View instructions on how to set up your gaming PC for streaming</string>
     <string name="title_troubleshooting">Help and troubleshooting</string>
-    <string name="summary_troubleshooting">Pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave</string>
+    <string name="summary_troubleshooting">Help with pairing, connections and streaming</string>
     <string name="title_privacy_policy">Privacy policy</string>
     <string name="summary_privacy_policy">View Moonlight\'s privacy policy</string>
 
@@ -316,35 +316,35 @@
     <string name="latency_receive_render">Client latency (receive → present)</string>
     <string name="latency_host_processing">Host processing</string>
     <string name="title_yuv444">Prefer YUV 4:4:4</string>
-    <string name="summary_yuv444">Sharper color for text and UI when the host and decoder support it. Otherwise uses 4:2:0. HDR takes priority.</string>
+    <string name="summary_yuv444">Sharper colored text on supported hosts and decoders. Falls back to 4:2:0; HDR takes priority.</string>
     <string name="yuv444_fallback">Using YUV 4:2:0: no compatible 4:4:4 format for this stream.</string>
     <string name="title_virtual_display">Host virtual display</string>
-    <string name="summary_virtual_display">Butterpollo and Apollo hosts create a display that matches the resolution and frame rate above. Host device and app policies still apply.</string>
+    <string name="summary_virtual_display">Match the stream’s resolution and frame rate on Butterpollo or Apollo. Host policies still apply.</string>
     <string name="title_vrr">Variable refresh (VRR)</string>
-    <string name="summary_vrr">Butterpollo sends frames as the game renders them instead of at a fixed rate. Supported Android 16 displays adapt to the stream; other displays use their highest refresh rate. Overrides frame pacing.</string>
+    <string name="summary_vrr">Match the game’s pace. Uses adaptive refresh on supported Android 16 screens, maximum refresh elsewhere. Overrides frame pacing.</string>
     <string name="title_virtual_display_scale">Host render scale</string>
-    <string name="summary_virtual_display_scale">Renders the host virtual display at this percentage of the stream resolution. 100% matches it exactly. Needs the virtual display.</string>
+    <string name="summary_virtual_display_scale">Scale the host virtual display. 100% matches the stream resolution.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>
     <string name="latency_unavailable">no data yet</string>
     <string name="title_export_latency_csv">Export latency CSV</string>
-    <string name="summary_export_latency_csv">Save per-frame timings from the last stream. Timings the device did not report are left blank.</string>
+    <string name="summary_export_latency_csv">Save the last stream’s frame timings. Unavailable measurements stay blank.</string>
     <string name="latency_csv_empty">Complete a stream before exporting its latency CSV.</string>
     <string name="latency_csv_no_picker">No document picker is installed to save the CSV.</string>
     <string name="latency_csv_saved">Latency CSV saved.</string>
     <string name="latency_csv_failed">Latency CSV unavailable: file access failed.</string>
     <string name="latency_csv_lost">CSV rows lost to backlog: %1$d</string>
     <string name="title_codec_low_latency">Android low-latency mode</string>
-    <string name="summary_codec_low_latency">Less decoder buffering on Android 11 and later. Minimum latency pacing also aligns frames to the next available display refresh. Turn off if video becomes unstable.</string>
+    <string name="summary_codec_low_latency">Reduce decoder buffering on Android 11+. Turn off if video becomes unstable.</string>
     <string name="title_vendor_low_latency">Chipset low-latency mode</string>
-    <string name="summary_vendor_low_latency">Decoder tweaks for Qualcomm, Exynos, MediaTek and other chips. Turn off if video freezes or shows artifacts.</string>
+    <string name="summary_vendor_low_latency">Use chip-specific decoder tweaks. Turn off if video freezes or shows artifacts.</string>
     <string name="title_codec_performance">Decoder performance hints</string>
-    <string name="summary_codec_performance">Ask for faster decoding on Android 6 and later. May use more power and run warmer.</string>
+    <string name="summary_codec_performance">Faster decoding on Android 6+. May use more power and run warmer.</string>
     <string name="title_phone_performance_hints">Phone performance hints</string>
-    <string name="summary_phone_performance_hints">Help Android 12 and later schedule decoding within each frame. Turn off to compare latency and power use.</string>
+    <string name="summary_phone_performance_hints">Help Android 12+ schedule decoding within each frame.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
     <string name="summary_drop_late_frames">Lower latency, but may stutter on weak Wi-Fi. Needs Balanced frame pacing.</string>
     <string name="title_texture_view">Compatibility video view</string>
-    <string name="summary_texture_view">Try this if video is black, flickers or is misplaced. Adds a little latency and power use. HDR and PyroWave never use it.</string>
+    <string name="summary_texture_view">Try for black or flickering video. Adds latency and power use. Unavailable with HDR or PyroWave.</string>
     <string name="title_unbatched_input">Instant mouse and pen input</string>
     <string name="summary_unbatched_input">Send mouse moves right away. Very fast mice may add network lag.</string>
     <string name="title_network_priority">Prioritize stream traffic</string>
@@ -393,14 +393,14 @@
     <string name="settings_section_latency">Latency and diagnostics</string>
     <string name="settings_section_latency_summary">%1$s · Performance overlay %2$s</string>
     <string name="settings_section_input">Controllers, touch and mouse</string>
-    <string name="settings_section_input_summary">Gamepads, touch and mouse, on-screen controls</string>
+    <string name="settings_section_input_summary">Gamepads, touch, mouse and on-screen controls</string>
     <string name="settings_section_host">Host and audio</string>
     <string name="settings_section_host_summary">Game settings, host audio, surround sound</string>
     <string name="settings_section_app">App and about</string>
-    <string name="settings_section_app_summary">Picture-in-picture, language, box art · Version %1$s</string>
+    <string name="settings_section_app_summary">Language, appearance and app options · Version %1$s</string>
     <string name="settings_category_support">Support</string>
     <string name="title_reset_settings">Reset all settings</string>
-    <string name="summary_reset_settings">Return every setting in these screens to its default</string>
+    <string name="summary_reset_settings">Restore defaults for these settings</string>
     <string name="dialog_reset_settings_title">Reset all settings?</string>
     <string name="dialog_reset_settings_text">Video, latency, input, host and app settings return to their defaults. Paired PCs, per-PC streaming settings, controller button mappings, your on-screen control layout and the app language are kept.</string>
     <string name="dialog_reset_settings_confirm">Reset</string>
@@ -408,7 +408,6 @@
     <string name="addpc_button">Add</string>
     <string name="category_about">About</string>
     <string name="title_about">Butterpollo Android</string>
-    <string name="summary_about">Version %1$s. Based on Moonlight for Android, GPL-3.0. Tap for source code and licenses.</string>
     <string name="role_view_only">View only</string>
     <string name="role_input_only">Input only</string>
     <string name="stream_monitor_title">Remote Monitor</string>
@@ -420,4 +419,5 @@
     <string name="launch_confirm_replace">Close the running app and start this one?\n\nConfirm within 60 seconds.</string>
     <string name="launch_confirm_terminate">Close the running app?\n\nRemote Monitor and Input-only connections will stay connected. Confirm within 60 seconds.</string>
     <string name="launch_confirm">Confirm</string>
+    <string name="summary_about">Version %1$s · Based on Moonlight (GPL-3.0). Source code and licenses.</string>
 </resources>

@@ -9,7 +9,7 @@ import android.content.res.Configuration;
 import android.media.MediaCodecInfo;
 import android.os.Build;
 import android.os.Bundle;
-import android.app.Activity;
+import androidx.appcompat.app.AppCompatActivity;
 import android.os.Handler;
 import android.os.Vibrator;
 import android.preference.CheckBoxPreference;
@@ -29,9 +29,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Toast;
-import android.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.res.XmlResourceParser;
-import android.widget.Toolbar;
+import android.widget.TextView;
+import android.widget.ListView;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import com.limelight.utils.HelpLauncher;
@@ -60,7 +61,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-public class StreamSettings extends Activity {
+public class StreamSettings extends AppCompatActivity {
     private static final int EXPORT_LATENCY_REQUEST = 1;
     private static final String STATE_SECTION = "section";
     // Top-level screen keys and the preference categories each sub-screen shows
@@ -79,7 +80,7 @@ public class StreamSettings extends Activity {
     private PreferenceConfiguration previousPrefs;
     private int previousDisplayPixelCount;
     private String section;
-    private Toolbar toolbar;
+    private TextView title;
     private Object backCallback;
 
     // HACK for Android 9
@@ -93,7 +94,7 @@ public class StreamSettings extends Activity {
         getFragmentManager().beginTransaction().replace(
                 R.id.stream_settings, section == null ? new RootFragment() : SettingsFragment.forSection(section)
         ).commitAllowingStateLoss();
-        toolbar.setTitle(section == null ? getString(R.string.settings) : getString(sectionTitle(section)));
+        title.setText(section == null ? getString(R.string.settings) : getString(sectionTitle(section)));
         updateBackCallback();
     }
 
@@ -169,8 +170,8 @@ public class StreamSettings extends Activity {
         UiHelper.setLocale(this);
 
         setContentView(R.layout.activity_stream_settings);
-        toolbar = findViewById(R.id.settings_toolbar);
-        toolbar.setNavigationOnClickListener(v -> navigateBack());
+        title = findViewById(R.id.settings_title);
+        findViewById(R.id.settings_back).setOnClickListener(v -> navigateBack());
         if (savedInstanceState != null) {
             section = savedInstanceState.getString(STATE_SECTION);
         }
@@ -293,6 +294,26 @@ public class StreamSettings extends Activity {
         }
     }
 
+    private static void stylePreferences(PreferenceGroup group) {
+        for (int i = 0; i < group.getPreferenceCount(); i++) {
+            Preference preference = group.getPreference(i);
+            preference.setLayoutResource(preference instanceof PreferenceCategory ?
+                    R.layout.settings_category : R.layout.settings_preference);
+            if (preference instanceof PreferenceGroup) {
+                stylePreferences((PreferenceGroup) preference);
+            }
+        }
+    }
+
+    private static void stylePreferenceList(View view) {
+        ListView list = view.findViewById(android.R.id.list);
+        list.setDivider(null);
+        list.setDividerHeight(0);
+        int spacing = Math.round(8 * view.getResources().getDisplayMetrics().density);
+        list.setPadding(spacing, 0, spacing, spacing);
+        list.setClipToPadding(false);
+    }
+
     public static class RootFragment extends PreferenceFragment {
         private static CharSequence entryFor(Context context, int names, int values, String value) {
             String[] valueArray = context.getResources().getStringArray(values);
@@ -331,6 +352,7 @@ public class StreamSettings extends Activity {
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             addPreferencesFromResource(R.xml.preferences_root);
+            stylePreferences(getPreferenceScreen());
             for (String key : SECTIONS.keySet()) {
                 findPreference(key).setOnPreferenceClickListener(preference -> {
                     ((StreamSettings) getActivity()).showSection(key);
@@ -342,7 +364,7 @@ public class StreamSettings extends Activity {
                 return true;
             });
             findPreference("reset_all").setOnPreferenceClickListener(preference -> {
-                new AlertDialog.Builder(getActivity())
+                new MaterialAlertDialogBuilder(getActivity())
                         .setTitle(R.string.dialog_reset_settings_title)
                         .setMessage(R.string.dialog_reset_settings_text)
                         .setNegativeButton(android.R.string.cancel, null)
@@ -359,7 +381,7 @@ public class StreamSettings extends Activity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-            UiHelper.applyStatusBarPadding(view);
+            stylePreferenceList(view);
             return view;
         }
 
@@ -613,7 +635,7 @@ public class StreamSettings extends Activity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-            UiHelper.applyStatusBarPadding(view);
+            stylePreferenceList(view);
             return view;
         }
 
@@ -1052,6 +1074,7 @@ public class StreamSettings extends Activity {
 
             updateCodecSummary(codec, codec.getValue(), hdr.isChecked());
             keepOnlySection(screen);
+            stylePreferences(screen);
         }
     }
 }
