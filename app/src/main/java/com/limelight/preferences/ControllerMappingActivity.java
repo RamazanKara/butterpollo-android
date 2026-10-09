@@ -89,7 +89,7 @@ public class ControllerMappingActivity extends AppCompatActivity {
         refresh();
     }
 
-    private void selectSingleConnectedController() {
+    protected void selectSingleConnectedController() {
         InputDevice found = null;
         for (int id : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(id);
@@ -107,7 +107,7 @@ public class ControllerMappingActivity extends AppCompatActivity {
         }
     }
 
-    private void select(int vendorId, int productId, String name) {
+    protected void select(int vendorId, int productId, String name) {
         deviceName = name == null || name.trim().isEmpty() ? getString(R.string.controller_mapping_unnamed) : name.trim();
         deviceKey = ControllerButtonMap.deviceKey(vendorId, productId, name);
         map = ControllerButtonMap.load(this, deviceKey);

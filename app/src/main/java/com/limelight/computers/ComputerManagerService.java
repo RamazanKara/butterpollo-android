@@ -201,6 +201,10 @@ public class ComputerManagerService extends Service {
     }
 
     public class ComputerManagerBinder extends Binder {
+        public boolean isPersistent() {
+            return true;
+        }
+
         public void startPolling(ComputerManagerListener listener) {
             if (destroyed) {
                 return;

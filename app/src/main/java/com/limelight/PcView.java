@@ -294,7 +294,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                         });
 
                         // Add a launcher shortcut for this PC (off the main thread to prevent ANRs)
-                        if (details.pairState == PairState.PAIRED) {
+                        ComputerManagerService.ComputerManagerBinder binder = managerBinder;
+                        if (binder != null && binder.isPersistent() && details.pairState == PairState.PAIRED) {
                             shortcutHelper.createAppViewShortcutForOnlineHost(details);
                         }
                     }
