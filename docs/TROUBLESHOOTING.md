@@ -73,6 +73,28 @@ Streaming over the Internet needs those ports forwarded or a VPN; Butterpollo is
 - Compare client latency with the host processing time on the overlay. Export the per-frame CSV from
   **Latency → Export latency CSV** after a session for a closer look.
 
+## Why is decode time high?
+
+Choose **Expanded overlay** in the stream menu and use **Copy stats line**. **Decode time** now
+measures `queueInputBuffer` to observed decoder output, excluding the native queue and display wait.
+Every observed output counts, including frames dropped before presentation. The percentile lines
+use their own valid samples from the last 600 frames; missing render callbacks show no data.
+
+| Overlay line | What to try |
+| --- | --- |
+| Queue wait (enqueue → input) | Input buffers or the submission thread are backed up. Lower resolution/FPS; disable **Phone performance hints** if enabled. |
+| Decode time (input → output) | Try another codec (H.264, HEVC, AV1), then lower resolution/FPS or turn off HDR/4:4:4. This includes codec/driver scheduling, not only silicon execution. |
+| Present wait (output → rendered), released/shown FPS, present drops | Use **Prefer lowest latency** pacing and match FPS to the display. A display bottleneck is separate from hardware decode. |
+| Decoder, FEATURE_LowLatency, low-latency keys | Keep Android/chipset low-latency settings on. Standard low latency requires the advertised feature. Accepted means the value was echoed in the codec's [input format](https://developer.android.com/reference/android/media/MediaCodec#getInputFormat()); unconfirmed keys may be ignored. Compare another codec. |
+| Phone performance hints (ADPF) | Defaults and presets leave this off: short renderer CPU bursts against a full-frame target may reduce clocks. Existing saved choices are kept; compare on/off on your phone. |
+| Network latency/variation, network frame loss | Improve Wi-Fi (nearby 5/6 GHz access point), wire the PC and lower bitrate. These are not hardware decode measurements. |
+| Client latency, host processing | Use the split above to locate client delay; high host processing calls for lower game/encoder load on the PC. |
+
+CSV columns `queue_wait_ms`, `input_to_output_ms` and `output_to_render_ms` correspond to the three
+stages. `enqueue_ns` is in the same monotonic clock as input/output; `receive_to_input_ms` additionally
+includes packet assembly before enqueue. **Report a problem** includes the last decoder configuration
+even with the overlay off. ADPF defaults are conservative; device A/B testing is still needed.
+
 ## HDR and PyroWave requirements
 
 **HDR** needs an HDR10 screen on the phone, Android 7 or later, a hardware HEVC Main10 or AV1 10-bit

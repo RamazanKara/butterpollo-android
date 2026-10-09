@@ -128,7 +128,7 @@
             android:key="checkbox_phone_performance_hints"
             android:title="@string/title_phone_performance_hints"
             android:summary="@string/summary_phone_performance_hints"
-            android:defaultValue="true" />
+            android:defaultValue="false" />
         <CheckBoxPreference
             android:key="checkbox_drop_late_frames"
             android:title="@string/title_drop_late_frames"

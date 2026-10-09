@@ -21,7 +21,7 @@ class FrameLatencyStats {
             "receive_to_render_ms,csv_rows_lost,host_processing_ms," +
             "decode_to_present_ms,receive_to_present_ms," +
             "decode_to_release_ms,decode_interval_ms,release_interval_ms," +
-            "fps_sample_ns,received_fps,released_fps,shown_fps,present_drops\n";
+            "fps_sample_ns,received_fps,released_fps,shown_fps,present_drops,enqueue_ns,queue_wait_ms\n";
 
     private final LinkedHashMap<Long, Frame> pending = new LinkedHashMap<>();
     private final HashMap<Integer, Frame> outputs = new HashMap<>();
@@ -37,6 +37,10 @@ class FrameLatencyStats {
     private int outputIntervalCount;
     private long decodeTimeTotalNs;
     private int decodeTimeSamples;
+    private long totalDecodeTimeNs;
+    private long totalDecodedFrames;
+    private long totalClientTimeNs;
+    private long totalClientTimeSamples;
     private final long[][] frameTimes = new long[3][MAX_PENDING];
     private final int[] frameTimePositions = new int[3];
     private long fpsStartNs;
@@ -56,6 +60,7 @@ class FrameLatencyStats {
         int outputIndex = -1;
         long ptsUs;
         long receiveNs;
+        long enqueueNs;
         long inputNs;
         long outputNs;
         long renderNs;
@@ -72,7 +77,8 @@ class FrameLatencyStats {
         recordFrameTime(0, receiveNs);
     }
 
-    synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long inputNs, char hostProcessingLatency) {
+    synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long enqueueNs,
+                                     long inputNs, char hostProcessingLatency) {
         if (pending.size() == MAX_PENDING) {
             finish(pending.values().iterator().next(), "tracking_overflow");
         }
@@ -80,11 +86,12 @@ class FrameLatencyStats {
         frame.number = frameNumber;
         frame.ptsUs = ptsUs;
         frame.receiveNs = receiveNs;
+        frame.enqueueNs = enqueueNs;
         frame.inputNs = inputNs;
         // The unsigned wire value is in 100 us units; zero means unavailable.
         frame.hostProcessingNs = hostProcessingLatency * 100000L;
         pending.put(ptsUs, frame);
-        addSample(0, receiveNs, inputNs);
+        addSample(0, enqueueNs, inputNs);
         if (frame.hostProcessingNs != 0) {
             addDuration(4, frame.hostProcessingNs);
         }
@@ -108,6 +115,12 @@ class FrameLatencyStats {
             if (frame.inputNs > 0 && outputNs >= frame.inputNs) {
                 decodeTimeTotalNs += outputNs - frame.inputNs;
                 decodeTimeSamples++;
+                totalDecodeTimeNs += outputNs - frame.inputNs;
+                totalDecodedFrames++;
+                if (frame.receiveNs > 0 && frame.inputNs >= frame.receiveNs) {
+                    totalClientTimeNs += outputNs - frame.receiveNs;
+                    totalClientTimeSamples++;
+                }
             }
         }
     }
@@ -172,6 +185,14 @@ class FrameLatencyStats {
         decodeTimeTotalNs = 0;
         decodeTimeSamples = 0;
         return result;
+    }
+
+    synchronized int getAverageDecoderLatency() {
+        return totalDecodedFrames == 0 ? 0 : (int) (totalDecodeTimeNs / totalDecodedFrames / 1000000);
+    }
+
+    synchronized int getAverageEndToEndLatency() {
+        return totalClientTimeSamples == 0 ? 0 : (int) (totalClientTimeNs / totalClientTimeSamples / 1000000);
     }
 
     synchronized float takeOutputFrameRate() {
@@ -301,7 +322,8 @@ class FrameLatencyStats {
                     duration(frame.previousOutputNs, frame.outputNs) + "," +
                     duration(frame.previousReleaseNs, frame.releaseNs) + "," + sampleNs + "," +
                     String.format(Locale.ROOT, "%.2f,%.2f,", rates[0], rates[1]) +
-                    (rates[2] < 0 ? "" : String.format(Locale.ROOT, "%.2f", rates[2])) + "," + dropped + "\n");
+                    (rates[2] < 0 ? "" : String.format(Locale.ROOT, "%.2f", rates[2])) + "," + dropped + "," +
+                    timestamp(frame.enqueueNs) + "," + duration(frame.enqueueNs, frame.inputNs) + "\n");
         }
     }
 

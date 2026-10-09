@@ -20,7 +20,7 @@ public final class PyroWaveBenchmark {
                 int frame = Integer.parseInt(fields[2]);
                 long start = Long.parseLong(fields[3]);
                 long end = Long.parseLong(fields[4]);
-                stats.onDecoderInput(frame, frame, 0, start, (char) 0);
+                stats.onDecoderInput(frame, frame, 0, 0, start, (char) 0);
                 stats.onDecoderOutput(0, frame, end);
                 stats.onOutputReleased(0, end, true, false);
             }

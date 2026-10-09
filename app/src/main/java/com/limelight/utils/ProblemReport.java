@@ -21,6 +21,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public final class ProblemReport {
+    private static volatile String decoderDiagnostics = "No decoder configured in this app process.";
+
+    public static void setDecoderDiagnostics(String diagnostics) {
+        // Only local codec capabilities/settings belong here, never host replies or stream metadata.
+        decoderDiagnostics = diagnostics;
+    }
+
     public static void show(Activity activity) {
         new MaterialAlertDialogBuilder(activity)
                 .setTitle(R.string.report_problem)
@@ -39,8 +46,18 @@ public final class ProblemReport {
             File report = new File(directory, "butterpollo-problem.txt");
             String text = "Butterpollo " + BuildConfig.VERSION_NAME + " / Android API " + Build.VERSION.SDK_INT
                     + "\nRedacted event log for this app process, oldest first (up to 200 entries)."
-                    + "\nAddresses, user-assigned device/host names, PINs, credentials and free-text diagnostic details are omitted.\n\n"
-                    + LimeLog.getRedactedLog() + "\n\nLast crash record:\n" + CrashCapture.lastReport(activity);
+                    + "
+Addresses, user-assigned device/host names, PINs, credentials and free-text diagnostic details are omitted.
+
+"
+                    + "Last decoder configuration:
+" + decoderDiagnostics + "
+
+"
+                    + LimeLog.getRedactedLog() + "
+
+Last crash record:
+" + CrashCapture.lastReport(activity);
             try (FileOutputStream output = new FileOutputStream(report)) {
                 output.write(text.getBytes(StandardCharsets.UTF_8));
             }

@@ -102,7 +102,7 @@
     <string name="perf_overlay_hostprocessinglatency">Host processing latency min/max/average: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="perf_overlay_netdrops">Frames dropped by your network connection: %1$.2f%%</string>
     <string name="perf_overlay_netlatency">Average network latency: %1$d ms (variance: %2$d ms)</string>
-    <string name="perf_overlay_dectime">Average decoding time: %1$.2f ms</string>
+    <string name="perf_overlay_dectime">Decode time: %1$.2f ms</string>
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
@@ -317,9 +317,9 @@
     <string name="analogscroll_right">Right analog stick</string>
     <string name="analogscroll_left">Left analog stick</string>
     <string name="latency_header">Latency in ms: avg / p95 / p99 (last %1$d frames)</string>
-    <string name="latency_receive_input">Receive → decoder input</string>
-    <string name="latency_input_output">Decoder input → output</string>
-    <string name="latency_output_render">Decode → present</string>
+    <string name="latency_queue_wait">Queue wait (enqueue → input)</string>
+    <string name="latency_input_output">Decode time (input → output)</string>
+    <string name="latency_output_render">Present wait (output → rendered)</string>
     <string name="latency_receive_render">Client latency (receive → present)</string>
     <string name="latency_host_processing">Host processing</string>
     <string name="title_yuv444">Prefer YUV 4:4:4</string>
@@ -347,7 +347,7 @@
     <string name="title_codec_performance">Decoder performance hints</string>
     <string name="summary_codec_performance">Faster decoding on Android 6+. May use more power and run warmer.</string>
     <string name="title_phone_performance_hints">Phone performance hints</string>
-    <string name="summary_phone_performance_hints">Help Android 12+ schedule decoding within each frame.</string>
+    <string name="summary_phone_performance_hints">Let Android 12+ tune the decoder thread. Off by default because hints can increase wake-up latency.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
     <string name="summary_drop_late_frames">Lower latency, but may stutter on weak Wi-Fi. Needs Balanced frame pacing.</string>
     <string name="title_texture_view">Compatibility video view</string>

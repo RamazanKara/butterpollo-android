@@ -38,7 +38,7 @@ public enum StreamPreset {
                 .putBoolean("checkbox_drop_late_frames", false)
                 .putBoolean("checkbox_reduce_refresh_rate", this == BATTERY_SAVER)
                 .putBoolean("checkbox_codec_performance", this != BATTERY_SAVER)
-                .putBoolean("checkbox_phone_performance_hints", this != BATTERY_SAVER)
+                .putBoolean("checkbox_phone_performance_hints", false)
                 .apply();
     }
 }

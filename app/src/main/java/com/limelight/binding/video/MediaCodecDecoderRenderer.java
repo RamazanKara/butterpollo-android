@@ -23,6 +23,7 @@ import com.limelight.R;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.utils.ProblemReport;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -44,9 +45,6 @@ import android.view.Surface;
 import android.widget.Toast;
 
 public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements Choreographer.FrameCallback {
-
-    private static final boolean USE_FRAME_RENDER_TIME = false;
-    private static final boolean FRAME_RENDER_TIME_ONLY = USE_FRAME_RENDER_TIME && false;
 
     private MediaCodecInfo avcDecoder;
     private MediaCodecInfo hevcDecoder;
@@ -118,7 +116,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private volatile float networkFrameLossPercent;
 
     private final PyroWaveDecoderRenderer pyroWaveRenderer = new PyroWaveDecoderRenderer();
-    private long pyroWaveDecodeRemainderNs;
     private int pyroWaveFailures;
     private float pyroWaveLossTotal;
     private int pyroWaveLossSamples;
@@ -132,6 +129,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private Handler latencyHandler;
     private BufferedWriter latencyCsv;
     private volatile String latencyOverlay = "";
+    private volatile String decoderDiagnostics = "";
     public static final String LATENCY_CSV_NAME = "butterpollo-latency.csv";
     private final Runnable updateLatencyStats = new Runnable() {
         @Override
@@ -151,10 +149,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     };
 
     public static String formatLatencyOverlay(Context context, double[][] summary) {
-        int[] labels = { R.string.latency_receive_render, R.string.latency_output_render,
-                R.string.latency_receive_input, R.string.latency_input_output,
+        int[] labels = { R.string.latency_receive_render, R.string.latency_queue_wait,
+                R.string.latency_input_output, R.string.latency_output_render,
                 R.string.latency_host_processing };
-        int[] stages = {3, 2, 0, 1, 4};
+        int[] stages = {3, 0, 1, 2, 4};
         StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
         for (int line = 0; line < labels.length; line++) {
             int stage = stages[line];
@@ -729,16 +727,37 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         spsBuffers.clear();
         ppsBuffers.clear();
 
-        // This will contain the actual accepted input format attributes
-        inputFormat = videoDecoder.getInputFormat();
-        LimeLog.info("Input format: "+inputFormat);
-
         videoDecoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT);
 
         // Start the decoder
         videoDecoder.start();
         setFrameRenderedListener();
 
+        // Vendor parameters are applied at start; only echoed values confirm acceptance.
+        inputFormat = videoDecoder.getInputFormat();
+        LimeLog.info("Input format: "+inputFormat);
+        updateDecoderDiagnostics();
+    }
+
+    private void updateDecoderDiagnostics() {
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
+                    "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")") +
+                    "\nFEATURE_LowLatency / MediaCodec keys: not applicable";
+        } else {
+            String mimeType = configuredFormat.getString(MediaFormat.KEY_MIME);
+            String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat);
+            decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
+                    videoDecoder.getName() + " (" + mimeType + ")") + '\n' +
+                    context.getString(R.string.perf_overlay_low_latency,
+                            MediaCodecHelper.decoderSupportsAndroidRLowLatency(videoDecoder.getCodecInfo(), mimeType)) + '\n' +
+                    context.getString(R.string.perf_overlay_low_latency_keys, options[0]) + '\n' +
+                    context.getString(R.string.perf_overlay_low_latency_unconfirmed, options[1]);
+        }
+        decoderDiagnostics += '\n' + context.getString(R.string.perf_overlay_phone_hints, prefs.phonePerformanceHints);
+        LimeLog.info(decoderDiagnostics);
+        ProblemReport.setDecoderDiagnostics(initialWidth + "x" + initialHeight + " @ " + refreshRate + " FPS\n" +
+                decoderDiagnostics);
     }
 
     private boolean tryConfigureDecoder(MediaCodecInfo selectedDecoderInfo, MediaFormat format, boolean throwOnCodecError) {
@@ -875,12 +894,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 public void onFrameRendered(MediaCodec mediaCodec, long presentationTimeUs, long renderTimeNanos) {
                     // Callbacks may be batched; their timestamp, not delivery time, measures rendering.
                     frameLatencyStats.onFrameRendered(presentationTimeUs, renderTimeNanos);
-                    long delta = (renderTimeNanos / 1000000L) - (presentationTimeUs / 1000);
-                    if (delta >= 0 && delta < 1000) {
-                        if (USE_FRAME_RENDER_TIME) {
-                            activeWindowVideoStats.totalTimeMs += delta;
-                        }
-                    }
                 }
             }, latencyHandler);
         }
@@ -903,6 +916,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 if (result == 0 && currentHdrMode != null) {
                     pyroWaveRenderer.setHdrMode(currentHdrMode, currentHdrMetadata);
                 }
+                if (result == 0) updateDecoderDiagnostics();
             } else {
                 // RTSP may reject an incompatible PyroWave bitstream after surface preparation.
                 pyroWaveRenderer.cleanup();
@@ -1336,7 +1350,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 // Waiting for decoder output is idle time, not work for ADPF.
                                 workStartNs = System.nanoTime();
                                 frameLatencyStats.onDecoderOutput(outIndex, info.presentationTimeUs, workStartNs);
-                                long presentationTimeUs = info.presentationTimeUs;
                                 int lastIndex = outIndex;
 
                                 numFramesOut++;
@@ -1355,7 +1368,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                         numFramesOut++;
 
                                         lastIndex = outIndex;
-                                        presentationTimeUs = info.presentationTimeUs;
                                     }
 
                                     frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), true,
@@ -1397,15 +1409,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
                                     // Add this buffer
                                     outputBufferQueue.add(lastIndex);
-                                }
-
-                                // Add delta time to the totals (excluding probable outliers)
-                                long delta = SystemClock.uptimeMillis() - (presentationTimeUs / 1000);
-                                if (delta >= 0 && delta < 1000) {
-                                    activeWindowVideoStats.decoderTimeMs += delta;
-                                    if (!USE_FRAME_RENDER_TIME) {
-                                        activeWindowVideoStats.totalTimeMs += delta;
-                                    }
                                 }
                             } else {
                                 switch (outIndex) {
@@ -1450,8 +1453,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         try {
             // If we don't have an input buffer index yet, fetch one now
-            while (nextInputBufferIndex < 0 && !stopping) {
-                nextInputBufferIndex = videoDecoder.dequeueInputBuffer(10000);
+            while (nextInputBufferIndex < 0 && !stopping &&
+                    codecRecoveryType.get() == CR_RECOVERY_TYPE_NONE) {
+                // Under input pressure, recheck recovery and shutdown without a 10 ms wait.
+                nextInputBufferIndex = videoDecoder.dequeueInputBuffer(1000);
+                if (SystemClock.uptimeMillis() - startTime >= 5000) break;
             }
 
             // Get the backing ByteBuffer for the input buffer index
@@ -1657,12 +1663,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
     }
 
-    private boolean queueNextInputBuffer(long timestampUs, int codecFlags, int frameNumber, long receiveTimeNs, char hostProcessingLatency) {
+    private boolean queueNextInputBuffer(long timestampUs, int codecFlags, int frameNumber, long receiveTimeNs,
+                                         long enqueueTimeNs, char hostProcessingLatency) {
         boolean codecRecovered;
 
         try {
             if ((codecFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                frameLatencyStats.onDecoderInput(frameNumber, timestampUs, receiveTimeNs, System.nanoTime(), hostProcessingLatency);
+                frameLatencyStats.onDecoderInput(frameNumber, timestampUs, receiveTimeNs, enqueueTimeNs,
+                        System.nanoTime(), hostProcessingLatency);
             }
             videoDecoder.queueInputBuffer(nextInputBufferIndex,
                     0, nextInputBuffer.position(),
@@ -1733,6 +1741,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         lastVideoFrameTimeMs = SystemClock.uptimeMillis();
+        long enqueueTimeNs = receiveTimeNs + (enqueueTimeUs - receiveTimeUs) * 1000;
 
         if (lastFrameNumber == 0) {
             activeWindowVideoStats.measurementStartTimestamp = SystemClock.uptimeMillis();
@@ -1773,26 +1782,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 String shownFps = metric(frameRates[2], " FPS");
                 long presentDrops = frameLatencyStats.getPresentDrops();
                 boolean mediaCodec = (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0;
-                String decoder;
-
-                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
-                    decoder = avcDecoder.getName();
-                } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H265) != 0) {
-                    decoder = hevcDecoder.getName();
-                } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
-                    decoder = av1Decoder.getName();
-                } else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
-                    decoder = "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")";
-                } else {
-                    decoder = "(unknown)";
-                }
-
-                float decodeTimeMs = lastTwo.totalFramesReceived == 0 ? 0 :
-                        (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 StringBuilder sb = new StringBuilder();
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
+                sb.append(decoderDiagnostics).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_incomingfps,
                         mediaCodec ? frameRates[0] : fps.receivedFps)).append('\n');
                 if (mediaCodec) {
@@ -1809,7 +1802,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append(" 10-bit");
                 }
                 sb.append('\n');
-                sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
+                sb.append(decodeTimeMs >= 0 ? context.getString(R.string.perf_overlay_dectime, decodeTimeMs) :
+                        context.getString(R.string.latency_input_output) + ": " + context.getString(R.string.latency_unavailable));
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
                     int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
                     sb.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
@@ -1833,11 +1827,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             long inputNs = System.nanoTime();
-            long enqueueNs = receiveTimeNs + (enqueueTimeUs - receiveTimeUs) * 1000;
-            pyroWaveQueueDelayTotal += Math.max(0, inputNs - enqueueNs) / 1000000.0f;
+            pyroWaveQueueDelayTotal += Math.max(0, inputNs - enqueueTimeNs) / 1000000.0f;
             long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
             lastTimestampUs = ptsUs;
-            frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, inputNs, frameHostProcessingLatency);
+            frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, enqueueTimeNs, inputNs, frameHostProcessingLatency);
             long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength, ptsUs, frameLatencyStats,
                     context, prefs.phonePerformanceHints, refreshRate);
             pyroWaveLossTotal += pyroWaveRenderer.getLastRecordLossPercent();
@@ -1847,11 +1840,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             frameLatencyStats.onFrameReceived(receiveTimeNs);
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
-                // The native completion timestamp excludes swapchain acquisition/presentation waits.
-                pyroWaveDecodeRemainderNs += outputNs - inputNs;
-                activeWindowVideoStats.decoderTimeMs += pyroWaveDecodeRemainderNs / 1000000;
-                pyroWaveDecodeRemainderNs %= 1000000;
-                activeWindowVideoStats.totalTimeMs += (outputNs - receiveTimeNs) / 1000000;
             } else {
                 frameLatencyStats.discard(ptsUs, outputNs < 0 ? "decode_failed" : "invalid_frame");
                 if (outputNs < 0 || ++pyroWaveFailures == 60) {
@@ -2050,7 +2038,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                         nextInputBuffer.put(ppsBuffer);
                     }
 
-                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, (char) 0)) {
+                    if (!queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, 0, (char) 0)) {
                         return MoonBridge.DR_NEED_IDR;
                     }
 
@@ -2088,13 +2076,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         activeWindowVideoStats.totalFramesReceived++;
         frameLatencyStats.onFrameReceived(receiveTimeNs);
         activeWindowVideoStats.totalFrames++;
-
-        if (!FRAME_RENDER_TIME_ONLY) {
-            // Count time from first packet received to enqueue time as receive time
-            // We will count DU queue time as part of decoding, because it is directly
-            // caused by a slow decoder.
-            activeWindowVideoStats.totalTimeMs += (enqueueTimeUs - receiveTimeUs) / 1000;
-        }
 
         if (!fetchNextInputBuffer()) {
             return MoonBridge.DR_NEED_IDR;
@@ -2147,7 +2128,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Copy data from our buffer list into the input buffer
         nextInputBuffer.put(decodeUnitData, 0, decodeUnitLength);
 
-        if (!queueNextInputBuffer(timestampUs, codecFlags, frameNumber, receiveTimeNs, frameHostProcessingLatency)) {
+        if (!queueNextInputBuffer(timestampUs, codecFlags, frameNumber, receiveTimeNs, enqueueTimeNs, frameHostProcessingLatency)) {
             return MoonBridge.DR_NEED_IDR;
         }
 
@@ -2177,7 +2158,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         savedSps = null;
 
         // Queue the new SPS
-        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, (char) 0);
+        return queueNextInputBuffer(0, MediaCodec.BUFFER_FLAG_CODEC_CONFIG, 0, 0, 0, (char) 0);
     }
 
     @Override
@@ -2207,17 +2188,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     public int getAverageEndToEndLatency() {
-        if (globalVideoStats.totalFramesReceived == 0) {
-            return 0;
-        }
-        return (int)(globalVideoStats.totalTimeMs / globalVideoStats.totalFramesReceived);
+        return frameLatencyStats.getAverageEndToEndLatency();
     }
 
     public int getAverageDecoderLatency() {
-        if (globalVideoStats.totalFramesReceived == 0) {
-            return 0;
-        }
-        return (int)(globalVideoStats.decoderTimeMs / globalVideoStats.totalFramesReceived);
+        return frameLatencyStats.getAverageDecoderLatency();
     }
 
     static class DecoderHungException extends RuntimeException {

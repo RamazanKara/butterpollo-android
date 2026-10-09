@@ -4,8 +4,6 @@ import android.os.SystemClock;
 
 class VideoStats {
 
-    long decoderTimeMs;
-    long totalTimeMs;
     int totalFrames;
     int totalFramesReceived;
     int totalFramesRendered;
@@ -18,8 +16,6 @@ class VideoStats {
     long measurementStartTimestamp;
 
     void add(VideoStats other) {
-        this.decoderTimeMs += other.decoderTimeMs;
-        this.totalTimeMs += other.totalTimeMs;
         this.totalFrames += other.totalFrames;
         this.totalFramesReceived += other.totalFramesReceived;
         this.totalFramesRendered += other.totalFramesRendered;
@@ -43,8 +39,6 @@ class VideoStats {
     }
 
     void copy(VideoStats other) {
-        this.decoderTimeMs = other.decoderTimeMs;
-        this.totalTimeMs = other.totalTimeMs;
         this.totalFrames = other.totalFrames;
         this.totalFramesReceived = other.totalFramesReceived;
         this.totalFramesRendered = other.totalFramesRendered;
@@ -58,8 +52,6 @@ class VideoStats {
     }
 
     void clear() {
-        this.decoderTimeMs = 0;
-        this.totalTimeMs = 0;
         this.totalFrames = 0;
         this.totalFramesReceived = 0;
         this.totalFramesRendered = 0;

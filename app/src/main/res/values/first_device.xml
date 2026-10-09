@@ -34,6 +34,10 @@
     <string name="perf_overlay_releasedfps">Released to display: %1$.2f FPS</string>
     <string name="perf_overlay_shownfps">Shown (render callbacks): %1$s</string>
     <string name="perf_overlay_presentdrops">Present drops (estimated, unobserved for 5 s): %1$d</string>
+    <string name="perf_overlay_low_latency">FEATURE_LowLatency: %1$b</string>
+    <string name="perf_overlay_low_latency_keys">Low-latency keys accepted (input format): %1$s</string>
+    <string name="perf_overlay_low_latency_unconfirmed">Low-latency keys unconfirmed: %1$s</string>
+    <string name="perf_overlay_phone_hints">Phone performance hints (ADPF): %1$b</string>
     <string name="overlay_compact_presentation">Received %1$.1f · released %2$.1f · shown %3$s · present drops ≈%4$d</string>
     <string-array name="overlay_mode_names"><item>Compact</item><item>Expanded</item></string-array>
     <string-array name="overlay_mode_values"><item>compact</item><item>expanded</item></string-array>

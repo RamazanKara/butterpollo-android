@@ -43,7 +43,7 @@ public class StreamPresetTest {
             assertEquals(false, values.get("checkbox_drop_late_frames"));
             assertEquals(preset == StreamPreset.BATTERY_SAVER, values.get("checkbox_reduce_refresh_rate"));
             assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_codec_performance"));
-            assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_phone_performance_hints"));
+            assertEquals(false, values.get("checkbox_phone_performance_hints"));
         }
         assertEquals(4, applies[0]);
         assertEquals("1920x1080", values.get("list_resolution"));

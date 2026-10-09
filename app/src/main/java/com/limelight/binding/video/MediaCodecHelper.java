@@ -3,6 +3,7 @@ package com.limelight.binding.video;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -432,7 +433,7 @@ public class MediaCodecHelper {
         return false;
     }
 
-    private static boolean decoderSupportsAndroidRLowLatency(MediaCodecInfo decoderInfo, String mimeType) {
+    static boolean decoderSupportsAndroidRLowLatency(MediaCodecInfo decoderInfo, String mimeType) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 if (decoderInfo.getCapabilitiesForType(mimeType).isFeatureSupported(CodecCapabilities.FEATURE_LowLatency)) {
@@ -500,16 +501,15 @@ public class MediaCodecHelper {
         boolean setNewOption = false;
 
         boolean useVendorOptions = vendorLowLatency;
-        if (lowLatency && tryNumber < 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (lowLatency && tryNumber < 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                decoderSupportsAndroidRLowLatency(decoderInfo, videoFormat.getString(MediaFormat.KEY_MIME))) {
             // Official Android 11+ low latency option (KEY_LOW_LATENCY).
             videoFormat.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
             setNewOption = true;
 
             // Prefer advertised standard support to vendor keys on the first attempt.
             // Performance hints remain independently controlled.
-            if (decoderSupportsAndroidRLowLatency(decoderInfo, videoFormat.getString(MediaFormat.KEY_MIME))) {
-                useVendorOptions = false;
-            }
+            useVendorOptions = false;
         }
 
         if (useVendorOptions && tryNumber < 2 &&
@@ -594,6 +594,28 @@ public class MediaCodecHelper {
         }
 
         return setNewOption;
+    }
+
+    static String[] getDecoderLowLatencyOptions(MediaFormat requested, MediaFormat accepted) {
+        List<String> keys = new ArrayList<>(knownVendorLowLatencyOptions);
+        keys.add("low-latency");
+        keys.add("vdec-lowlatency");
+        keys.add("vendor.qti-ext-dec-picture-order.enable");
+        keys.add("vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-rdy");
+        List<String> confirmed = new ArrayList<>();
+        List<String> unconfirmed = new ArrayList<>();
+        for (String key : keys) {
+            if (requested.containsKey(key)) {
+                int value = requested.getInteger(key);
+                if (accepted.containsKey(key) && value == accepted.getInteger(key)) {
+                    confirmed.add(key + "=" + value);
+                } else {
+                    unconfirmed.add(key + "=" + value);
+                }
+            }
+        }
+        return new String[] { confirmed.isEmpty() ? "none" : String.join(", ", confirmed),
+                unconfirmed.isEmpty() ? "none" : String.join(", ", unconfirmed) };
     }
 
     public static boolean decoderSupportsFusedIdrFrame(MediaCodecInfo decoderInfo, String mimeType) {
