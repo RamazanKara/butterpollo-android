@@ -1,6 +1,6 @@
 # Play Data safety and content rating — draft
 
-For Butterpollo Android 0.4.0 (`versionCode` 316). These are proposed answers
+For Rubylight Android 0.4.0 (`versionCode` 316). These are proposed answers
 from a source review, not a submitted declaration. Review the final release
 and the live questionnaire before submission.
 
@@ -34,7 +34,7 @@ from collection. See [Google's Data safety guidance](https://support.google.com/
 | Other user-generated content | Clipboard text goes to the user's PC only when requested. Optional; app functionality. Review the encrypted transport and receiver before finalizing the collection answer. |
 | Crash logs / diagnostics | Local by default. Users may share a redacted report through an app they select. Draft: optional collection for diagnostics if reports reach the publisher; user-requested sharing exception where applicable. No automatic upload. Do not claim ephemeral processing for retained reports. |
 | Location | No device location permission or location inference in the app. Confirm whether public network operators infer location from IP addresses. |
-| Other personal info, financial info, health, contacts, calendar, browsing history | No collection implemented by Butterpollo itself. Streamed desktop content and user-requested clipboard text are handled by the user's chosen host. |
+| Other personal info, financial info, health, contacts, calendar, browsing history | No collection implemented by Rubylight itself. Streamed desktop content and user-requested clipboard text are handled by the user's chosen host. |
 | Photos, videos, audio, files, installed apps | Host media, app lists and artwork are received for local display. No upload of the Android device's media library or installed-app inventory. Optional exported logs are user-controlled files. |
 | Android backup / transfer | Saved hosts and eligible files may leave the device through Android. Preferences and client pairing credentials are excluded. Confirm the platform-backup treatment in the final form. |
 

@@ -23,7 +23,7 @@ static inline uint32_t pyroReadLe32(const uint8_t *p) {
 #include <map>
 #include <vector>
 
-// Butterpollo's packet container, after the core has removed the short header and FEC padding.
+// Rubylight's packet container, after the core has removed the short header and FEC padding.
 template <typename Push>
 bool pushPyroWaveFrame(const uint8_t *data, size_t length, Push push) {
     if (length < 4) return false;

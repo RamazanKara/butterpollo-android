@@ -30,9 +30,9 @@
     <string name="pairing">Pairing…</string>
     <string name="pair_pc_offline">The PC is offline. Wake it, start the host app and connect both devices to the same network, then try pairing again.</string>
     <string name="pair_pc_ingame">The host could not pair while a game was running. Stop the stream from the host, then try pairing again.</string>
-    <string name="pair_pairing_title">Pair Butterpollo Android</string>
+    <string name="pair_pairing_title">Pair Rubylight Android</string>
     <string name="pair_pairing_msg">Enter this PIN on the host:</string>
-    <string name="pair_pairing_help">In the Butterpollo host web console, open Devices and enter this PIN. Sunshine and Apollo hosts use their own pairing page.</string>
+    <string name="pair_pairing_help">In the Rubylight host web console, open Devices and enter this PIN. Sunshine and Apollo hosts use their own pairing page.</string>
     <string name="pair_incorrect_pin">The PIN was not accepted. Try again with the new PIN shown here. For one-time PIN pairing, generate a fresh PIN in the host console and check its passphrase.</string>
     <string name="pair_fail">Pairing could not finish. Keep the host console open, cancel any old pairing request there and try again.</string>
     <string name="pair_already_in_progress">Another pairing request is waiting. Complete or cancel it in the host console, then try again.</string>
@@ -58,7 +58,7 @@
     <string name="error_unknown_host">Failed to resolve host</string>
     <string name="error_404">The host returned an HTTP 404 error. Make sure the host software is running and up to date, then try again.</string>
     <string name="title_decoding_error">Video Decoder Crashed</string>
-    <string name="message_decoding_error">Butterpollo has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
+    <string name="message_decoding_error">Rubylight has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
     <string name="title_decoding_reset">Video Settings Reset</string>
     <string name="message_decoding_reset">Your device\'s video decoder continues to crash at your selected streaming settings. Your streaming settings have been reset to default.</string>
     <string name="error_usb_prohibited">USB access is prohibited by your device administrator. Check your Knox or MDM settings.</string>
@@ -127,7 +127,7 @@
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Add PC</string>
     <string name="msg_add_pc">Connecting to the PC…</string>
-    <string name="addpc_fail">Unable to connect to the host. Check that Butterpollo is running and its ports are allowed through the PC\'s firewall.</string>
+    <string name="addpc_fail">Unable to connect to the host. Check that Rubylight is running and its ports are allowed through the PC\'s firewall.</string>
     <string name="addpc_success">Host added</string>
     <string name="addpc_unknown_host">Unable to find that host. Check the address for typos.</string>
     <string name="addpc_enter_ip">Enter the host\'s IP address or name</string>
@@ -138,7 +138,7 @@
     <string name="title_resolution_list">Video resolution</string>
     <string name="summary_resolution_list">Increase to improve image clarity. Decrease for better performance on lower end devices and slower networks.</string>
     <string name="title_native_res_dialog">Native resolution</string>
-    <string name="text_native_res_dialog">The host may not support this device\'s exact resolution or frame rate.\n\nWith a Butterpollo or Apollo host, turn on \"Host virtual display\" to match it automatically. Otherwise, add a matching custom resolution on the host PC.</string>
+    <string name="text_native_res_dialog">The host may not support this device\'s exact resolution or frame rate.\n\nWith a Rubylight or Apollo host, turn on \"Host virtual display\" to match it automatically. Otherwise, add a matching custom resolution on the host PC.</string>
     <string name="title_fps_list">Video frame rate</string>
     <string name="summary_fps_list">Increase for a smoother video stream. Decrease for better performance on lower end devices.</string>
     <string name="title_seekbar_bitrate">Video bitrate</string>
@@ -178,7 +178,7 @@
     <string name="summary_checkbox_xb1_driver">Xbox USB drivers, without root.</string>
     <string name="title_usb_dualsense">USB DualSense driver</string>
     <string name="summary_usb_dualsense">Off by default. Enables adaptive triggers, rumble, lightbar and Edge back paddles over USB. Requires USB permission.</string>
-    <string name="usb_dualsense_permission_info">During a stream, allow Butterpollo to access your USB DualSense in Android’s permission dialog. Butterpollo takes control of the pad until you disconnect. Denying access keeps Android’s normal controller input. Bluetooth continues to use Android’s controller support.</string>
+    <string name="usb_dualsense_permission_info">During a stream, allow Rubylight to access your USB DualSense in Android’s permission dialog. Rubylight takes control of the pad until you disconnect. Denying access keeps Android’s normal controller input. Bluetooth continues to use Android’s controller support.</string>
     <string name="usb_dualsense_enable">Enable USB driver</string>
     <string name="usb_dualsense_denied">USB access denied. Using Android controller support; adaptive triggers are unavailable. Reconnect the USB cable to try again.</string>
     <string name="title_checkbox_usb_bind_all">Always use the USB driver</string>
@@ -246,7 +246,7 @@
     <string name="title_disable_frame_drop">Never drop frames</string>
     <string name="summary_disable_frame_drop">May reduce micro-stuttering on some devices, but can increase latency</string>
     <string name="title_video_format">Video codec</string>
-    <string name="summary_video_format">Picks the best codec. PyroWave (experimental) needs a Butterpollo host and a wired LAN.</string>
+    <string name="summary_video_format">Picks the best codec. PyroWave (experimental) needs a Rubylight host and a wired LAN.</string>
     <string name="pyrowave_ready">Ready on this phone</string>
     <string name="pyrowave_needs_android">Not supported: needs Android 10</string>
     <string name="pyrowave_needs_64_bit">Not supported: needs a 64-bit app</string>
@@ -275,13 +275,13 @@
     <string name="title_troubleshooting">Help and troubleshooting</string>
     <string name="summary_troubleshooting">Help with pairing, connections and streaming</string>
     <string name="title_privacy_policy">Privacy policy</string>
-    <string name="summary_privacy_policy">View Butterpollo\'s privacy policy</string>
+    <string name="summary_privacy_policy">View Rubylight\'s privacy policy</string>
 
     <!-- Toasts -->
     <string name="toast_controller_type_changed">Gamepad type may be changed due to motion sensor emulation</string>
 
     <!-- Permission justification -->
-    <string name="local_network_rationale">Butterpollo requires local network permissions to communicate with nearby hosts</string>
+    <string name="local_network_rationale">Rubylight requires local network permissions to communicate with nearby hosts</string>
 
     <!-- Array strings -->
     <string name="resolution_360p">360p</string>
@@ -326,7 +326,7 @@
     <string name="summary_yuv444">Sharper colored text on supported hosts and decoders. Falls back to 4:2:0; HDR takes priority.</string>
     <string name="yuv444_fallback">Using YUV 4:2:0: no compatible 4:4:4 format for this stream.</string>
     <string name="title_virtual_display">Host virtual display</string>
-    <string name="summary_virtual_display">Match the stream’s resolution and frame rate on Butterpollo or Apollo. Host policies still apply.</string>
+    <string name="summary_virtual_display">Match the stream’s resolution and frame rate on Rubylight or Apollo. Host policies still apply.</string>
     <string name="title_vrr">Variable refresh (VRR)</string>
     <string name="summary_vrr">Match the game’s pace. Uses adaptive refresh on supported Android 16 screens, maximum refresh elsewhere. Overrides frame pacing.</string>
     <string name="title_virtual_display_scale">Host render scale</string>
@@ -359,7 +359,7 @@
     <string name="category_display_settings">Display</string>
     <string name="category_latency_settings">Latency</string>
     <string name="category_codec_settings">Codec and color</string>
-    <string name="stream_menu">Butterpollo stream</string>
+    <string name="stream_menu">Rubylight stream</string>
     <string name="stream_continue">Continue streaming</string>
     <string name="stream_disconnect">Disconnect</string>
     <string name="stream_status_unavailable">Host status is unavailable. Disconnecting leaves the host application running so you can resume it from the app list.</string>

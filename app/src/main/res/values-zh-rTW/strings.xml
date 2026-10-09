@@ -42,7 +42,7 @@
     <string name="error_unknown_host"> 無法解析主機位址 </string>
     <string name="error_404">GFE 傳回了 HTTP 404 錯誤，請確保你的電腦 GPU 支援串流。使用遠端桌面軟體同樣會引起此錯誤，請嘗試重啟電腦或重新安裝 GFE。</string>
     <string name="title_decoding_error">視訊解碼器已當機</string>
-    <string name="message_decoding_error">由於與這個裝置的視訊解碼器不相容，Butterpollo 已當機。若當機持續，請嘗試調整串流設定。</string>
+    <string name="message_decoding_error">由於與這個裝置的視訊解碼器不相容，Rubylight 已當機。若當機持續，請嘗試調整串流設定。</string>
     <string name="title_decoding_reset">重設視訊設定</string>
     <string name="message_decoding_reset">由於裝置的視訊解碼器在你選取的串流設定上持續當機，已重設你的串流設定。</string>
     <string name="error_usb_prohibited">裝置管理員已禁止 USB 訪問。請檢查您的 Knox 或 MDM 設定。</string>
@@ -134,7 +134,7 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/One USB 手把驅動程式</string>
     <string name="summary_checkbox_xb1_driver">為缺少原生 Xbox 控制器支援的裝置啟用內建 USB 驅動程式</string>
     <string name="title_checkbox_usb_bind_all">覆寫原生 Xbox 手把支援</string>
-    <string name="summary_checkbox_usb_bind_all">強制 Butterpollo 的 USB 驅動程式接管所有受支援的原生 Xbox 控制器</string>
+    <string name="summary_checkbox_usb_bind_all">強制 Rubylight 的 USB 驅動程式接管所有受支援的原生 Xbox 控制器</string>
     <string name="title_checkbox_mouse_emulation">透過手把仿真滑鼠</string>
     <string name="summary_checkbox_mouse_emulation">長按開始鍵將手把切換為滑鼠模式</string>
     <string name="title_checkbox_mouse_nav_buttons"> 啟用前進後退滑鼠鍵 </string>
@@ -195,7 +195,7 @@
     <string name="no_frame_received_error">您的網路連線品質不佳。降低視訊位元速率設定或更換更快的連線。</string>
     <string name="no_video_received_error">沒有接收到來自主機的視訊。</string>
     <string name="video_decoder_init_failed">無法初始化視訊解碼器，您的裝置可能不支援選取的解析度或影格速率。</string>
-    <string name="nettest_text_blocked">您裝置目前的網路連線封鎖了 Butterpollo。連線到該網路時可能無法透過網際網路串流。</string>
+    <string name="nettest_text_blocked">您裝置目前的網路連線封鎖了 Rubylight。連線到該網路時可能無法透過網際網路串流。</string>
     <string name="pcview_menu_header_unknown">正在重新整理</string>
     <string name="pcview_menu_header_offline">離線</string>
     <string name="pcview_menu_header_online">線上</string>
@@ -229,8 +229,8 @@
     <string name="title_privacy_policy">隱私權政策</string>
     <string name="title_setup_guide">設定指南</string>
     <string name="summary_troubleshooting">檢視診斷和修正常見串流問題的提示</string>
-    <string name="summary_privacy_policy">檢視 Butterpollo 的隱私權政策</string>
-    <string name="summary_seekbar_deadzone">注意：有些遊戲可以強制執行一個比 Butterpollo 設定大的死區。</string>
+    <string name="summary_privacy_policy">檢視 Rubylight 的隱私權政策</string>
+    <string name="summary_seekbar_deadzone">注意：有些遊戲可以強制執行一個比 Rubylight 設定大的死區。</string>
     <string name="title_checkbox_absolute_mouse_mode">遠端桌面滑鼠模式</string>
     <string name="summary_checkbox_absolute_mouse_mode">這可以讓滑鼠在遠端桌面使用中的加速表現更加自然，但與很多遊戲不相容。</string>
     <string name="title_checkbox_enable_audiofx">啟用系統等化器支援</string>

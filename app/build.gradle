@@ -136,12 +136,12 @@ android {
 
     buildTypes {
         debug {
-            resValue "string", "app_label", "Butterpollo"
-            resValue "string", "app_label_root", "Butterpollo (Root)"
+            resValue "string", "app_label", "Rubylight"
+            resValue "string", "app_label_root", "Rubylight (Root)"
         }
         release {
-            resValue "string", "app_label", "Butterpollo"
-            resValue "string", "app_label_root", "Butterpollo (Root)"
+            resValue "string", "app_label", "Rubylight"
+            resValue "string", "app_label_root", "Rubylight (Root)"
 
             minifyEnabled true
             signingConfig signingConfigs.release

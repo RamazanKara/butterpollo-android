@@ -27,7 +27,7 @@
     <string name="unpair_error">このデバイスはペアリングされませんでした</string>
     <!-- Errors -->
     <string name="error_pc_offline">コンピュータはオフラインです</string>
-    <string name="error_manager_not_running">ComputerManagerサービスが動作していません。しばらく待つか、Butterpolloを再起動してください</string>
+    <string name="error_manager_not_running">ComputerManagerサービスが動作していません。しばらく待つか、Rubylightを再起動してください</string>
     <string name="error_unknown_host">ホストが解決できません</string>
     <string name="error_404">GFEがHTTP 404を返しました。コンピュータでサポートされているGPUが動作しているか確認してください。リモートデスクトップソフトウェアでもこのエラーが発生する可能性があります。コンピュータを再起動するか、GFEを再インストールしてください</string>
     <!-- Start application messages -->
@@ -128,8 +128,8 @@
     <string name="pcview_menu_eol">NVIDIA GameStream はサービスが終了しています</string>
     <string name="pcview_menu_header_online">オンライン</string>
     <string name="pcview_menu_details">詳細を表示</string>
-    <string name="nettest_text_blocked">デバイスの設定が Butterpollo をブロックしているようです。このネットワークに接続している間ストリーミングが使えないかもしれません。</string>
-    <string name="message_decoding_error">このデバイスのビデオデコーダーが Butterpollo と非対応なため Butterpollo がクラッシュしました。クラッシュが継続するようでしたらストリームの設定を変更してください。</string>
+    <string name="nettest_text_blocked">デバイスの設定が Rubylight をブロックしているようです。このネットワークに接続している間ストリーミングが使えないかもしれません。</string>
+    <string name="message_decoding_error">このデバイスのビデオデコーダーが Rubylight と非対応なため Rubylight がクラッシュしました。クラッシュが継続するようでしたらストリームの設定を変更してください。</string>
     <string name="title_decoding_error">ビデオデコーダーがクラッシュしました</string>
     <string name="title_decoding_reset">ビデオ設定リセット</string>
     <string name="pair_pairing_help">ホーストのコンピューターが Sunshine を使用している場合、Sunshineにピンを入れてください。</string>

@@ -1,7 +1,7 @@
-# Butterpollo Android troubleshooting
+# Rubylight Android troubleshooting
 
 Short fixes for the common problems. Host-side details live in the
-[Butterpollo host troubleshooting guide](https://github.com/RamazanKara/Butterpollo/blob/main/docs/troubleshooting.md).
+[Rubylight host troubleshooting guide](https://github.com/RamazanKara/Butterpollo/blob/main/docs/troubleshooting.md).
 
 **Jump to:** [Add and pair a host](#add-and-pair-a-host) · [Firewall and ports](#firewall-and-ports) ·
 [No video](#no-video-or-a-black-screen) · [Stutter](#stutter-or-dropped-frames) · [Latency](#lower-latency) ·
@@ -9,7 +9,7 @@ Short fixes for the common problems. Host-side details live in the
 
 ## Add and pair a host
 
-1. Start Butterpollo on the PC. The phone and the PC must be on the same local network; guest Wi-Fi
+1. Start Rubylight on the PC. The phone and the PC must be on the same local network; guest Wi-Fi
    and access-point isolation stop them from seeing each other.
 2. Wait for the PC to appear in the app. If it does not, tap **Add PC** and enter its local IP address
    (for example `192.168.1.20`). On Windows, `ipconfig` shows it as the IPv4 address.
@@ -18,7 +18,7 @@ Short fixes for the common problems. Host-side details live in the
 4. If **Allow pairing** is off in the host's settings, pairing fails at once. Turn it on and try again.
 
 **One-time PIN.** If the host has already created a one-time PIN and passphrase for this device
-(Apollo shows this on its PIN page; Butterpollo creates one through `POST /api/otp`), long-press the
+(Apollo shows this on its PIN page; Rubylight creates one through `POST /api/otp`), long-press the
 PC and choose **Pairing → Pair with one-time PIN**. It expires three minutes after it was created.
 
 If pairing works but apps do not appear or do not start, open **Devices → Edit** on the host and allow
@@ -27,7 +27,7 @@ video without touch, mouse or controller input.
 
 ## Firewall and ports
 
-Butterpollo's installer adds a Windows Firewall rule for the local network. If the app cannot reach
+Rubylight's installer adds a Windows Firewall rule for the local network. If the app cannot reach
 the host, allow `butterpollo.exe` on **Private** networks rather than turning the firewall off.
 
 | Port | Protocol | Use |
@@ -39,7 +39,7 @@ the host, allow `butterpollo.exe` on **Private** networks rather than turning th
 | 47990 | TCP | Web console (open on the host PC itself) |
 
 These are the defaults. A changed base port on the host moves all of them by the same amount.
-Streaming over the Internet needs those ports forwarded or a VPN; Butterpollo is tuned for a LAN.
+Streaming over the Internet needs those ports forwarded or a VPN; Rubylight is tuned for a LAN.
 
 ## No video or a black screen
 
@@ -59,10 +59,10 @@ Streaming over the Internet needs those ports forwarded or a VPN; Butterpollo is
   phone's decoder.
 - Lower the bitrate first. Most LAN streams look good at 20–80 Mbps; on Wi-Fi start at 20–40 Mbps.
 - Use 5 GHz or 6 GHz Wi-Fi close to the access point, or a wired USB Ethernet adapter.
-- Turn on **automatic bitrate** under **stream menu → Bitrate** for Butterpollo hosts. It lowers the bitrate when
+- Turn on **automatic bitrate** under **stream menu → Bitrate** for Rubylight hosts. It lowers the bitrate when
   packets are lost and raises it again slowly.
 - Match the stream frame rate to the phone's screen (60, 90, 120 Hz). **This PC → Streaming settings for this PC** accepts
-  fractional rates such as 59.94 for Butterpollo hosts.
+  fractional rates such as 59.94 for Rubylight hosts.
 
 ## Lower latency
 
@@ -101,7 +101,7 @@ even with the overlay off. ADPF defaults are conservative; device A/B testing is
 decoder, and HDR set up on the host's streamed display. Without all of these the stream falls back
 to SDR.
 
-**PyroWave** is experimental. It needs a Butterpollo host, a phone with a capable Vulkan GPU, and a
+**PyroWave** is experimental. It needs a Rubylight host, a phone with a capable Vulkan GPU, and a
 fast wired network: about **280 Mbps at 720p/60** and **400 Mbps at 1080p/60**. 4K at 60 FPS needs
 about 1600 Mbps, which this client cannot reach yet. Long-press a paired PC and choose
 **This PC → Test your connection** to measure the link before switching. On slower networks use HEVC or AV1.

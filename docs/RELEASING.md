@@ -1,6 +1,6 @@
-# Releasing Butterpollo Android
+# Releasing Rubylight Android
 
-Butterpollo uses its own semantic version: `0.4.0`, with Android `versionCode`
+Rubylight uses its own semantic version: `0.4.0`, with Android `versionCode`
 `316`. Update both in `app/build.gradle` for each release, increasing the code
 for every upload (including prereleases). Settings → App and about displays
 `BuildConfig.VERSION_NAME`, alongside the Moonlight attribution.

@@ -1,9 +1,9 @@
-Stream from your PC with low latency. Butterpollo is built for Butterpollo hosts and also works with Sunshine and Apollo hosts.
+Stream from your PC with low latency. Rubylight is built for Rubylight hosts and also works with Sunshine and Apollo hosts.
 
 Bring your desktop and apps to your Android phone, tablet or TV. Pair your PC, open your library and start a stream. Use touch controls, a controller, or a keyboard and mouse.
 
 Choose a preset for low latency, balanced performance, best quality or longer battery life. Save separate settings for each PC. Check latency and frame rate in the compact overlay. Open the stream menu to adjust controls and settings while you stream.
 
-Butterpollo is free and open source. No ads or in-app purchases.
+Rubylight is free and open source. No ads or in-app purchases.
 
 Licensed under GPL-3.0. Based on Moonlight, with thanks to its contributors.

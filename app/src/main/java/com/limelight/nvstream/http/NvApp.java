@@ -62,7 +62,7 @@ public class NvApp {
     }
 
     public Control getControl() {
-        // Butterpollo rust/core/src/remote.rs keeps these identities stable across catalogues.
+        // Rubylight rust/core/src/remote.rs keeps these identities stable across catalogues.
         for (int offset = 1; offset <= 7; offset++) {
             if (appId == 2147483500 + offset || appId == 2147483600 + offset ||
                     ((offset == 1 || offset == 4 || offset == 5 || offset == 6) && appId == 2147483510 + offset) ||

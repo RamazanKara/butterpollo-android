@@ -442,12 +442,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         WifiManager wifiMgr = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         try {
             if (wifiMgr != null) {
-                highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Butterpollo High Perf Lock");
+                highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Rubylight High Perf Lock");
                 highPerfWifiLock.setReferenceCounted(false);
                 highPerfWifiLock.acquire();
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Butterpollo Low Latency Lock");
+                    lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Rubylight Low Latency Lock");
                     lowLatencyWifiLock.setReferenceCounted(false);
                     lowLatencyWifiLock.acquire();
                 }
@@ -1819,7 +1819,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         return;
                     }
                     if (!send) {
-                        ClipData clip = ClipData.newPlainText("Butterpollo", incoming);
+                        ClipData clip = ClipData.newPlainText("Rubylight", incoming);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             PersistableBundle extras = new PersistableBundle();
                             extras.putBoolean("android.content.extra.IS_SENSITIVE", true);

@@ -31,7 +31,7 @@ public class CrashRecordTest {
         });
         String text = CrashRecord.javaCrash(34567, 100, "12.2 (315)", 35, "Pixel 8", "main", error).text;
         assertTrue(text.contains("1970-01-01 00:00:34.567 UTC"));
-        assertTrue(text.contains("Butterpollo: 12.2 (315)"));
+        assertTrue(text.contains("Rubylight: 12.2 (315)"));
         assertTrue(text.contains("Android API: 35"));
         assertTrue(text.contains("Device model: Pixel 8"));
         assertTrue(text.contains("Thread: main"));

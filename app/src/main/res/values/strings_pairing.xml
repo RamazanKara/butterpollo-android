@@ -7,7 +7,7 @@
     <string name="pair_otp_invalid_pin">Enter the four-digit PIN from the host.</string>
     <string name="pair_otp_invalid_passphrase">Enter the passphrase you chose on the host (at least four characters).</string>
     <string name="guide_title">Connect to your PC</string>
-    <string name="guide_text">1. Start Butterpollo on your PC. Connect both devices to the same network.\n\n2. Tap your PC, or tap Add PC to add its IP address.\n\n3. Enter this app’s pairing PIN under Devices in the host’s web console.\n\nLong-press a PC for settings, details or one-time PIN pairing.</string>
+    <string name="guide_text">1. Start Rubylight on your PC. Connect both devices to the same network.\n\n2. Tap your PC, or tap Add PC to add its IP address.\n\n3. Enter this app’s pairing PIN under Devices in the host’s web console.\n\nLong-press a PC for settings, details or one-time PIN pairing.</string>
     <string name="guide_done">Got it</string>
     <string name="guide_troubleshooting">Troubleshooting</string>
 </resources>

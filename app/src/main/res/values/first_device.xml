@@ -5,7 +5,7 @@
     <string name="report_problem_details">Share recent events and the last crash record, if available, including the app version, Android API level and device model. Addresses, user-assigned device and host names, PINs, credentials and exception messages are omitted. Add what happened when sharing. Nothing is sent until you choose an app.</string>
     <string name="report_problem_share">Share problem report</string>
     <string name="report_problem_failed">Could not share the report. Check free storage and install an app that can share text files, then try again.</string>
-    <string name="crash_report_title">Butterpollo closed unexpectedly</string>
+    <string name="crash_report_title">Rubylight closed unexpectedly</string>
     <string name="crash_report_details">You can share a report with technical crash details to help diagnose the problem. Nothing is sent automatically.</string>
     <string name="crash_report_share">Share report</string>
     <string name="crash_report_not_now">Not now</string>

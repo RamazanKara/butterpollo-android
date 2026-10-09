@@ -48,7 +48,7 @@
     <string name="title_checkbox_mouse_nav_buttons">Az előre és hátra gombok engedélyezése</string>
     <string name="summary_checkbox_mouse_emulation">A Start gomb hosszan tartó megnyomásával egér üzemmódba kapcsol a gamepad</string>
     <string name="title_checkbox_mouse_emulation">Az egér emulációja a gamepadon keresztül</string>
-    <string name="summary_checkbox_usb_bind_all">A Butterpollo USB-illesztőprogramjának használata az összes támogatott játékvezérlőhöz, még akkor is, ha natív Xbox-vezérlő támogatás van jelen</string>
+    <string name="summary_checkbox_usb_bind_all">A Rubylight USB-illesztőprogramjának használata az összes támogatott játékvezérlőhöz, még akkor is, ha natív Xbox-vezérlő támogatás van jelen</string>
     <string name="title_checkbox_usb_bind_all">Natív Xbox játéktámogatás felülbírálása</string>
     <string name="summary_checkbox_xb1_driver">Beépített USB-illesztőprogramot engedélyez natív Xbox-vezérlő támogatás nélküli eszközökhöz</string>
     <string name="title_checkbox_xb1_driver">Xbox 360/One USB gamepad illesztőprogram</string>
@@ -135,7 +135,7 @@
     <string name="error_usb_prohibited">Az USB-hozzáférést az eszköz rendszergazdája tiltja. Ellenőrizze a Knox vagy az MDM beállításait.</string>
     <string name="message_decoding_reset">Az eszköz videodekóderje továbbra is összeomlik a kiválasztott adatfolyam-beállításoknál. A streamelési beállítások vissza lettek állítva az alapértelmezettre.</string>
     <string name="title_decoding_reset">Videóbeállítások visszaállítása</string>
-    <string name="message_decoding_error">A Butterpollo összeomlott az eszköz videódekóderével való inkompatibilitás miatt. Próbáld meg módosítani a streamelési beállításokat, ha az összeomlások továbbra is fennállnak.</string>
+    <string name="message_decoding_error">A Rubylight összeomlott az eszköz videódekóderével való inkompatibilitás miatt. Próbáld meg módosítani a streamelési beállításokat, ha az összeomlások továbbra is fennállnak.</string>
     <string name="title_decoding_error">A videó dekóder összeomlott</string>
     <string name="error_404">A GFE HTTP 404 hibát adott vissza. Győződj meg arról, hogy a számítógépen támogatott GPU fut. A távoli asztali szoftver használata szintén ezt a hibát okozhatja. Próbáld újraindítani a gépet, vagy telepítsd újra a GFE-t.</string>
     <string name="conn_error_title">Csatlakozási hiba</string>
@@ -161,7 +161,7 @@
     <string name="pair_pairing_msg">Kérjük, adja meg a következő PIN-kódot a cél számítógépen:</string>
     <string name="pair_pc_ingame">A számítógép jelenleg játékban van. A párosítás előtt be kell zárni a játékot.</string>
     <string name="pair_pc_offline">A számítógép nem elérhető</string>
-    <string name="nettest_text_blocked">Az eszköz jelenlegi hálózati kapcsolata blokkolja a Butterpollo-t. Előfordulhat, hogy az interneten keresztüli streamelés nem működik, ha csatlakozik ehhez a hálózathoz.</string>
+    <string name="nettest_text_blocked">Az eszköz jelenlegi hálózati kapcsolata blokkolja a Rubylight-t. Előfordulhat, hogy az interneten keresztüli streamelés nem működik, ha csatlakozik ehhez a hálózathoz.</string>
     <string name="pcview_menu_details">Részletek megtekintése</string>
     <string name="pcview_menu_delete_pc">Számítógép törlése</string>
     <string name="pcview_menu_send_wol">Wake-On-LAN kérés küldése</string>
@@ -187,7 +187,7 @@
     <string name="title_native_fps_dialog">Natív FPS figyelmeztetés</string>
     <string name="pacing_balanced">Kiegyensúlyozott</string>
     <string name="summary_full_range">Ez részletvesztést okoz a világos és sötét területeken, ha a készülék nem jeleníti meg megfelelően a teljes színtartományú videotartalmat.</string>
-    <string name="summary_privacy_policy">A Butterpollo adatvédelmi szabályzatának megtekintése</string>
+    <string name="summary_privacy_policy">A Rubylight adatvédelmi szabályzatának megtekintése</string>
     <string name="resolution_4k">4K</string>
     <string name="pacing_smoothness">Simább videó előnyben részesítése (jelentősen növelheti a késleltetést)</string>
     <string name="fps_120">120 FPS</string>
@@ -211,7 +211,7 @@
     <string name="fps_90">90 FPS</string>
     <string name="summary_checkbox_gamepad_motion_sensors">Lehetővé teszi a támogatott gazdagépek számára, hogy mozgásérzékelős adatokat kérjenek, amikor mozgásérzékelőkkel ellátott gamepadot emulálnak. A letiltás némileg csökkentheti az energia- és hálózathasználatot, ha a játékban nem használnak mozgásérzékelőket.</string>
     <string name="resolution_1080p">1080p</string>
-    <string name="summary_seekbar_deadzone">Megjegyzés: Egyes játékok nagyobb holtteret kényszeríthetnek ki, mint amire a Butterpollo be van állítva.</string>
+    <string name="summary_seekbar_deadzone">Megjegyzés: Egyes játékok nagyobb holtteret kényszeríthetnek ki, mint amire a Rubylight be van állítva.</string>
     <string name="audioconf_stereo">Sztereó</string>
     <string name="videoformat_h264always">H.264 előnyben részesítése</string>
     <string name="title_privacy_policy">Adatvédelmi irányelvek</string>

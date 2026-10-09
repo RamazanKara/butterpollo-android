@@ -4,7 +4,7 @@
     <string name="host_profile_title">%1$s streaming settings</string>
     <string name="host_profile_status_global">This PC uses your global settings. Save to give it its own.</string>
     <string name="host_profile_status_custom">This PC has its own settings. Use global settings to remove them.</string>
-    <string name="host_profile_explanation">Applies from the next stream. Host display layout and device or app policies still apply. Fractional refresh rates need a Butterpollo host; other hosts round to whole Hz. HDR, color options and codecs need compatible hardware. PyroWave needs about 280 Mbps at 720p/60.</string>
+    <string name="host_profile_explanation">Applies from the next stream. Host display layout and device or app policies still apply. Fractional refresh rates need a Rubylight host; other hosts round to whole Hz. HDR, color options and codecs need compatible hardware. PyroWave needs about 280 Mbps at 720p/60.</string>
     <string name="host_profile_resolution">Resolution (width × height)</string>
     <string name="host_profile_width">Width</string>
     <string name="host_profile_height">Height</string>

@@ -233,7 +233,7 @@ e2c7dae2 feat(video): report observed frame presentation latency
 bdd7890c feat(input): add USB DualSense feedback and adaptive triggers
 2463d3d2 test: reject stored profiles above the new 2 Gbps bitrate cap
 72bb4cf3 test: drop launch-rate assertion from the VRR query test
-fef76b44 feat: request Butterpollo VRR and allow 2 Gbps per-PC bitrate
+fef76b44 feat: request Rubylight VRR and allow 2 Gbps per-PC bitrate
 31442459 fix(lint): escape byte order mark in frontend entry parser
 1a9f6ac1 Launch games from ES-DE and other frontends; low-latency roadmap
 9564e83d test(android): retry flaky uiautomator dumps in emulator smoke

@@ -1,13 +1,13 @@
-PyroWave integration for Butterpollo Android
+PyroWave integration for Rubylight Android
 
 Android renderer adapted from joemossjr16/artemis-android-pyrowave
 https://github.com/joemossjr16/artemis-android-pyrowave/tree/387d3a5ce1e3df8d4a4d29eec5b81a7b904926a5
 GPL-3.0, as is this Moonlight-derived application (see LICENSE.txt).
-Butterpollo changes: protocol, capability checks, 10-bit/HDR, timing and lifecycle.
+Rubylight changes: protocol, capability checks, 10-bit/HDR, timing and lifecycle.
 
 PyroWave 186f0393b77f7755953b5ecde994bb1cec2e4155 (MIT)
 https://github.com/Themaister/pyrowave
-Includes the short-block fix attributed to Punktfunk by Butterpollo.
+Includes the short-block fix attributed to Punktfunk by Rubylight.
 
 Copyright (c) 2025 Hans-Kristian Arntzen
 

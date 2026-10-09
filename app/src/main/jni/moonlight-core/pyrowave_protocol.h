@@ -15,7 +15,7 @@
 extern int PyroWaveRecordsSupported;
 extern int PyroWaveRecordsEnabled;
 
-// Records shipped with Butterpollo 2.0.0-rc.1 (331b1bfaa1a0).
+// Records shipped with Rubylight 2.0.0-rc.1 (331b1bfaa1a0).
 static inline int supportsPyroWaveRecords(const char* version) {
     if (!version) return 0;
     unsigned int parts[3];

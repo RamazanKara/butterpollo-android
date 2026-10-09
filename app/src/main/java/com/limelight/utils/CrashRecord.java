@@ -84,7 +84,7 @@ final class CrashRecord {
         SimpleDateFormat date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'UTC'", Locale.ROOT);
         date.setTimeZone(TimeZone.getTimeZone("UTC"));
         String text = "Crash: " + id + "\nTime: " + date.format(new Date(timestamp)) + "\nReason: " + reason
-                + "\nButterpollo: " + singleLine(version) + "\nAndroid API: " + api + "\nDevice model: " + singleLine(model)
+                + "\nRubylight: " + singleLine(version) + "\nAndroid API: " + api + "\nDevice model: " + singleLine(model)
                 + "\nException messages, file paths and free-text diagnostics omitted.\n" + details;
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         if (bytes.length > MAX_BYTES) {

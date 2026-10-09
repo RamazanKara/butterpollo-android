@@ -5,7 +5,7 @@
 int PyroWaveRecordsSupported;
 int PyroWaveRecordsEnabled;
 
-// Moonlight common-c 874ac954 (GPL-3.0), with Butterpollo PyroWave negotiation.
+// Moonlight common-c 874ac954 (GPL-3.0), with Rubylight PyroWave negotiation.
 
 #define RTSP_CONNECT_TIMEOUT_SEC 10
 #define RTSP_RECEIVE_TIMEOUT_SEC 15

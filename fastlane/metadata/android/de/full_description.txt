@@ -1,9 +1,9 @@
-Streame deinen PC mit geringer Latenz. Butterpollo wurde für Butterpollo-Hosts entwickelt und funktioniert auch mit Sunshine und Apollo.
+Streame deinen PC mit geringer Latenz. Rubylight wurde für Rubylight-Hosts entwickelt und funktioniert auch mit Sunshine und Apollo.
 
 Nutze deinen Desktop und deine Apps auf deinem Android-Smartphone, Tablet oder Fernseher. Kopple deinen PC, öffne deine Bibliothek und starte einen Stream. Steuere alles per Touch, Controller oder mit Tastatur und Maus.
 
 Wähle eine Voreinstellung für geringe Latenz, ausgewogene Leistung, beste Qualität oder längere Akkulaufzeit. Speichere eigene Einstellungen für jeden PC. Behalte Latenz und Bildrate im kompakten Overlay im Blick. Im Stream-Menü kannst du Steuerung und Einstellungen während des Streams anpassen.
 
-Butterpollo ist kostenlos und quelloffen. Ohne Werbung und In-App-Käufe.
+Rubylight ist kostenlos und quelloffen. Ohne Werbung und In-App-Käufe.
 
 Lizenziert unter GPL-3.0. Basiert auf Moonlight, mit Dank an alle Mitwirkenden.

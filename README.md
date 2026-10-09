@@ -1,6 +1,6 @@
-# Butterpollo Android
+# Rubylight Android
 
-Butterpollo Android is a latency-focused client for [Butterpollo](https://github.com/RamazanKara/Butterpollo),
+Rubylight Android is a latency-focused client for [Rubylight](https://github.com/RamazanKara/Butterpollo),
 based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibility.
 
 - Settings grouped into **Stream**, **Controls**, **Overlay & audio** and **App**, with expert
@@ -28,21 +28,21 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
   **Copy stats** always copies all Advanced measurements. Both modes hide in PiP. Legacy Expanded
   values reset to Compact once because Android also saved that value for untouched defaults;
   newly selected Advanced preferences persist.
-- Opt-in automatic bitrate for Butterpollo H.264/HEVC/AV1 streams, saved per PC, with loss-driven
+- Opt-in automatic bitrate for Rubylight H.264/HEVC/AV1 streams, saved per PC, with loss-driven
   reductions, gradual recovery and host-cap handling. Manual bitrate selection disables it.
 - Per-frame latency overlay/CSV and Android low-latency controls under **Settings → Advanced**.
 - Native-resolution, high-refresh virtual-display requests with host render scale.
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
 - Experimental PyroWave is an explicit codec choice on compatible Vulkan devices; Auto keeps H.264/HEVC/AV1.
   PyroWave needs a fast LAN and much higher bitrate (about 280 Mbps to start at 720p/60).
-- A cancellable, explicitly started PyroWave bandwidth test for compatible paired Butterpollo hosts
+- A cancellable, explicitly started PyroWave bandwidth test for compatible paired Rubylight hosts
   downloads 32 MiB and reports HTTPS throughput and the host link speed.
 - Host processing avg/p95/p99 beside client latency, and persistent per-device identity that is
   excluded from Android backups/device transfer. Restored installations need fresh pairing.
 - Ordinary PIN or host-generated one-time PIN/passphrase pairing; UUID-aware app shortcuts,
   host library order and versioned artwork updates.
 - Foreground text clipboard transfer, permission-aware host actions and encrypted server commands.
-- Opt-in variable refresh (VRR) for Butterpollo's VRR mode: the host sends frames at the game's
+- Opt-in variable refresh (VRR) for Rubylight's VRR mode: the host sends frames at the game's
   rate and the phone shows each one right away at its highest refresh rate.
 - A stream menu for disconnect/resume, device permissions, host frame-limiter status and runtime bitrate.
 - Settings split into Video, Latency, Input, Host and App screens with a title bar, a summary of the
@@ -55,7 +55,7 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 
 See [the low-latency roadmap](docs/ROADMAP-LOWLATENCY.md) for what is measured, what is next and how this
 client compares with Moonlight and Artemis. [The host parity matrix](docs/PARITY-MATRIX.md) lists every
-Butterpollo host feature and its status here. See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
+Rubylight host feature and its status here. See [the parity audit and device-testing checklist](docs/BUTTERPOLLO_PARITY.md) for PyroWave feasibility
 findings, supported host extras and known limits. Having trouble? See [troubleshooting](docs/TROUBLESHOOTING.md)
 for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave requirements.
 
@@ -66,7 +66,7 @@ for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave r
    and extract `app-nonRoot-debug.apk`, or build it below. Android 5.0 or later is required; no root needed.
 2. Open the APK on your Android device and allow installation from your file manager when prompted,
    or run `adb install -r app-nonRoot-debug.apk` with USB debugging enabled.
-3. Start [Butterpollo](https://github.com/RamazanKara/Butterpollo) on your PC. Select the discovered
+3. Start [Rubylight](https://github.com/RamazanKara/Butterpollo) on your PC. Select the discovered
    host (or use **Add PC** to enter its address), then enter the displayed PIN in **Devices** in the host
    web console. Grant this device the desired list, launch and input permissions there.
 4. Launch an app. Android **Back**, or **Ctrl+Alt+Shift+M** on a keyboard, opens the stream menu.
@@ -89,7 +89,7 @@ adb install -r butterpollo.apk
 Create the keystore once and keep it for updates; tools prompt for its password. See Android's
 [APK signing instructions](https://developer.android.com/tools/apksigner). CI has no signing secrets.
 Debug builds from different CI runs may use different keys; switching keys requires uninstalling
-the old app (which removes its settings and pairing identity). Butterpollo installs alongside Moonlight.
+the old app (which removes its settings and pairing identity). Rubylight installs alongside Moonlight.
 
 ## Building
 
@@ -161,5 +161,5 @@ Moonlight is the work of students at [Case Western](http://case.edu) and was
 started as a project at [MHacks](http://mhacks.org).
 
 Apollo extension behavior was cross-checked against [Artemis Android](https://github.com/ClassicOldSong/moonlight-android)
-by ClassicOldSong and contributors (GPL-3.0), with Butterpollo Rust protocol differences handled explicitly.
+by ClassicOldSong and contributors (GPL-3.0), with Rubylight protocol differences handled explicitly.
 Moonlight attribution and the [GPL-3.0 license](LICENSE.txt) are retained.

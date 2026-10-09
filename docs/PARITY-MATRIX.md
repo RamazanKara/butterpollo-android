@@ -1,7 +1,7 @@
-# Butterpollo host ↔ Android parity matrix
+# Rubylight host ↔ Android parity matrix
 
 Host comparison baseline (2026-10-08): the host's `main` at
-[Butterpollo `2cbb513`](https://github.com/RamazanKara/Butterpollo/tree/2cbb513) (rc.24 released,
+[Rubylight `2cbb513`](https://github.com/RamazanKara/Butterpollo/tree/2cbb513) (rc.24 released,
 rc.25 changes on `main`). The host was only read. Detailed evidence, protocol notes and the real-device
 checklist stay in [BUTTERPOLLO_PARITY.md](BUTTERPOLLO_PARITY.md); this page is the short status.
 Client gap follow-up on 2026-10-09 also inspected the read-only local host reference
@@ -43,7 +43,7 @@ lifecycle and real network/controller checks remain open in the device checklist
 | App list, UUIDs, order, artwork versions | Done | Host reuses the numeric ID as artwork token (host side). |
 | Launch, resume, quit, reconnect without quitting | Done | — |
 | Remote Monitor and Input-only tiles | Done in code: accessible role/action labels; expanding role badges; monitor is view-only; Input-only skips media decoders/watchdogs; scoped disconnect and explicit Material 3 confirmation for replacement/termination | Role/confirmation unit tests cover cancellation, interruption, expiry, denial and unknown 410s. Verify ownership/rejoin with two paired clients. Host 410 is an XML status inside an HTTP 200 response. |
-| Runtime bitrate and automatic bitrate | Done in code for Butterpollo, including decode-budget/headroom checks for ordinary codecs and a separate opt-in PyroWave controller (loss, queueing and decode time). Menus/host actions reset recovery streaks | Verify sustained congestion/recovery on a phone; the host runtime cap is 500 Mbps. |
+| Runtime bitrate and automatic bitrate | Done in code for Rubylight, including decode-budget/headroom checks for ordinary codecs and a separate opt-in PyroWave controller (loss, queueing and decode time). Menus/host actions reset recovery streaks | Verify sustained congestion/recovery on a phone; the host runtime cap is 500 Mbps. |
 | Clipboard text and server commands | Done (manual, permission-checked) | — |
 | Frame limiter state | Shown in the stream menu | — |
 | Host processing time | Overlay and CSV avg/p95/p99 | Decode→present timing: prompt 1. |

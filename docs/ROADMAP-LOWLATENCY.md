@@ -1,10 +1,10 @@
 # Roadmap: the lowest-latency Android streaming client
 
-Goal (owner, 2026-10-08): Butterpollo Android supports PyroWave, is the best low-latency Android
+Goal (owner, 2026-10-08): Rubylight Android supports PyroWave, is the best low-latency Android
 game-streaming client available, and works with frontends such as ES-DE.
 
 Target devices are 2024-model phones and newer (Snapdragon 8 Gen 3/Elite, Dimensity 9300+,
-Tensor G4+, Exynos 2400+), Wi-Fi 6/6E/7 or USB Ethernet, and the Butterpollo host on an RX 7900 XT.
+Tensor G4+, Exynos 2400+), Wi-Fi 6/6E/7 or USB Ethernet, and the Rubylight host on an RX 7900 XT.
 Older phones keep working through the normal codecs; they are not tuned or tested.
 
 Every latency claim below must come from a measurement on a real phone against the real host,
@@ -26,7 +26,7 @@ using the per-frame CSV and host processing numbers. Nothing ships on reasoning 
 
 Checked against each project's own docs on 2026-10-08.
 
-| | Moonlight Android | Artemis | Butterpollo Android |
+| | Moonlight Android | Artemis | Rubylight Android |
 | --- | --- | --- | --- |
 | H.264 / HEVC / AV1, HDR10 | Yes | Yes | Yes |
 | PyroWave (wavelet intra-only codec, 200+ Mbps LAN) | No | Only in the unofficial artemis-android-pyrowave fork | Built in, explicit opt-in, HDR and 4:4:4 |

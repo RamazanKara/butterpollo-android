@@ -1,4 +1,4 @@
-# Butterpollo Android parity — client gap follow-up
+# Rubylight Android parity — client gap follow-up
 
 > The current one-page status against the host's `main` is [PARITY-MATRIX.md](PARITY-MATRIX.md).
 > This file keeps the detailed evidence and the real-device checklist.
@@ -19,7 +19,7 @@ The read-only local host reference was [118a0abb](https://github.com/RamazanKara
 only this client changed.
 
 Re-audited on 2026-10-08 against the read-only host checkout at
-[Butterpollo `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Butterpollo/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
+[Rubylight `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Butterpollo/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
 Remote HEAD was [rc.22 `3e264545e75d5da238b150dfca214825f7a4a1ec`](https://github.com/RamazanKara/Butterpollo/tree/3e264545e75d5da238b150dfca214825f7a4a1ec);
 the [comparison](https://github.com/RamazanKara/Butterpollo/compare/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b...3e264545e75d5da238b150dfca214825f7a4a1ec)
 contains release/version documentation only, with no protocol changes. The host checkout was not changed.
@@ -36,7 +36,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Per-host, per-app and per-device settings | Client launch parameters; host merges stream/input/display/encoder overrides, prep/undo commands, `APOLLO_*` environment | Local per-host stream profiles now save custom dimensions, refresh, bitrate, render scale, virtual display, HDR/range/chroma and codec choice. Host app/device policy applies normally. Editing the host's profiles, permissions or app settings requires its separate authenticated administration API; no native admin editor. |
 | Per-device virtual display | `VirtualDisplayCapable`, `VirtualDisplayDriverReady`, `virtualDisplay=1`; certificate-derived stable display identity | New opt-in request, sent only when advertised and driver not reported unavailable; otherwise a notice and host policy fallback. Shared/off/layout/forced-output policy stays host controlled. |
 | Native resolution and render scale | `mode=WIDTHxHEIGHTxRATE`, SDP viewport, `scaleFactor` | Native portrait/landscape/fullscreen choices and per-host custom dimensions. Per-host render scale accepts 50–200%, default 100%, with the virtual-display request. Stream viewport is unchanged by render scale. |
-| High/fractional refresh | Integer/decimal launch rate, SDP `maxFPS`, `clientRefreshRateX100` | Per-host explicit refresh to 0.01 Hz is sent to Butterpollo. Without an override, matching panel refresh still supplies fractional precision. Sunshine/Apollo retain integer launch syntax; configured high rates remain available subject to device capability. |
+| High/fractional refresh | Integer/decimal launch rate, SDP `maxFPS`, `clientRefreshRateX100` | Per-host explicit refresh to 0.01 Hz is sent to Rubylight. Without an override, matching panel refresh still supplies fractional precision. Sunshine/Apollo retain integer launch syntax; configured high rates remain available subject to device capability. |
 | Desktop DPI, layout, mode overrides | Host `dd_virtual_display_scale`, per-device `display_mode`, layouts, HDR profiles, retained displays | Host configured; no client DPI field. `scaleFactor` scales render pixels, **not** Android density or Windows text size. Host/app overrides can supersede requested geometry/rate. |
 | H.264 / HEVC / AV1 SDR | `ServerCodecModeSupport`, RTSP codec markers | Existing hardware MediaCodec paths and software-decoder exclusions retained. Stock Sunshine/Apollo/GFE fallback retained. |
 | HEVC / AV1 HDR10 | Main10 flags, launch `hdrMode`, SDP `dynamicRangeMode`; ten-bit BT.2020/PQ | Negotiates a common HDR codec, preferring HDR over a higher-priority SDR codec. Requires HDR10 display and HDR-capable decoder. HDR10+ decoder profiles also qualify for static HDR10; no dynamic HDR10+ claim. Auto can discover AV1 for HDR. |
@@ -71,15 +71,15 @@ and [MediaFormat HDR/color keys](https://developer.android.com/reference/android
 ## Milestone 7: client features and current limits
 
 This round prioritizes per-host stream setup, usable in-stream controls, recovery, network adaptation
-and the advertised pairing/library extensions. It does not establish complete Butterpollo parity.
+and the advertised pairing/library extensions. It does not establish complete Rubylight parity.
 Capabilities in the table describe source implementation; the real-device checks below are still required.
 
 ### Comparison with the requested clients
 
 The comparison was checked against the projects' primary documentation on 2026-10-08. Their feature
-lists describe their own products; the Butterpollo column is based on this repository's code.
+lists describe their own products; the Rubylight column is based on this repository's code.
 
-| Reference | Relevant baseline | Butterpollo Android status |
+| Reference | Relevant baseline | Rubylight Android status |
 | --- | --- | --- |
 | [Moonlight Android input guide](https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide#keyboardmousegamepad-input-options) and [source](https://github.com/moonlight-stream/moonlight-android) | Android controller mappings, direct/trackpad mouse emulation, external keyboards/mice and shortcut controls. | These inherited paths remain. Multiple pads use the existing 16-slot client mask, subject to host/driver limits; no claim that 16 physical pads were tested. Existing Wi-Fi locks, Wake-on-LAN, pinned shortcuts, TV channels, OSC layout storage and PiP remain. The stream menu now makes touch mode, OSC editing, keyboard, overlay and reconnect easy to reach. |
 | [Artemis Android feature list](https://github.com/ClassicOldSong/moonlight-android#features) | Custom resolutions/bitrates, mouse-mode switching, a game menu, virtual displays, server commands and clipboard; additional custom virtual buttons, external-monitor and desktop-use tools. | Per-host dimensions/refresh/bitrate, native touch, a local menu, virtual-display requests and existing manual clipboard/server commands cover the principal streaming overlaps. General custom virtual-button bindings/import/export, pan/zoom, dedicated external-monitor workflows and SBS 3D are not added. |
@@ -104,7 +104,7 @@ their existing three-finger keyboard gesture.
   render scale, codec including PyroWave, virtual display, HDR, full range and 4:4:4. Saving a profile
   does not change the host's administrator settings. Hardware checks and host policy can still reject
   or override the request; accepted input ranges are not decoder/display capability guarantees.
-- The host's explicit fractional rate wins over Android panel matching on Butterpollo. Sunshine and
+- The host's explicit fractional rate wins over Android panel matching on Rubylight. Sunshine and
   Apollo continue receiving rounded integer launch rates. Render scale is sent with an available
   virtual-display request; it changes host render pixels, not Android density or desktop DPI.
 - The local stream menu opens without waiting for host HTTP. Overlay, touch mode, keyboard, OSC,
@@ -112,7 +112,7 @@ their existing three-finger keyboard gesture.
   the old connection before starting a new activity/session; it does not quit the host application.
   Transport errors offer reconnect. Touch cancellation and input release prevent the new menu paths
   from leaving emulated input held; hardware/OEM behavior still needs the checks below.
-- Automatic bitrate is opt-in and saved per host, available on Butterpollo. For ordinary codecs it
+- Automatic bitrate is opt-in and saved per host, available on Rubylight. For ordinary codecs it
   samples recent video/network loss, completed decode time and common-c poor-connection status once per second, waits
   through transient bad samples, reduces by 20% no faster than every five seconds, then increases
   slowly after 15 healthy seconds with at least 25% decode headroom. Missing decode measurements prevent
@@ -158,7 +158,7 @@ their existing three-finger keyboard gesture.
 | Remote Monitor, Remote Input and control-tile lifecycle | Implemented role-specific media/input gating, scoped disconnect and explicit confirmation. Replacement/Terminate XML 410 challenges require a user decision within 60 seconds, retry at most once and cancel on background/stop. Completion messages are distinguished from errors. Verify persistence/rejoin and two-client ownership on hardware. |
 | Axis mapping and advanced feedback | Axis mapping remains outside the current digital-mapping UI. USB-driver digital remapping is implemented and unit-tested. USB DualSense/Edge feedback is wired through common-c/JNI to physical USB reports, including opaque rc.23+ trigger payloads. Bluetooth adaptive triggers and USB audio haptics are not claimed. |
 | Other Artemis desktop conveniences | Arbitrary virtual-button bindings/import/export, automatic clipboard sync, view pan/zoom, external-monitor-specific UI and SBS 3D remain absent. Manual foreground text clipboard is intentional current behavior. No claim of every Artemis feature being reproduced. |
-| Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain startup bitrate. PyroWave has its own loss/queue/decode policy. Automatic resolution/codec switching remains unimplemented. |
+| Automatic bitrate on other hosts | Only the verified Rubylight runtime API is used; stock Sunshine/Apollo retain startup bitrate. PyroWave has its own loss/queue/decode policy. Automatic resolution/codec switching remains unimplemented. |
 
 ### Client follow-up evidence and UI audit
 
@@ -304,7 +304,7 @@ arm64-only APK (`-PabiFilters=arm64-v8a`) and publishes it with the screenshots 
 
 The following still require real Android hardware and a host; passing synthetic tests is insufficient:
 
-1. **Pairing/identity/permissions:** pair two installations with Butterpollo rc.22 and stock
+1. **Pairing/identity/permissions:** pair two installations with Rubylight rc.22 and stock
    Sunshine/Apollo; verify distinct host device/display identities, upgrades, restore-to-new-device,
    unpair/re-pair and certificate rejection. Exercise correct, wrong and expired OTP/passphrase,
    ordinary PIN pairing, permissions disabled/re-enabled/revoked mid-session, and View/Launch without
@@ -346,7 +346,7 @@ The following still require real Android hardware and a host; passing synthetic 
 
 9. **PyroWave records and rate control:** on the phone choose Video → Prefer PyroWave and start
    1280×720/60, then 1920×1080/120 if supported, first over USB Ethernet and then Wi-Fi. With a compatible
-   Butterpollo host confirm SDP `pyrowaveFeatures=1` and `186f0393`. On a controlled test link lose/reorder
+   Rubylight host confirm SDP `pyrowaveFeatures=1` and `186f0393`. On a controlled test link lose/reorder
    packets (including first, middle and last packets and a burst spanning a FEC block). Check surviving
    regions keep updating, affected regions recover with later records, and reconnect clears old imagery.
    Loss need not equal exactly one visible 64×64 block: one datagram can carry several records.
@@ -441,7 +441,7 @@ with common-c [`c9994368`](https://github.com/ClassicOldSong/moonlight-common-c/
 Its GPL-3.0 license permits reuse. This implementation follows its protocol approach, retains
 Moonlight attribution, and leaves the pinned common-c submodule unchanged.
 
-Butterpollo Rust requires exactly one command-index byte; Apollo uses that byte plus three zeros.
+Rubylight requires exactly one command-index byte; Apollo uses that byte plus three zeros.
 A local native translation unit shares the core's encryption, sequence numbering, ENet mutex and
 reliable delivery. Empty command names preserve their index. Commands are refreshed before sending;
 changed names/indices require reopening the menu. The UI reports sending, not successful execution.
@@ -455,7 +455,7 @@ Runtime bitrate is exposed only for `RustHostVersion` hosts, without probing sto
 
 Settings now group Display, Latency, and Codec and color, preserving keys, values and hardware gates.
 Defaults remain 720p/60, auto codec, minimum-latency pacing, supported decoder low-latency hints,
-SurfaceView, and opt-in HDR/4:4:4/virtual displays. Butterpollo has a vector/adaptive icon and the
+SurfaceView, and opt-in HDR/4:4:4/virtual displays. Rubylight has a vector/adaptive icon and the
 existing separate `com.butterpollo.client` package. README covers debug install and local release signing.
 The two Ubuntu/JDK 17 workflows use two Gradle workers/native jobs and 15-minute timeouts: debug +
 tests on `main`/manual dispatch; unsigned release + tests and release attachment on `v*` tags.
@@ -473,8 +473,8 @@ Milestone 5 real-device checks, in addition to the earlier streaming checklist b
 
 - Install debug and locally signed release APKs on Android 5+, current Android and Android TV.
   Inspect legacy/adaptive/themed icons, pairing/discovery text, settings and HDR filtering; verify
-  same-key updates retain settings/pairing and Butterpollo coexists with Moonlight.
-- Pair with Butterpollo, Sunshine and Apollo. Exercise independent list/view/launch/input masks,
+  same-key updates retain settings/pairing and Rubylight coexists with Moonlight.
+- Pair with Rubylight, Sunshine and Apollo. Exercise independent list/view/launch/input masks,
   zero permissions, revocation and re-enabling; check input-disabled notices and quit restrictions.
   Check ordinary and synthetic resume tiles. Full remote-monitor/input-only lifecycle UX remains deferred.
 - Open, navigate and dismiss the menu with touch Back, TV remote and keyboard shortcut. Verify
@@ -483,7 +483,7 @@ Milestone 5 real-device checks, in addition to the earlier streaming checklist b
 - Transfer Unicode, multiline and empty text in both directions; test independent permissions,
   non-text clips, size/OEM limits, clipboard contention, denied/expired sessions, sensitive previews,
   and absence of clipboard contents in logcat.
-- Run commands at indices 0, 1 and 255 on Butterpollo and Apollo, including unnamed entries,
+- Run commands at indices 0, 1 and 255 on Rubylight and Apollo, including unnamed entries,
   reordered lists, permission/app-level denial, rapid repeats, packet loss and disconnect. Verify
   exactly the selected command runs; there is no host execution acknowledgment.
 - Change runtime bitrate and verify encoder rate/host caps, failure after session termination,
@@ -509,7 +509,7 @@ Both ARM64 and x86-64 libraries were rebuilt with Windows NDK 29, rather than co
 Pinned dependency sources: PyroWave `186f0393b77f7755953b5ecde994bb1cec2e4155`, Granite
 `b6cffd5ce81f540f0855e6778428483e14763d9b`, volk `47cddf7ed97b94118a08aacb548a411188e016cc`,
 Vulkan-Headers `6802bb4733b63ed5efd3adb308a6c885ef180ea1`. The decoder short-block patch from
-Butterpollo `6772d401` is retained in `jni/pyrowave-renderer/patches/`. Sources/headers are MIT;
+Rubylight `6772d401` is retained in `jni/pyrowave-renderer/patches/`. Sources/headers are MIT;
 the small Android renderer and common-c integration remain GPL-3.0.
 
 ### Negotiation and output
@@ -533,7 +533,7 @@ the small Android renderer and common-c integration remain GPL-3.0.
 - Native RTSP requires `PYROWAVE/90000` and the exact `x-ss-pyrowave.bitstream:186f0393` attribute.
   Missing/different IDs select AV1/HEVC/H.264. SDP sends `bitStreamFormat=3`, the selected chroma and
   HDR flags. It deliberately omits **both** `pyrowaveAdaptiveFec` and `pyrowaveFeatures`; even a zero
-  adaptive-FEC attribute selects a different framing protocol on Butterpollo.
+  adaptive-FEC attribute selects a different framing protocol on Rubylight.
 - The ordinary core FEC/depacketizer supplies complete opaque frames with its eight-byte short
   header and trailing FEC padding removed. The renderer accepts little-endian packet count/lengths,
   validates exact boundaries and block sizes, then feeds the packets to the pinned decoder. It does
@@ -541,7 +541,7 @@ the small Android renderer and common-c integration remain GPL-3.0.
   frames are discarded, and the next complete intra frame recovers. The core submodule remains pinned;
   `android_rtsp.c` and `android_sdp.c` are attributed copies of its two modified translation units.
 - Eight-bit output uses R8_UNORM planes; ten-bit output uses **R16_UNORM** throughout the decoded
-  planes, including full-size chroma for 4:4:4. The shader matches Butterpollo's code/1023 encoding,
+  planes, including full-size chroma for 4:4:4. The shader matches Rubylight's code/1023 encoding,
   64–940 luma, midpoint 512/scale 896 chroma, optional full range, centred 4:2:0, and BT.709 SDR or
   BT.2020 non-constant-luminance HDR. HDR RGB remains PQ encoded, with no sRGB framebuffer conversion.
 - HDR requires an A2B10G10R10 or A2R10G10B10 UNORM + `HDR10_ST2084_EXT` surface pair,
@@ -667,7 +667,7 @@ were not run.
    Find the APK under `app/build/intermediates/apk/nonRoot/debug/` with AGP 9.4, then
    `adb -s SERIAL install -r app/build/intermediates/apk/nonRoot/debug/app-nonRoot-debug.apk`.
 2. On a Vulkan 1.3 Adreno and a Mali/Immortalis device, set Codec **Prefer PyroWave**,
-   enable the performance overlay, and start at 1280×720/60. Pair with Butterpollo built with its
+   enable the performance overlay, and start at 1280×720/60. Pair with Rubylight built with its
    `186f0393` PyroWave encoder. Use adequate LAN bitrate (e.g. 200,000 kbps on gigabit Ethernet).
    Capture `adb -s SERIAL logcat -v threadtime` to a file during the run. Verify the PyroWave surface
    preparation and selected decode path logs, actual codec/chroma in the overlay, and host SDP
@@ -719,7 +719,7 @@ of this run is an explicit negotiation exclusion, fallback regression tests and 
 not a completed decoder or an assertion that the task's mobile-infeasibility condition was met.
 
 On 2026-10-07, cloned the latest
-[Butterpollo `6772d4019c0837e372b801637f3bf1b57bea2765`](https://github.com/RamazanKara/Butterpollo/tree/6772d4019c0837e372b801637f3bf1b57bea2765)
+[Rubylight `6772d4019c0837e372b801637f3bf1b57bea2765`](https://github.com/RamazanKara/Butterpollo/tree/6772d4019c0837e372b801637f3bf1b57bea2765)
 with `git clone --depth 1` into a temporary directory outside this repository; it was only read.
 Also inspected current upstream
 [PyroWave `c0b997f84ced7bd827ca737aa5145f4ec811de8d`](https://github.com/Themaister/pyrowave/tree/c0b997f84ced7bd827ca737aa5145f4ec811de8d)
@@ -793,7 +793,7 @@ use separate client and server namespaces:
 | HDR10 4:4:4 | `0x080000` | `0x04000000` |
 
 `NvConnection.negotiateVideoFormats()` now excludes these unimplemented client codec families
-before the native handshake. The synthetic Butterpollo serverinfo fixture advertises all four
+before the native handshake. The synthetic Rubylight serverinfo fixture advertises all four
 alongside conventional HEVC/AV1 HDR (`0x07830301`). Tests verify AV1 HDR, HEVC HDR, SDR/H.264 fallback,
 and that PyroWave HDR/4:4:4 bits do not create conventional HDR/4:4:4 support. Existing native RTSP
 still chooses AV1, HEVC or H.264 from the ordinary host markers. No PyroWave setting or capability
@@ -832,7 +832,7 @@ Before enabling PyroWave, real-device testing must cover:
 - Ten-bit ramps and fine 4:4:4 colour text on an HDR panel against the host reference: limited/full
   range, BT.2020/PQ, black/white levels, no eight-bit intermediate, mastering/MaxCLL/MaxFALL metadata,
   missing/changed metadata and ten-bit SDR. Verify the actual SurfaceView swapchain and display output.
-- Current Butterpollo container and record modes, bitstream mismatch, malformed/short/duplicate records,
+- Current Rubylight container and record modes, bitstream mismatch, malformed/short/duplicate records,
   packet loss/reorder/FEC and reconnects. Repeat HEVC/AV1/H.264 fallback with stock Sunshine/Apollo hosts.
 - Actual frame completions at 720p/1080p and native resolution, 60/120/240 Hz where supported, including
   sustained thermals. Record milestone 1 input-to-output avg/p95/p99 and per-frame CSV using completed

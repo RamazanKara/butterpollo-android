@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 public final class HostStreamProfile {
     private static final String PREFERENCES = "HostStreamProfiles";
-    // Butterpollo accepts up to 2 Gbps at stream setup; PyroWave's clean 4K60 needs about 1.6 Gbps.
+    // Rubylight accepts up to 2 Gbps at stream setup; PyroWave's clean 4K60 needs about 1.6 Gbps.
     static final int MAX_BITRATE_KBPS = 2000000;
 
     public final int width, height, refreshRateX100, bitrate, renderScale;

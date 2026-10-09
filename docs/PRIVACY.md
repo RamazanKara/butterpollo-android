@@ -1,15 +1,15 @@
-# Butterpollo privacy
+# Rubylight privacy
 
-Applies to Butterpollo for Android 0.4.0.
+Applies to Rubylight for Android 0.4.0.
 
-Butterpollo streams your PC's desktop, apps, video and audio directly to your
+Rubylight streams your PC's desktop, apps, video and audio directly to your
 Android device. Your controls and any clipboard text you choose to send go to
-your PC. Butterpollo does not operate a streaming relay, advertising service,
+your PC. Rubylight does not operate a streaming relay, advertising service,
 analytics service or automatic crash-report upload service.
 
 ## What stays on your device
 
-Butterpollo stores saved and paired hosts, including their names, addresses,
+Rubylight stores saved and paired hosts, including their names, addresses,
 identifiers and host certificates. It also stores the client certificate and
 private key used for pairing, a locally generated client identifier, app and
 per-PC settings, controller mappings, and cached app lists and artwork.
@@ -38,7 +38,7 @@ site and your browser apply their own privacy practices.
 
 ## Sharing a problem or crash report
 
-Butterpollo does not automatically send problem or crash reports. A report is
+Rubylight does not automatically send problem or crash reports. A report is
 shared only after you choose Share and select a receiving app in Android's
 share sheet. Canceling the sheet does not share the report. The report omits
 addresses, user-assigned host names, PINs, credentials and free-text diagnostic
@@ -52,10 +52,10 @@ latency files, may be backed up or transferred by Android. Client certificates,
 private keys, the client identifier and preferences are excluded. Crash records
 and temporary report files are kept outside Android backup.
 
-Remove a saved PC in Butterpollo to remove its saved-host entry. Revoke pairing
-on the PC to remove that device's access there. Clear Butterpollo's app storage
+Remove a saved PC in Rubylight to remove its saved-host entry. Revoke pairing
+on the PC to remove that device's access there. Clear Rubylight's app storage
 or uninstall it to remove its local data. Separately delete any exported logs,
 shared reports or Android backups using the app or service holding them.
 
-Butterpollo has no developer-hosted user account to delete. For questions about
-this policy, use the contact details on the Butterpollo store listing.
+Rubylight has no developer-hosted user account to delete. For questions about
+this policy, use the contact details on the Rubylight store listing.

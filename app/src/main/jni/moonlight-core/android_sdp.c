@@ -2,7 +2,7 @@
 #include <inttypes.h>
 #include "pyrowave_protocol.h"
 
-// Moonlight common-c 874ac954 (GPL-3.0), with Butterpollo PyroWave negotiation.
+// Moonlight common-c 874ac954 (GPL-3.0), with Rubylight PyroWave negotiation.
 
 #define MAX_OPTION_NAME_LEN 128
 

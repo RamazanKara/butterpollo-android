@@ -26,7 +26,7 @@ SERIAL = "emulator-5554"
 PACKAGE = "com.butterpollo.client"
 SHOTS = ROOT / "docs/screenshots/ui-v2"
 LOGS = ROOT / "app/build/emulator-smoke"
-HOST_NAME = "Butterpollo smoke fixture"
+HOST_NAME = "Rubylight smoke fixture"
 DEBUGGABLE = True
 
 
@@ -206,7 +206,7 @@ def capture_ui_set(width, font):
     tap("Navigate up")
     tap("Navigate up")
     tap(HOST_NAME)
-    find("Pair Butterpollo Android")
+    find("Pair Rubylight Android")
     screenshot(prefix + "-pairing-pin")
     tap("android:id/button2")
     find(HOST_NAME)
@@ -364,7 +364,7 @@ def main():
             screenshot("16-otp-pairing")
             tap("android:id/button2")
             host_menu("View details")
-            find("Butterpollo 2.0.0")
+            find("Rubylight 2.0.0")
             screenshot("15-host-details")
             tap("android:id/button1")
             open_host_profile()
@@ -515,8 +515,8 @@ def main():
             find(HOST_NAME)
             for name, contents, message, shot in (
                     ("malformed", "This is not a game entry.\n",
-                     "This game file can't be opened. Add the games again from Butterpollo.", "17-frontend-malformed"),
-                    ("unknown-host", "# Butterpollo game entry\n"
+                     "This game file can't be opened. Add the games again from Rubylight.", "17-frontend-malformed"),
+                    ("unknown-host", "# Rubylight game entry\n"
                      "[host_uuid] 00000000-0000-4000-8000-000000000007\n"
                      "[host_name] Unknown smoke PC\n[app_uuid] 00000000-0000-4000-8000-000000000008\n"
                      "[app_name] Smoke game\n[app_id] 123\n", "PC not found", "18-frontend-unknown-host")):

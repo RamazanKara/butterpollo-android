@@ -13,7 +13,7 @@
     <string name="host_details_running_app">An app is running (ID %1$d)</string>
     <string name="host_details_host">Host</string>
     <string name="host_details_software">Host software</string>
-    <string name="host_details_software_butterpollo">Butterpollo %1$s</string>
+    <string name="host_details_software_butterpollo">Rubylight %1$s</string>
     <string name="host_details_software_gamestream">NVIDIA GameStream</string>
     <string name="host_details_software_other">Sunshine-compatible host</string>
     <string name="host_details_id">Host ID</string>
