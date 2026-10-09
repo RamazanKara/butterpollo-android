@@ -1,7 +1,7 @@
 <resources>
-    <color name="accent">#715800</color>
+    <color name="accent">#C41242</color>
     <color name="on_accent">#FFFFFF</color>
-    <color name="accent_container">#FBE7AB</color>
+    <color name="accent_container">#FDE6EC</color>
     <color name="surface">#F7F9FA</color>
     <color name="surface_container">#E8EEF1</color>
     <color name="on_surface">#172328</color>
