@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="report_problem">Report a problem</string>
-    <string name="report_problem_summary">Share a redacted log of recent connection and controller events.</string>
-    <string name="report_problem_details">Share a small text log from this app session, plus the app version and Android API level. Addresses, host and device names, PINs, credentials and raw host responses are omitted. Add what happened and your phone model when sharing. Nothing is sent until you choose an app.</string>
+    <string name="report_problem_summary">Share redacted recent events and the last crash record.</string>
+    <string name="report_problem_details">Share recent events and the last crash record, if available, including the app version, Android API level and device model. Addresses, user-assigned device and host names, PINs, credentials and exception messages are omitted. Add what happened when sharing. Nothing is sent until you choose an app.</string>
     <string name="report_problem_share">Share problem report</string>
     <string name="report_problem_failed">Could not share the report. Check free storage and install an app that can share text files, then try again.</string>
+    <string name="crash_report_title">Butterpollo closed unexpectedly</string>
+    <string name="crash_report_details">You can share a report with technical crash details to help diagnose the problem. Nothing is sent automatically.</string>
+    <string name="crash_report_share">Share report</string>
+    <string name="crash_report_not_now">Not now</string>
     <string name="stream_restore_help">The previous stream was interrupted. Open your PC and resume the game to reconnect.</string>
     <string name="stream_presets">Streaming presets</string>
     <string name="stream_presets_summary">Apply Balanced, Low latency, Best quality or Battery saver settings.</string>

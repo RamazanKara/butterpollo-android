@@ -30,7 +30,7 @@ public final class ProblemReport {
                 .show();
     }
 
-    private static void share(Activity activity) {
+    static void share(Activity activity) {
         try {
             File directory = new File(activity.getCacheDir(), "reports");
             if (!directory.isDirectory() && !directory.mkdirs()) {
@@ -39,8 +39,8 @@ public final class ProblemReport {
             File report = new File(directory, "butterpollo-problem.txt");
             String text = "Butterpollo " + BuildConfig.VERSION_NAME + " / Android API " + Build.VERSION.SDK_INT
                     + "\nRedacted event log for this app process, oldest first (up to 200 entries)."
-                    + "\nAddresses, device/host names, PINs, credentials and free-text diagnostic details are omitted.\n\n"
-                    + LimeLog.getRedactedLog() + "\n";
+                    + "\nAddresses, user-assigned device/host names, PINs, credentials and free-text diagnostic details are omitted.\n\n"
+                    + LimeLog.getRedactedLog() + "\n\nLast crash record:\n" + CrashCapture.lastReport(activity);
             try (FileOutputStream output = new FileOutputStream(report)) {
                 output.write(text.getBytes(StandardCharsets.UTF_8));
             }
