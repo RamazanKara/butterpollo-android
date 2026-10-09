@@ -228,7 +228,8 @@ public final class HostStreamSettings extends AppCompatActivity {
             }
             findPreference("upscaling").setSummary(upscaling);
             findPreference("sharpness").setSummary(getString(R.string.upscaling_sharpness_value, draft.upscalingSharpness));
-            findPreference("sharpness").setEnabled(draft.upscalingMode == UpscalingPolicy.Mode.FSR1);
+            findPreference("sharpness").setEnabled(draft.upscalingMode == UpscalingPolicy.Mode.FSR1 ||
+                    draft.upscalingMode == UpscalingPolicy.Mode.SGSR1);
             findPreference("scale").setSummary(draft.virtualDisplayScale + "%");
             findPreference("scale").setEnabled(draft.virtualDisplay);
             ((MaterialSwitchPreference) findPreference("hdr")).setChecked(draft.enableHdr);

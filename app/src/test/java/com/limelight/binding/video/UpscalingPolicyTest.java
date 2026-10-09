@@ -10,7 +10,7 @@ public class UpscalingPolicyTest {
     @Test
     public void onlySmallerSdrMediaCodecStreamsUseTheGpu() {
         assertEquals(DISABLED, decision(OFF, 1280, 720, 1920, 1080, false, false, true));
-        for (UpscalingPolicy.Mode mode : new UpscalingPolicy.Mode[] {BILINEAR, FSR1}) {
+        for (UpscalingPolicy.Mode mode : new UpscalingPolicy.Mode[] {BILINEAR, FSR1, SGSR1}) {
             assertEquals(NONE, decision(mode, 1280, 720, 1920, 1080, false, false, true));
             assertEquals(NONE, decision(mode, 1920, 1080, 2560, 1440, false, false, true));
             assertEquals(HDR, decision(mode, 1280, 720, 1920, 1080, true, false, true));
@@ -23,6 +23,7 @@ public class UpscalingPolicyTest {
         assertEquals(OFF, UpscalingPolicy.Mode.fromPreference("unknown"));
         assertEquals(OFF, UpscalingPolicy.Mode.fromPreference(null));
         assertEquals(FSR1, UpscalingPolicy.Mode.fromPreference("fsr1"));
+        assertEquals(SGSR1, UpscalingPolicy.Mode.fromPreference("sgsr1"));
     }
 
     private UpscalingPolicy.Reason decision(UpscalingPolicy.Mode mode, int width, int height,

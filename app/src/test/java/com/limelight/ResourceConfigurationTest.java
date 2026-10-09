@@ -1,5 +1,7 @@
 package com.limelight;
 
+import com.limelight.binding.video.UpscalingPolicy;
+
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -20,6 +22,26 @@ public class ResourceConfigurationTest {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
         return factory.newDocumentBuilder().parse(new File("src/main", path));
+    }
+
+    @Test
+    public void upscalingLabelsAndValuesMatchGlobalHostAndOverlayModeOrder() throws Exception {
+        UpscalingPolicy.Mode[] modes = UpscalingPolicy.Mode.values();
+        NodeList arrays = read("res/values/arrays.xml").getElementsByTagName("string-array");
+        int checked = 0;
+        for (int i = 0; i < arrays.getLength(); i++) {
+            Element array = (Element) arrays.item(i);
+            String name = array.getAttribute("name");
+            if (!name.equals("upscaling_names") && !name.equals("upscaling_values")) continue;
+            NodeList items = array.getElementsByTagName("item");
+            assertEquals(modes.length, items.getLength());
+            for (int j = 0; j < items.getLength(); j++) {
+                assertEquals((name.equals("upscaling_names") ? "@string/upscaling_" : "") + modes[j].value,
+                        items.item(j).getTextContent());
+            }
+            checked++;
+        }
+        assertEquals(2, checked);
     }
 
     @Test

@@ -13,7 +13,7 @@ public class UpscalingShaderTest {
 
     @Test
     public void shadersUseTheGles30InterfaceAndBalancedSyntax() throws Exception {
-        for (String name : new String[] {"upscale.vert", "bilinear.frag", "easu.frag", "rcas.frag"}) {
+        for (String name : new String[] {"upscale.vert", "bilinear.frag", "easu.frag", "rcas.frag", "sgsr.frag"}) {
             String text = source(name);
             assertTrue(name, text.startsWith("#version 300 es\n"));
             assertTrue(name, text.contains("precision highp float;"));
@@ -33,11 +33,33 @@ public class UpscalingShaderTest {
             assertFalse(name, text.contains("gl_FragColor"));
             if (name.endsWith(".frag")) assertTrue(name, text.contains("out vec4 color;"));
         }
-        for (String name : new String[] {"bilinear.frag", "easu.frag"}) {
+        for (String name : new String[] {"bilinear.frag", "easu.frag", "sgsr.frag"}) {
             assertTrue(source(name).contains("#extension GL_OES_EGL_image_external_essl3 : require"));
             assertTrue(source(name).contains("samplerExternalOES source;"));
             assertTrue(source(name).contains("uniform mat4 textureTransform;"));
         }
+    }
+
+    @Test
+    public void sgsrRetainsTheMobileKernelAndPackagedBsdNotice() throws Exception {
+        String sgsr = source("sgsr.frag");
+        assertEquals(12, occurrences(sgsr, "weightY(pl.x"));
+        assertEquals(13, occurrences(sgsr, "loadGreen("));
+        assertTrue(sgsr.contains("uniform vec4 viewportInfo;"));
+        assertTrue(sgsr.contains("uniform float edgeSharpness;"));
+        assertTrue(sgsr.contains("edgeVote > 8.0 / 255.0"));
+        assertTrue(sgsr.contains("2.181818 / max(sum, 1.0e-8)"));
+        assertTrue(sgsr.contains("clamp(edgeSharpness * finalY, minY, maxY)"));
+        assertTrue(sgsr.contains("-23.0 / 255.0, 23.0 / 255.0"));
+        assertTrue(sgsr.contains("textureTransform * vec4(p, 0.0, 1.0)"));
+        String notice = Files.readString(Path.of("src/main/assets/NOTICE-SGSR1.txt"));
+        assertTrue(notice.contains("Copyright (c) 2025, Qualcomm Innovation Center, Inc."));
+        assertTrue(notice.contains("Copyright (c) 2023, Qualcomm Innovation Center, Inc."));
+        assertTrue(notice.contains("Redistributions in binary form"));
+        assertTrue(notice.contains("Neither the name of the copyright holder"));
+        assertTrue(notice.contains("THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS"));
+        assertTrue(notice.contains("BSD-3-Clause"));
+        assertTrue(notice.contains("d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e"));
     }
 
     @Test

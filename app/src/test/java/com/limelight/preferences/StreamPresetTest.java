@@ -31,6 +31,7 @@ public class StreamPresetTest {
         values.put("checkbox_enable_hdr", true);
         int[] applies = {0};
         SharedPreferences preferences = preferences(values, applies);
+        String[] upscalers = {"off", "sgsr1", "fsr1", "bilinear"};
         for (StreamPreset preset : StreamPreset.values()) {
             values.put("video_format", "forceav1");
             values.put("checkbox_drop_late_frames", true);
@@ -38,7 +39,7 @@ public class StreamPresetTest {
             preset.apply(preferences, 120);
             assertEquals(preset == StreamPreset.LOW_LATENCY ? "forceav1" : preset.codec, values.get("video_format"));
             assertEquals(preset.bitrate, values.get("seekbar_bitrate_kbps"));
-            assertEquals(preset == StreamPreset.BEST_QUALITY ? "fsr1" : "off", values.get("upscaling_mode"));
+            assertEquals(upscalers[preset.ordinal()], values.get("upscaling_mode"));
             assertEquals(preset == StreamPreset.BATTERY_SAVER ? "30" : "120", values.get("list_fps"));
             assertEquals(preset.vrr, values.get("checkbox_vrr"));
             assertEquals(preset.pacing, values.get("frame_pacing"));
@@ -107,14 +108,14 @@ public class StreamPresetTest {
     public void changingUpscalingMakesThePresetCustom() {
         Map<String, Object> values = new HashMap<>();
         SharedPreferences preferences = preferences(values, new int[1]);
-        StreamPreset.BEST_QUALITY.apply(preferences, 120);
-        assertTrue(StreamPreset.BEST_QUALITY.matches(preferences, 120));
-        values.put("upscaling_mode", "off");
-        assertFalse(StreamPreset.BEST_QUALITY.matches(preferences, 120));
-        StreamPreset.LOW_LATENCY.apply(preferences, 120);
-        assertTrue(StreamPreset.LOW_LATENCY.matches(preferences, 120));
-        values.put("upscaling_mode", "fsr1");
-        assertFalse(StreamPreset.LOW_LATENCY.matches(preferences, 120));
+        for (StreamPreset preset : StreamPreset.values()) {
+            preset.apply(preferences, 120);
+            Object selectedMode = values.get("upscaling_mode");
+            for (String mode : new String[] {"off", "bilinear", "fsr1", "sgsr1"}) {
+                values.put("upscaling_mode", mode);
+                assertEquals(mode.equals(selectedMode), preset.matches(preferences, 120));
+            }
+        }
     }
 
     private SharedPreferences preferences(Map<String, Object> values, int[] applies) {

@@ -2,7 +2,7 @@ package com.limelight.binding.video;
 
 public final class UpscalingPolicy {
     public enum Mode {
-        OFF("off"), BILINEAR("bilinear"), FSR1("fsr1");
+        OFF("off"), BILINEAR("bilinear"), FSR1("fsr1"), SGSR1("sgsr1");
 
         public final String value;
 

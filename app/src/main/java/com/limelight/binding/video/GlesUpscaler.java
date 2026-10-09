@@ -132,7 +132,8 @@ final class GlesUpscaler implements AutoCloseable, SurfaceTexture.OnFrameAvailab
 
         String vertex = shaderSource(context, "upscale.vert");
         upscaleProgram = program(vertex, shaderSource(context,
-                mode == UpscalingPolicy.Mode.FSR1 ? "easu.frag" : "bilinear.frag"));
+                mode == UpscalingPolicy.Mode.FSR1 ? "easu.frag" :
+                        mode == UpscalingPolicy.Mode.SGSR1 ? "sgsr.frag" : "bilinear.frag"));
         GLES30.glUseProgram(upscaleProgram);
         GLES30.glUniform1i(GLES30.glGetUniformLocation(upscaleProgram, "source"), 0);
         transformUniform = GLES30.glGetUniformLocation(upscaleProgram, "textureTransform");
@@ -158,6 +159,11 @@ final class GlesUpscaler implements AutoCloseable, SurfaceTexture.OnFrameAvailab
             require(GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER) == GLES30.GL_FRAMEBUFFER_COMPLETE,
                     "EASU framebuffer");
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
+        } else if (mode == UpscalingPolicy.Mode.SGSR1) {
+            GLES30.glUniform4fv(GLES30.glGetUniformLocation(upscaleProgram, "viewportInfo"), 1,
+                    SgsrConstants.viewport(width, height), 0);
+            GLES30.glUniform1f(GLES30.glGetUniformLocation(upscaleProgram, "edgeSharpness"),
+                    SgsrConstants.edgeSharpness(sharpness));
         }
         GLES30.glGenTextures(1, size, 0);
         sourceTexture = size[0];

@@ -5,20 +5,22 @@ import android.content.SharedPreferences;
 import com.limelight.binding.video.DisplayFrameRatePolicy;
 
 public enum StreamPreset {
-    BALANCED("auto", 15000, false, "balanced"),
-    LOW_LATENCY(null, 15000, true, "latency"),
-    BEST_QUALITY("auto", 40000, false, "balanced"),
-    BATTERY_SAVER("auto", 8000, false, "cap-fps");
+    BALANCED("auto", 15000, false, "balanced", "off"),
+    LOW_LATENCY(null, 15000, true, "latency", "sgsr1"),
+    BEST_QUALITY("auto", 40000, false, "balanced", "fsr1"),
+    BATTERY_SAVER("auto", 8000, false, "cap-fps", "bilinear");
 
     public final String codec, pacing;
     public final int bitrate;
     public final boolean vrr;
+    private final String upscaling;
 
-    StreamPreset(String codec, int bitrate, boolean vrr, String pacing) {
+    StreamPreset(String codec, int bitrate, boolean vrr, String pacing, String upscaling) {
         this.codec = codec;
         this.bitrate = bitrate;
         this.vrr = vrr;
         this.pacing = pacing;
+        this.upscaling = upscaling;
     }
 
     int fps(float panelMaxHz) {
@@ -33,7 +35,7 @@ public enum StreamPreset {
                 Integer.toString(fps(panelMaxHz)).equals(preferences.getString("list_fps", "60")) &&
                 preferences.getBoolean("checkbox_vrr", false) == vrr &&
                 pacing.equals(preferences.getString("frame_pacing", "latency")) &&
-                (this == BEST_QUALITY ? "fsr1" : "off").equals(preferences.getString(
+                upscaling.equals(preferences.getString(
                         PreferenceConfiguration.UPSCALING_PREF_STRING, "off")) &&
                 !preferences.getBoolean("checkbox_drop_late_frames", false) &&
                 preferences.getBoolean("checkbox_reduce_refresh_rate", false) == (this == BATTERY_SAVER) &&
@@ -50,7 +52,7 @@ public enum StreamPreset {
                 .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrate)
                 .putString(PreferenceConfiguration.FPS_PREF_STRING, Integer.toString(fps(panelMaxHz)))
                 .putBoolean("checkbox_vrr", vrr)
-                .putString(PreferenceConfiguration.UPSCALING_PREF_STRING, this == BEST_QUALITY ? "fsr1" : "off")
+                .putString(PreferenceConfiguration.UPSCALING_PREF_STRING, upscaling)
                 .putString(PreferenceConfiguration.FRAME_PACING_PREF_STRING, pacing)
                 .putBoolean("checkbox_drop_late_frames", false)
                 .putBoolean("checkbox_reduce_refresh_rate", this == BATTERY_SAVER)

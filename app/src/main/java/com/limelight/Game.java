@@ -1150,38 +1150,17 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             getWindow().setAttributes(windowLayoutParams);
         }
 
-        // Until Marshmallow, we can't ask for a 4K display mode, so we'll
-        // need to hint the OS to provide one.
-        boolean aspectRatioMatch = false;
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            // We'll calculate whether we need to scale by aspect ratio. If not, we'll use
-            // setFixedSize so we can handle 4K properly. The only known devices that have
-            // >= 4K screens have exactly 4K screens, so we'll be able to hit this good path
-            // on these devices. On Marshmallow, we can start changing to 4K manually but no
-            // 4K devices run 6.0 at the moment.
-            Point screenSize = new Point(0, 0);
-            display.getSize(screenSize);
-
-            double screenAspectRatio = ((double)screenSize.y) / screenSize.x;
-            double streamAspectRatio = ((double)prefConfig.height) / prefConfig.width;
-            if (Math.abs(screenAspectRatio - streamAspectRatio) < 0.001) {
-                LimeLog.info("Stream has compatible aspect ratio with output display");
-                aspectRatioMatch = true;
-            }
-        }
-
         if (prefConfig.useTextureView && !useArr) {
             // A SurfaceTexture is composed into the window, so Surface.setFrameRate() cannot vote for it.
             windowLayoutParams.preferredRefreshRate = displayRefreshRate;
             getWindow().setAttributes(windowLayoutParams);
         }
 
-        if ((prefConfig.stretchVideo || aspectRatioMatch) && !prefConfig.useTextureView &&
-                prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF) {
-            // Set the surface to the size of the video
+        if (!prefConfig.useTextureView && prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF) {
+            // Keep decoder buffers at stream resolution; the compositor scales them to the view.
             streamView.getHolder().setFixedSize(prefConfig.width, prefConfig.height);
         }
-        else if (!prefConfig.stretchVideo) {
+        if (!prefConfig.stretchVideo) {
             // Set the surface to scale based on the aspect ratio of the stream
             streamView.setDesiredAspectRatio((double)prefConfig.width / (double)prefConfig.height);
         }

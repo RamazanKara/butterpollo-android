@@ -434,9 +434,10 @@
     <string name="upscaling_off">Off</string>
     <string name="upscaling_bilinear">Bilinear</string>
     <string name="upscaling_fsr1">FSR 1.0</string>
-    <string name="summary_upscaling">Upscale lower-resolution SDR streams on the GPU. FSR 1.0 uses EASU and RCAS sharpening. HDR/10-bit and PyroWave keep direct output. Sustained added latency or dropped frames switch back to direct output until reconnect. Uses more battery; timing and the current mode appear in Advanced stats.</string>
-    <string name="title_upscaling_sharpness">FSR sharpening</string>
-    <string name="summary_upscaling_sharpness" formatted="false">RCAS strength: 0% disables sharpening, 100% is maximum. Applies when the next stream starts.</string>
+    <string name="upscaling_sgsr1" translatable="false">SGSR 1 (Snapdragon Game Super Resolution)</string>
+    <string name="summary_upscaling">Upscale lower-resolution SDR streams on the GPU. FSR 1.0 uses EASU and RCAS sharpening. SGSR 1: Single pass, fastest on Snapdragon/Adreno. Off lets Android scale the video directly. HDR/10-bit and PyroWave keep direct output. Sustained added latency or dropped frames switch back to direct output until reconnect. Uses more battery; timing and the current mode appear in Advanced stats.</string>
+    <string name="title_upscaling_sharpness">Upscaling sharpness</string>
+    <string name="summary_upscaling_sharpness" formatted="false">FSR/SGSR strength: 0% disables extra sharpening, 100% is maximum. SGSR keeps its spatial reconstruction at 0%. Applies when the next stream starts.</string>
     <string name="upscaling_sharpness_value">%1$d%%</string>
     <string name="upscaling_direct">Off (direct output)</string>
     <string name="upscaling_fallback">Upscaling: direct output. %1$s</string>

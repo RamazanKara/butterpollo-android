@@ -556,8 +556,9 @@ public class StreamSettings extends AppCompatActivity {
                     continue;
                 }
                 if (PreferenceConfiguration.UPSCALING_SHARPNESS_PREF_STRING.equals(pref.getKey())) {
-                    pref.setEnabled("fsr1".equals(getPreferenceManager().getSharedPreferences()
-                            .getString(PreferenceConfiguration.UPSCALING_PREF_STRING, "off")));
+                    String mode = getPreferenceManager().getSharedPreferences()
+                            .getString(PreferenceConfiguration.UPSCALING_PREF_STRING, "off");
+                    pref.setEnabled("fsr1".equals(mode) || "sgsr1".equals(mode));
                 }
                 if (PreferenceConfiguration.UPSCALING_PREF_STRING.equals(pref.getKey()) &&
                         !"off".equals(((ListPreference) pref).getValue())) {

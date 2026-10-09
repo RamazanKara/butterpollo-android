@@ -5,9 +5,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.Looper;
+import android.view.SurfaceHolder;
+import android.view.View;
 import android.view.WindowManager;
 
 import com.limelight.binding.input.KeyboardTranslator;
+import com.limelight.binding.video.UpscalingPolicy;
+import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.ui.StreamView;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -23,6 +28,40 @@ import static org.junit.Assert.*;
 @RunWith(org.robolectric.RobolectricTestRunner.class)
 @Config(sdk = 29, application = Application.class)
 public class GameLifecycleTest {
+    @Test
+    public void offUsesStreamSizedCompositorBuffersWithoutLosingLetterboxing() {
+        Game activity = Robolectric.buildActivity(Game.class).get();
+        for (UpscalingPolicy.Mode mode : UpscalingPolicy.Mode.values()) {
+            for (boolean stretch : new boolean[] {false, true}) {
+                PreferenceConfiguration prefs = new PreferenceConfiguration();
+                prefs.width = 1280;
+                prefs.height = 720;
+                prefs.fps = 60;
+                prefs.upscalingMode = mode;
+                prefs.stretchVideo = stretch;
+                int[] bufferSize = new int[2];
+                SurfaceHolder holder = new org.robolectric.shadows.ShadowSurfaceView.FakeSurfaceHolder() {
+                    @Override public void setFixedSize(int width, int height) {
+                        bufferSize[0] = width;
+                        bufferSize[1] = height;
+                    }
+                };
+                StreamView view = new StreamView(activity) {
+                    @Override public SurfaceHolder getHolder() { return holder; }
+                };
+                ReflectionHelpers.setField(activity, "prefConfig", prefs);
+                ReflectionHelpers.setField(activity, "streamView", view);
+                ReflectionHelpers.callInstanceMethod(activity, "prepareDisplayForRendering");
+                assertArrayEquals(mode == UpscalingPolicy.Mode.OFF ? new int[] {1280, 720} : new int[2],
+                        bufferSize);
+                view.measure(View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY));
+                assertEquals(stretch ? 2400 : 1920, view.getMeasuredWidth());
+                assertEquals(1080, view.getMeasuredHeight());
+            }
+        }
+    }
+
     @Test
     public void aNewLaunchIntentReplacesTheExistingSingleTaskStream() {
         ActivityController<Game> controller = Robolectric.buildActivity(Game.class).create();

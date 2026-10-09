@@ -877,7 +877,7 @@ Real-device testing still required:
 ## Client-side upscaling (2026-10-09)
 
 MediaCodec SDR can output to a zero-copy external-OES SurfaceTexture on a dedicated GLES 3.0
-thread. Bilinear draws once; FSR 1.0 runs AMD EASU into a display-sized RGBA8 texture, then RCAS
+thread. Bilinear and SGSR 1 each draw once; FSR 1.0 runs AMD EASU into a display-sized RGBA8 texture, then RCAS
 to the existing EGL window surface. Aspect ratio, Stretch and the SurfaceTexture crop/orientation
 matrix are respected. Shaders, uniforms, textures and tracking buffers are prepared at stream
 start; the Java draw path allocates no per-frame objects and does no work without incoming frames.
@@ -888,10 +888,24 @@ is adapted to GLES FP32 with explicit OES taps instead of gather4, native high-p
 arithmetic and finite flat-color divisions. The complete MIT notice is packaged in
 [NOTICE-FSR1.txt](../app/src/main/assets/NOTICE-FSR1.txt).
 
-Video settings offer Off (default), Bilinear and FSR 1.0. The sharpening slider previews its
-numeric value while dragging: 0% bypasses RCAS sharpening, 100% is maximum. Changes apply to the
-next stream. Per-PC profiles save both settings; old profiles inherit the global values.
-Best quality selects FSR; other presets, including Low latency and Battery saver, use Off.
+SGSR 1 uses [Qualcomm's mobile RGBA shader](https://github.com/SnapdragonGameStudios/snapdragon-gsr/blob/d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e/sgsr/v1/include/glsl/sgsr1_shader_mobile.frag),
+with its 12-tap Lanczos-like filter, green-channel edge detection, 8/255 edge threshold and
+23/255 correction limit. Explicit crop-clamped OES taps replace texture gathers; FP32 arithmetic
+keeps divisions finite. The SurfaceTexture matrix applies to every sample. No intermediate
+texture or RCAS pass is needed. The complete BSD-3-Clause notice, both upstream copyright
+years, revision and adaptations are packaged in [NOTICE-SGSR1.txt](../app/src/main/assets/NOTICE-SGSR1.txt).
+It works on supported GLES hardware generally; Adreno is Qualcomm's optimization target.
+The FP32/OES port needs device measurements; upstream timing numbers are not this app's timings.
+
+Video settings offer Off (default), Bilinear, FSR 1.0 and SGSR 1. SGSR help reads
+"Single pass, fastest on Snapdragon/Adreno". The shared sharpening slider previews its numeric
+value while dragging. FSR keeps its linear RCAS strength: 0% bypasses RCAS, 100% is maximum.
+SGSR maps the same percentage linearly to `EdgeSharpness = 1 + percent / 100`, within
+[Qualcomm's documented range](https://github.com/SnapdragonGameStudios/snapdragon-gsr/blob/d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e/sgsr/v1/README.md):
+0% keeps spatial reconstruction without extra edge sharpening; 100% uses upstream's value 2.
+Changes apply to the next stream. Per-PC profiles save both settings; old profiles inherit
+global values. Battery saver selects Bilinear, Low latency selects SGSR, Best quality selects
+FSR, and Balanced keeps Off. Existing frame budgets and HDR/PyroWave exclusions apply to all presets.
 
 HDR and all negotiated 10-bit streams, including 10-bit SDR, bypass the 8-bit GPU path.
 HDR transitions and unexpected PQ/HLG or P010 output also force direct output. PyroWave retains
@@ -919,24 +933,71 @@ the upscaler and skipped by texture acquisition or a busy GPU, not network loss.
 Fallback stays latched until reconnect to avoid oscillation under thermal load.
 
 JVM tests cover enable/bypass decisions, viewport geometry, hysteresis/stalls, bounded timestamp
-and drop tracking, AMD EASU golden constants, RCAS strength, shader-source contracts, legacy
-profiles and presets. NDK shader checks compile portable arithmetic as ES 3.10 with sampler2D
+and drop tracking, AMD EASU golden constants, RCAS strength, SGSR input-size constants and
+edge-sharpness mapping, shader-source contracts, mode-array ordering, legacy profiles and presets.
+A Robolectric regression covers Off's stream-sized surface buffers and letterbox/stretch layout.
+NDK shader checks compile portable arithmetic as ES 3.10 with sampler2D
 in place of external OES and validate SPIR-V; this does **not** validate a phone's GLES 3.0/OES
 driver. Actual compile/link checks run at stream startup and fall back on failure.
 
-Local verification: JDK 17 / Gradle 9.7.1, `--no-daemon --max-workers=2`, all requested tasks
-passed: `:app:assembleNonRootDebug`, `:app:testNonRootDebugUnitTest` (**609 tests**, no failures,
-errors or skips) and `:app:lintNonRootDebug` (**0 errors, 212 existing warnings**, none on new
-files or added lines). A Robolectric regression also checks UI cancellation while the GPU
-startup/recovery lock is held and subsequent worker shutdown. The APK contains all four shaders
-and the complete AMD license. The shared `C:\Android\gradle` wrapper lock was read-only in the
-sandbox; verification used the installed Gradle distribution, a worktree-local Gradle/Android
-user directory and the shared dependency cache read-only. No adb, emulator or phone was used.
+Local verification: JDK 17 / Gradle 9.7.1, `--no-daemon --max-workers=2`:
+`:app:assembleNonRootDebug` and `:app:testNonRootDebugUnitTest` passed (**615 tests**, no failures,
+errors or skips). `:app:lintNonRootDebug` fails with **603 existing MissingTranslation errors
+and 212 warnings**. An isolated, unchanged HEAD (`02c9630d`) lint run reproduces the same
+diagnostics; SGSR adds none. The earlier FSR-only note reporting green lint is superseded by
+these fresh runs. Translation resources and lint configuration were not changed to hide failures.
+A Robolectric regression also checks UI cancellation while the GPU startup/recovery lock is
+held and subsequent worker shutdown. SGSR's portable shader compilation and SPIR-V validation
+pass; the APK contains all five shaders and both complete licenses. The SGSR shader and notice
+were byte-checked against the packaged assets. Verification used the installed Gradle
+distribution, worktree-local Gradle/Android user directories and a read-only shared dependency
+cache. No adb, emulator or phone was used; Adreno performance and visual quality remain unmeasured.
+
+### Native Android scaling APIs (checked 2026-10-09)
+
+Off sends MediaCodec output directly to the existing SurfaceView. Its holder now uses
+`setFixedSize(streamWidth, streamHeight)` for letterboxed streams as well as stretched streams,
+while the view still preserves the requested aspect ratio. This makes source-sized buffers
+available for compositor/hardware-overlay scaling, without an application GPU post-process.
+The optional TextureView retains its source-sized buffer path but is composed into the app window;
+it does not provide the same independent hardware-overlay opportunity.
+[SurfaceHolder API](https://developer.android.com/reference/android/view/SurfaceHolder#setFixedSize(int,int)),
+[AOSP SurfaceView architecture](https://source.android.com/docs/core/graphics/arch-sv-glsv).
+
+Android's baseline compositor scaling is bilinear: AOSP's
+[Skia RenderEngine](https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/libs/renderengine/skia/SkiaRenderEngine.cpp)
+uses `SkFilterMode::kLinear` with no mipmaps when texture filtering is needed. Hardware Composer
+can perform scaling on a display plane instead; its exact filter and overlay eligibility depend
+on the device. There is no public filter-quality selector or guarantee that composition avoids
+the GPU on every frame. Off's zero added post-process statistic excludes compositor/scanout work.
+
+| Public surface/API | What it offers and what this client does |
+| --- | --- |
+| [`SurfaceControl.Transaction`](https://developer.android.com/reference/android/view/SurfaceControl.Transaction) | `setScale` (API 33), crop and position change geometry. `setGeometry` (API 29) is deprecated since API 33. There is no public `setScalingMode` method in this class (also checked against the compile SDK 37 stubs). These calls do not select a reconstruction filter. SurfaceView already manages the layer, so the public holder API is sufficient. |
+| [`MediaCodec.setVideoScalingMode`](https://developer.android.com/reference/android/media/MediaCodec#setVideoScalingMode(int)) | API 16 supports scale-to-fit and scale-to-fit-with-cropping. These describe fit/crop geometry, not FSR/SGSR or a selectable decoder super-resolution filter. The renderer already requests `VIDEO_SCALING_MODE_SCALE_TO_FIT` on configuration/recovery; it is also the codec's default after buffer/format changes. |
+| [`Display.Mode`](https://developer.android.com/reference/android/view/Display.Mode) | Lists physical resolutions, refresh rates and HDR capabilities. Choosing a mode does not choose an upscaler. Existing display-mode and `Surface.setFrameRate`/ARR handling remain in use. |
+| [`DisplayManager`](https://developer.android.com/reference/android/hardware/display/DisplayManager) | Display/HDR capabilities and `getHdrConversionMode` (API 34) describe output/color management. `WindowManager.LayoutParams.setHdrConversionEnabled` controls HDR conversion, not spatial scaling. No public scale-quality hint enables OEM reconstruction for a decoded Surface. HDR/10-bit still bypass the 8-bit shaders. |
+| [Android 16 ADPF headroom](https://developer.android.com/about/versions/16/features#headroom-apis) | `SystemHealthManager.getCpuHeadroom`/`getGpuHeadroom` (API 36) estimate device load on supported hardware. They neither upscale pixels nor measure this pass's latency. Existing optional decoder performance hints are retained; SGSR uses the same measured completion fences and one-frame budget instead of adding an unvalidated headroom policy. |
+
+Android 15+ does not provide a public Android SDK/NDK switch for OEM super resolution on arbitrary
+app surfaces. [Samsung Game Booster](https://www.samsung.com/uk/support/apps-services/updates-to-game-booster-settings-and-features-on-the-samsung-galaxy-devices/)
+offers user/OEM-controlled per-game resolution and frame-boost settings. Qualcomm's
+[Adreno Frame Motion Engine](https://www.qualcomm.com/processors/adreno) is a vendor frame-generation
+feature, distinct from spatial SGSR. Neither has a documented public Android surface API that
+this client can enable; that conclusion is based on the public API inventory, not an assertion
+that all private/vendor integrations are impossible. Newer Qualcomm
+[Adreno Neural Fusion SDK](https://www.qualcomm.com/developer/blog/2026/09/introducing-adreno-neural-fusion-sdk-for-snapdragon-mobile-platforms)
+integration is an engine/Vulkan pipeline with jitter and motion-vector requirements, not a
+compositor scaling hint suitable for this MediaCodec path.
+[Game Mode interventions](https://developer.android.com/games/optimize/adpf/gamemode/gamemode-interventions)
+can downsize an app backbuffer under OEM policy (Android 12 on select devices, Android 13+);
+that is not a public choice of high-quality scaler. No hidden APIs, vendor parameters or
+device-global settings are used here.
 
 Real-device checklist (not run here):
 
-1. Compare Off, Bilinear and FSR at 720p/1080p → native: small text, diagonal edges, fine textures,
-   motion and black/white ramps, with RCAS 0/50/100%. Check ringing, banding, range/color,
+1. Compare Off, Bilinear, FSR and SGSR at 720p/1080p → native: small text, diagonal edges, fine textures,
+   motion and black/white ramps, with sharpening 0/50/100%. Check ringing, banding, range/color,
    orientation and crop. Repeat letterboxed, stretched and portrait output. Native/larger input
    should report direct output.
 2. Save Advanced and copied stats per mode at 60/120 FPS and higher where supported. Record added
