@@ -12,6 +12,23 @@ import static org.junit.Assert.*;
 
 public class MediaCodecDecoderRendererTest {
     @Test
+    public void pyroWaveOverlayDistinguishesRecordLossAndMissingMeasurements() {
+        java.util.Locale previous = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.US);
+            assertEquals("PyroWave records missing: 2.50%\nQueue: 3.25 ms | completed decode: 6.50 ms\nGPU decode (last): 4.25 ms",
+                    MediaCodecDecoderRenderer.formatPyroWaveStats(2.5f, 3.25f, 6.5f, 4250));
+            String missing = MediaCodecDecoderRenderer.formatPyroWaveStats(-1, Float.NaN, -1, 0);
+            assertFalse(missing.contains("NaN"));
+            assertFalse(missing.contains("0.00"));
+            assertTrue(missing.contains("completed decode: unavailable"));
+            assertTrue(MediaCodecDecoderRenderer.formatPyroWaveStats(0, 0, 0, 1).contains("missing: 0.00%"));
+        } finally {
+            java.util.Locale.setDefault(previous);
+        }
+    }
+
+    @Test
     public void outputUsesFirstVsyncWhosePresentationDeadlineIsStillAhead() {
         long vsyncNs = 1000000000L;
         long intervalNs = 10000000L;

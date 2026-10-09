@@ -43,8 +43,15 @@ import com.limelight.utils.UiHelper;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.app.PictureInPictureParams;
+import android.app.PendingIntent;
+import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.graphics.drawable.Icon;
+import com.limelight.ui.PictureInPicturePolicy;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
@@ -175,12 +182,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 int target = pyroWaveBitrate != null ?
                         pyroWaveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now), poorConnection,
                                 decoderRenderer.getPyroWaveLossPercent(), decoderRenderer.getPyroWaveQueueDelayMs(),
-                                decoderRenderer.getPyroWaveDecodeTimeMs()) :
+                                decoderRenderer.getDecodeTimeMs()) :
                         adaptiveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now),
-                                poorConnection, decoderRenderer.getNetworkFrameLossPercent());
+                                poorConnection, decoderRenderer.getNetworkFrameLossPercent(), decoderRenderer.getDecodeTimeMs());
                 if (target != 0) {
                     applyAdaptiveBitrate(target);
                 }
+            } else {
+                if (adaptiveBitrate != null) adaptiveBitrate.suspend();
+                if (pyroWaveBitrate != null) pyroWaveBitrate.suspend();
             }
             bitrateHandler.postDelayed(this, 1000);
         }
@@ -190,11 +200,22 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private NvApp app;
     private float desiredRefreshRate;
     private boolean useArr;
+    private PendingIntent pipDisconnectIntent;
+    private final BroadcastReceiver pipReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    PictureInPicturePolicy.canDisconnect(connected, isInPictureInPictureMode(), app.getRole())) {
+                finish();
+            }
+        }
+    };
+    private boolean useAdaptiveFrameRate;
     private final Runnable updateArrFrameRate = new Runnable() {
         @Override
         public void run() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && surfaceCreated) {
-                setArrFrameRate(decoderRenderer.takeReleaseFrameRate());
+            if (useAdaptiveFrameRate && surfaceCreated) {
+                setArrFrameRate(com.limelight.binding.video.DisplayFrameRatePolicy.cadenceVote(
+                        decoderRenderer.takeReleaseFrameRate(), prefConfig.fps));
                 streamView.postDelayed(this, 1000);
             }
         }
@@ -696,12 +717,25 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @TargetApi(Build.VERSION_CODES.O)
     private PictureInPictureParams getPictureInPictureParams(boolean autoEnter) {
+        int[] ratio = PictureInPicturePolicy.aspectRatio(prefConfig.width, prefConfig.height);
         PictureInPictureParams.Builder builder =
                 new PictureInPictureParams.Builder()
-                        .setAspectRatio(new Rational(prefConfig.width, prefConfig.height))
+                        .setAspectRatio(new Rational(ratio[0], ratio[1]))
                         .setSourceRectHint(new Rect(
                                 streamView.getLeft(), streamView.getTop(),
                                 streamView.getRight(), streamView.getBottom()));
+
+        if (pipDisconnectIntent == null) {
+            String action = getPackageName() + ".PIP_DISCONNECT." + java.util.UUID.randomUUID();
+            androidx.core.content.ContextCompat.registerReceiver(this, pipReceiver, new IntentFilter(action),
+                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+            pipDisconnectIntent = PendingIntent.getBroadcast(this, 0,
+                    new Intent(action).setPackage(getPackageName()), PendingIntent.FLAG_IMMUTABLE);
+        }
+        RemoteAction disconnect = new RemoteAction(Icon.createWithResource(this, R.drawable.ic_close),
+                getString(R.string.stream_disconnect), getString(R.string.pip_disconnect_description), pipDisconnectIntent);
+        disconnect.setEnabled(connected && app.getRole() != NvApp.Role.INPUT_ONLY);
+        builder.setActions(java.util.Collections.singletonList(disconnect));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(autoEnter);
@@ -868,19 +902,24 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         float displayRefreshRate;
 
         useArr = prefConfig.vrr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && display.hasArrSupport();
+        useAdaptiveFrameRate = com.limelight.binding.video.DisplayFrameRatePolicy.useAdaptiveHints(
+                Build.VERSION.SDK_INT, prefConfig.vrr, prefConfig.useTextureView, useArr);
         if (prefConfig.vrr) {
-            LimeLog.info(useArr ? "VRR: ARR (measured stream cadence)" : "VRR: max Hz (ARR unavailable)");
+            LimeLog.info(useArr ? "VRR: ARR (measured stream cadence)" :
+                    useAdaptiveFrameRate ? "VRR: seamless cadence hints (ARR support unknown)" : "VRR: max Hz (ARR unavailable)");
         }
 
-        if (useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        if (useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // A mode or window refresh vote would override the stream's changing cadence.
             windowLayoutParams.preferredDisplayModeId = 0;
             windowLayoutParams.preferredRefreshRate = 0;
             getWindow().setAttributes(windowLayoutParams);
-            getWindow().setFrameRateBoostOnTouchEnabled(false);
-            streamView.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
-            streamView.getChildAt(0).setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
-            performanceOverlayView.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                getWindow().setFrameRateBoostOnTouchEnabled(false);
+                streamView.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
+                streamView.getChildAt(0).setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
+                performanceOverlayView.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
+            }
             displayRefreshRate = display.getRefreshRate();
         }
         // On M, we can explicitly set the optimal display mode
@@ -1041,7 +1080,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
 
-        if (prefConfig.useTextureView && !useArr) {
+        if (prefConfig.useTextureView && !useAdaptiveFrameRate) {
             // A SurfaceTexture is composed into the window, so Surface.setFrameRate() cannot vote for it.
             windowLayoutParams.preferredRefreshRate = displayRefreshRate;
             getWindow().setAttributes(windowLayoutParams);
@@ -1132,6 +1171,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (pipDisconnectIntent != null) {
+            unregisterReceiver(pipReceiver);
+            pipDisconnectIntent.cancel();
+        }
         bitrateHandler.removeCallbacks(updateBitrate);
 
         if (controllerHandler != null) {
@@ -1370,7 +1413,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
         labels.add(getString(R.string.stream_disconnect));
         actions.add(this::finish);
-        showStreamDialog(new AlertDialog.Builder(this)
+        showStreamDialog(new MaterialAlertDialogBuilder(this)
                 .setTitle(app.getRole() == NvApp.Role.REMOTE_MONITOR ? R.string.stream_monitor_title :
                         app.getRole() == NvApp.Role.INPUT_ONLY ? R.string.stream_input_title : R.string.stream_menu)
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> {
@@ -1455,7 +1498,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private void showTouchModeDialog() {
         String[] modes = getResources().getStringArray(R.array.stream_touch_modes);
         int selected = prefConfig.touchscreenTrackpad ? 0 : nativeTouchEnabled ? 2 : 1;
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_touch_mode)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_touch_mode)
                 .setSingleChoiceItems(modes, selected, (dialog, which) -> {
                     cancelTouchInput();
                     prefConfig.touchscreenTrackpad = which == 0;
@@ -1492,7 +1535,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void showControllerLayoutDialog() {
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_controls_layout)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_controls_layout)
                 .setItems(R.array.stream_control_layout_actions, (dialog, which) -> {
                     VirtualController.ControllerMode[] modes = {
                             VirtualController.ControllerMode.MoveButtons,
@@ -1529,7 +1572,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void showReconnectDialog(int title, String message) {
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(title).setMessage(message)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message)
                 .setCancelable(false)
                 .setNegativeButton(R.string.stream_disconnect, (dialog, which) -> finish())
                 .setPositiveButton(R.string.stream_reconnect, (dialog, which) -> reconnectStream()).create());
@@ -1595,10 +1638,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     private void showServerCommands(ComputerDetails details) {
         String[] names = details.serverCommands.subList(0, Math.min(256, details.serverCommands.size())).toArray(new String[0]);
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_server_commands)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_server_commands)
                 .setItems(names, (dialog, index) -> {
                     dialog.dismiss();
-                    showStreamDialog(new AlertDialog.Builder(this).setTitle(names[index])
+                    showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(names[index])
                             .setMessage(R.string.stream_command_confirm)
                             .setNegativeButton(android.R.string.cancel, null)
                             .setPositiveButton(R.string.stream_command_run, (confirmation, which) -> {
@@ -1647,18 +1690,26 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                             String.format(Locale.getDefault(), "%.3f FPS", details.frameLimiterFpsLimitMilliHz / 1000.0)));
         }
         status.append("\n\n").append(getString(R.string.stream_android_pacing));
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_host_status)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_host_status)
                 .setMessage(status).setPositiveButton(android.R.string.ok, null).create());
     }
 
     private void showBitrateDialog() {
-        EditText input = new EditText(this);
+        com.google.android.material.textfield.TextInputLayout field = new com.google.android.material.textfield.TextInputLayout(this);
+        field.setBoxBackgroundMode(com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE);
+        field.setHint(getString(R.string.stream_bitrate));
+        int padding = Math.round(24 * getResources().getDisplayMetrics().density);
+        field.setPadding(padding, 0, padding, 0);
+        EditText input = new com.google.android.material.textfield.TextInputEditText(this);
+        input.setMinHeight(Math.round(48 * getResources().getDisplayMetrics().density));
+        input.setSingleLine(true);
+        field.addView(input);
         input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         input.setText(BigDecimal.valueOf(currentBitrate == 0 ? prefConfig.bitrate : currentBitrate, 3)
                 .stripTrailingZeros().toPlainString());
         input.selectAll();
-        showStreamDialog(new AlertDialog.Builder(this).setTitle(R.string.stream_bitrate)
-                .setMessage(R.string.stream_bitrate_help).setView(input)
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_bitrate)
+                .setMessage(R.string.stream_bitrate_help).setView(field)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     final int kbps;
@@ -1728,7 +1779,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 pyroWaveBitrate = new PyroWaveBitrateController(ceiling, initial, prefConfig.fps,
                         SystemClock.uptimeMillis());
             } else {
-                adaptiveBitrate = new AdaptiveBitrateController(ceiling, initial, SystemClock.uptimeMillis());
+                adaptiveBitrate = new AdaptiveBitrateController(ceiling, initial, prefConfig.fps, SystemClock.uptimeMillis());
             }
             // Obtain the host's applied cap before using it as the controller's starting point.
             applyAdaptiveBitrate(initial);
@@ -2026,8 +2077,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 // NB: We need to be sure this happens before the getRepeatCount() check because
                 // UTF-8 events don't auto-repeat on the host side.
                 int unicodeChar = event.getUnicodeChar();
-                if ((unicodeChar & KeyCharacterMap.COMBINING_ACCENT) == 0 && (unicodeChar & KeyCharacterMap.COMBINING_ACCENT_MASK) != 0) {
-                    conn.sendUtf8Text(""+(char)unicodeChar);
+                String text = KeyboardTranslator.textForCodePoint(unicodeChar);
+                if (text != null) {
+                    conn.sendUtf8Text(text);
                     return true;
                 }
 
@@ -3284,7 +3336,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         LimeLog.info("Video surface: " + (prefConfig.useTextureView ? "TextureView" : "SurfaceView") +
                 ", pacing: " + prefConfig.framePacing + ", newest frame: " + prefConfig.dropLateFrames);
 
-        if (useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        if (useAdaptiveFrameRate) {
             // Use the requested target until release timestamps provide the actual cadence.
             setArrFrameRate(prefConfig.launchRefreshRateX100 > 0 ?
                     prefConfig.launchRefreshRateX100 / 100.0f : prefConfig.fps);
@@ -3311,7 +3363,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         // Tell the OS about our frame rate to allow it to adapt the display refresh rate appropriately
-        if (!useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (!useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // We want to change frame rate even if it's not seamless, since prepareDisplayForRendering()
             // will not set the display mode on S+ if it only differs by the refresh rate. It depends
             // on us to trigger the frame rate switch here.
@@ -3319,7 +3371,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
                     Surface.CHANGE_FRAME_RATE_ALWAYS);
         }
-        else if (!useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        else if (!useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             surface.setFrameRate(desiredFrameRate,
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
         }
@@ -3330,9 +3382,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
     }
 
-    @TargetApi(Build.VERSION_CODES.BAKLAVA)
+    @TargetApi(Build.VERSION_CODES.S)
     private void setArrFrameRate(float frameRate) {
-        if (prefConfig.useTextureView) {
+        if (prefConfig.useTextureView && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
             streamView.getTextureView().setRequestedFrameRate(frameRate > 0 ? frameRate :
                     View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
         } else {
@@ -3515,7 +3567,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             public void run() {
                 String displayLine = prefConfig.vrr ? String.format(java.util.Locale.ROOT,
                         "\nDisplay: %.2f Hz · VRR: %s", getWindowManager().getDefaultDisplay().getRefreshRate(),
-                        useArr ? "ARR" : "max Hz") : "";
+                        useArr ? "ARR" : useAdaptiveFrameRate ? "cadence hints" : "max Hz") : "";
                 performanceOverlayView.setText(!isAdaptiveBitrateEnabled() ? text + displayLine : text + displayLine + "\n" +
                         getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0));
             }

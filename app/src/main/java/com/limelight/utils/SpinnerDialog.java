@@ -4,7 +4,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 import android.app.Activity;
-import android.app.ProgressDialog;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import android.widget.LinearLayout;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnCancelListener;
 
@@ -12,7 +15,7 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
     private final String title;
     private final String message;
     private final Activity activity;
-    private ProgressDialog progress;
+    private AlertDialog progress;
     private final boolean finish;
 
     private static final ArrayList<SpinnerDialog> rundownDialogs = new ArrayList<>();
@@ -75,11 +78,16 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
 
         if (progress == null)
         {
-            progress = new ProgressDialog(activity);
-
-            progress.setTitle(title);
-            progress.setMessage(message);
-            progress.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+            int padding = Math.round(24 * activity.getResources().getDisplayMetrics().density);
+            LinearLayout content = new LinearLayout(activity);
+            content.setGravity(android.view.Gravity.CENTER);
+            content.setPadding(padding, padding / 2, padding, padding);
+            CircularProgressIndicator indicator = new CircularProgressIndicator(activity);
+            indicator.setIndeterminate(true);
+            indicator.setImportantForAccessibility(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            content.addView(indicator);
+            progress = new MaterialAlertDialogBuilder(activity)
+                    .setTitle(title).setMessage(message).setView(content).create();
             progress.setOnCancelListener(this);
 
             // If we want to finish the activity when this is killed, make it cancellable

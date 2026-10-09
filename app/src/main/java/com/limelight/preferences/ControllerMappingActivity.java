@@ -1,7 +1,10 @@
 package com.limelight.preferences;
 
-import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import com.google.android.material.button.MaterialButton;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.res.TypedArray;
 import android.os.Bundle;
 import android.view.InputDevice;
@@ -19,7 +22,7 @@ import com.limelight.utils.UiHelper;
 import java.util.Map;
 
 /** Lets the user choose what each physical controller button sends to the host. */
-public class ControllerMappingActivity extends Activity {
+public class ControllerMappingActivity extends AppCompatActivity {
     private TextView deviceView;
     private LinearLayout mappingList;
     private Button resetButton;
@@ -32,19 +35,15 @@ public class ControllerMappingActivity extends Activity {
         super.onCreate(savedInstanceState);
         UiHelper.setLocale(this);
         setTitle(R.string.controller_mapping_title);
+        setContentView(R.layout.activity_stream_settings);
+        ((TextView) findViewById(R.id.settings_title)).setText(R.string.controller_mapping_title);
+        findViewById(R.id.settings_back).setOnClickListener(v -> finish());
 
         float density = getResources().getDisplayMetrics().density;
         int padding = Math.round(16 * density);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(padding, padding, padding, padding);
-
-        TextView heading = new TextView(this);
-        heading.setText(R.string.controller_mapping_title);
-        heading.setTextSize(22);
-        heading.setTextColor(primaryTextColor());
-        heading.setPadding(0, 0, 0, padding / 2);
-        root.addView(heading);
 
         TextView intro = new TextView(this);
         intro.setText(R.string.controller_mapping_intro);
@@ -61,7 +60,7 @@ public class ControllerMappingActivity extends Activity {
         mappingList.setOrientation(LinearLayout.VERTICAL);
         root.addView(mappingList);
 
-        resetButton = new Button(this);
+        resetButton = new MaterialButton(this);
         resetButton.setText(R.string.controller_mapping_reset);
         resetButton.setOnClickListener(v -> {
             map = new ControllerButtonMap();
@@ -72,7 +71,7 @@ public class ControllerMappingActivity extends Activity {
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
-        setContentView(scroll);
+        ((android.widget.FrameLayout) findViewById(R.id.stream_settings)).addView(scroll);
         UiHelper.notifyNewRootView(this);
 
         selectSingleConnectedController();
@@ -145,12 +144,15 @@ public class ControllerMappingActivity extends Activity {
             row.setBackground(attrs.getDrawable(0));
             attrs.recycle();
             row.setOnClickListener(onClick);
+            row.setFocusable(true);
+            row.setMinimumHeight(Math.round(48 * density));
+            ViewCompat.setScreenReaderFocusable(row, true);
         }
         LinearLayout wrapper = new LinearLayout(this);
         wrapper.setOrientation(LinearLayout.VERTICAL);
         wrapper.addView(row);
         View divider = new View(this);
-        divider.setBackgroundColor(0x1FFFFFFF);
+        divider.setBackgroundColor(getResources().getColor(R.color.outline));
         wrapper.addView(divider, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                 Math.max(1, Math.round(density))));
         return wrapper;
@@ -209,7 +211,7 @@ public class ControllerMappingActivity extends Activity {
         for (int i = 0; i < count; i++) {
             labels[i + 1] = targetName(targets[i]);
         }
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(getString(R.string.controller_mapping_choose, buttonName(source)))
                 .setItems(labels, (dialog, which) -> {
                     if (which == 0) {

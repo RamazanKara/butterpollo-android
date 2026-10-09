@@ -3,147 +3,113 @@ package com.limelight.nvstream.wol;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.util.Scanner;
+import java.net.InetSocketAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
-import com.limelight.LimeLog;
 import com.limelight.nvstream.http.ComputerDetails;
 
 public class WakeOnLanSender {
-    // These ports will always be tried as-is.
-    private static final int[] STATIC_PORTS_TO_TRY = new int[] {
-        9, // Standard WOL port (privileged port)
-        47009, // Port opened by Moonlight Internet Hosting Tool for WoL (non-privileged port)
-    };
+    private static final int[] STATIC_PORTS_TO_TRY = {9, 47009};
+    private static final int[] DYNAMIC_PORTS_TO_TRY = {47998, 47999, 48000, 48002, 48010};
 
-    // These ports will be offset by the base port number (47989) to support alternate ports.
-    private static final int[] DYNAMIC_PORTS_TO_TRY = new int[] {
-        47998, 47999, 48000, 48002, 48010, // Ports opened by GFE
-    };
-
-    private static void sendPacketsForAddress(InetAddress address, int httpPort, DatagramSocket sock, byte[] payload) throws IOException {
-        IOException lastException = null;
-        boolean sentWolPacket = false;
-
-        // Try the static ports
+    static Set<InetSocketAddress> destinations(InetAddress address, int httpPort) {
+        Set<InetSocketAddress> destinations = new LinkedHashSet<>();
         for (int port : STATIC_PORTS_TO_TRY) {
-            try {
-                DatagramPacket dp = new DatagramPacket(payload, payload.length);
-                dp.setAddress(address);
-                dp.setPort(port);
-                sock.send(dp);
-                sentWolPacket = true;
-            } catch (IOException e) {
-                e.printStackTrace();
-                lastException = e;
-            }
+            destinations.add(new InetSocketAddress(address, port));
         }
-
-        // Try the dynamic ports
         for (int port : DYNAMIC_PORTS_TO_TRY) {
-            try {
-                DatagramPacket dp = new DatagramPacket(payload, payload.length);
-                dp.setAddress(address);
-                dp.setPort((port - 47989) + httpPort);
-                sock.send(dp);
-                sentWolPacket = true;
-            } catch (IOException e) {
-                e.printStackTrace();
-                lastException = e;
+            int mappedPort = port - 47989 + httpPort;
+            if (mappedPort > 0 && mappedPort <= 65535) {
+                destinations.add(new InetSocketAddress(address, mappedPort));
             }
         }
-
-        if (!sentWolPacket) {
-            throw lastException;
-        }
+        return destinations;
     }
-    
-    public static void sendWolPacket(ComputerDetails computer) throws IOException {
-        byte[] payload = createWolPayload(computer);
+
+    static void sendPackets(Set<InetSocketAddress> destinations, DatagramSocket sock, byte[] payload) throws IOException {
         IOException lastException = null;
         boolean sentWolPacket = false;
-
-        try (final DatagramSocket sock = new DatagramSocket(0)) {
-            // Try all resolved remote and local addresses and broadcast addresses.
-            // The broadcast address is required to avoid stale ARP cache entries
-            // making the sleeping machine unreachable.
-            for (ComputerDetails.AddressTuple address : new ComputerDetails.AddressTuple[] {
-                    computer.localAddress, computer.remoteAddress,
-                    computer.manualAddress, computer.ipv6Address,
-            }) {
-                if (address == null) {
-                    continue;
-                }
-
+        // A magic packet has no acknowledgement; a short burst tolerates an isolated UDP loss.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            for (InetSocketAddress destination : destinations) {
                 try {
-                    sendPacketsForAddress(InetAddress.getByName("255.255.255.255"), address.port, sock, payload);
+                    sock.send(new DatagramPacket(payload, payload.length, destination));
                     sentWolPacket = true;
                 } catch (IOException e) {
-                    e.printStackTrace();
                     lastException = e;
                 }
+            }
+        }
+        if (!sentWolPacket) {
+            throw lastException != null ? lastException : new IOException("No Wake-on-LAN destinations");
+        }
+    }
 
-                try {
-                    for (InetAddress resolvedAddress : InetAddress.getAllByName(address.address)) {
-                        try {
-                            sendPacketsForAddress(resolvedAddress, address.port, sock, payload);
-                            sentWolPacket = true;
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                            lastException = e;
-                        }
+    public static void sendWolPacket(ComputerDetails computer) throws IOException {
+        byte[] payload = createWolPayload(computer.macAddress);
+        Set<InetAddress> broadcasts = new LinkedHashSet<>();
+        broadcasts.add(InetAddress.getByName("255.255.255.255"));
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            for (NetworkInterface nic : interfaces == null ? Collections.<NetworkInterface>emptyList() : Collections.list(interfaces)) {
+                if (!nic.isUp() || nic.isLoopback()) continue;
+                for (InterfaceAddress address : nic.getInterfaceAddresses()) {
+                    if (address.getBroadcast() instanceof Inet4Address) {
+                        broadcasts.add(address.getBroadcast());
                     }
-                } catch (IOException e) {
-                    // We may have addresses that don't resolve on this subnet,
-                    // but don't throw and exit the whole function if that happens.
-                    // We'll throw it at the end if we didn't send a single packet.
-                    e.printStackTrace();
-                    lastException = e;
                 }
             }
+        } catch (IOException | SecurityException e) {
+            // Restricted interface enumeration must not prevent ordinary broadcast/unicast wake.
+            e.printStackTrace();
         }
-
-        // Propagate the DNS resolution exception if we didn't
-        // manage to get a single packet out to the host.
-        if (!sentWolPacket && lastException != null) {
-            throw lastException;
+        Set<InetSocketAddress> targets = new LinkedHashSet<>();
+        Set<Integer> ports = new LinkedHashSet<>();
+        for (ComputerDetails.AddressTuple address : new ComputerDetails.AddressTuple[] {
+                computer.localAddress, computer.remoteAddress, computer.manualAddress, computer.ipv6Address,
+        }) {
+            if (address == null) continue;
+            ports.add(address.port);
+            try {
+                for (InetAddress resolvedAddress : InetAddress.getAllByName(address.address)) {
+                    targets.addAll(destinations(resolvedAddress, address.port));
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        if (ports.isEmpty()) ports.add(47989);
+        // Directed broadcasts reach each local subnet and avoid stale ARP entries for sleeping PCs.
+        for (InetAddress broadcast : broadcasts) {
+            for (int port : ports) targets.addAll(destinations(broadcast, port));
+        }
+        try (DatagramSocket sock = new DatagramSocket(0)) {
+            sock.setBroadcast(true);
+            sendPackets(targets, sock, payload);
         }
     }
-    
-    private static byte[] macStringToBytes(String macAddress) {
+
+    static byte[] createWolPayload(String macAddress) throws IOException {
+        if (macAddress == null || !macAddress.matches("(?i)[0-9a-f]{2}([:-])[0-9a-f]{2}(\\1[0-9a-f]{2}){4}")) {
+            throw new IOException("Invalid Wake-on-LAN MAC address");
+        }
         byte[] macBytes = new byte[6];
-
-        try (@SuppressWarnings("resource")
-             final Scanner scan = new Scanner(macAddress).useDelimiter(":")
-        ) {
-            for (int i = 0; i < macBytes.length && scan.hasNext(); i++) {
-                try {
-                    macBytes[i] = (byte) Integer.parseInt(scan.next(), 16);
-                } catch (NumberFormatException e) {
-                    LimeLog.warning("Malformed MAC address: " + macAddress + " (index: " + i + ")");
-                    break;
-                }
-            }
-            return macBytes;
+        String[] octets = macAddress.split("[:-]");
+        for (int i = 0; i < macBytes.length; i++) {
+            macBytes[i] = (byte) Integer.parseInt(octets[i], 16);
         }
-    }
-    
-    private static byte[] createWolPayload(ComputerDetails computer) {
         byte[] payload = new byte[102];
-        byte[] macAddress = macStringToBytes(computer.macAddress);
-        int i;
-        
-        // 6 bytes of FF
-        for (i = 0; i < 6; i++) {
-            payload[i] = (byte)0xFF;
+        for (int i = 0; i < 6; i++) payload[i] = (byte) 0xFF;
+        for (int i = 6; i < payload.length; i += 6) {
+            System.arraycopy(macBytes, 0, payload, i, macBytes.length);
         }
-        
-        // 16 repetitions of the MAC address
-        for (int j = 0; j < 16; j++) {
-            System.arraycopy(macAddress, 0, payload, i, macAddress.length);
-            i += macAddress.length;
-        }
-        
         return payload;
     }
 }

@@ -3,6 +3,13 @@
 > The current one-page status against the host's `main` is [PARITY-MATRIX.md](PARITY-MATRIX.md).
 > This file keeps the detailed evidence and the real-device checklist.
 
+Client usability follow-up on 2026-10-09 adds Android 15 Surface cadence hints and tests the
+existing Android 16 ARR path, separates PyroWave overlay signals, uses completed decode time for
+ordinary-codec adaptation, improves multi-interface Wake-on-LAN, and adds settings search and PiP
+Disconnect. Digital remapping now also applies to USB controller reports. Numpad/Print Screen and
+supplementary Unicode regressions are fixed. Remaining explicit dialogs, progress indicators,
+controller mapping and Help navigation follow the existing Material 3 theme. No host files changed.
+
 Client review on 2026-10-09: this branch already contained record framing, a USB DualSense driver
 and role-aware sessions. This follow-up adds decode time to PyroWave rate control, a separate
 off-by-default DualSense toggle with Material 3 permission explanation, captured USB input fixtures,
@@ -21,7 +28,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 
 | Capability | Host support | Client status |
 | --- | --- | --- |
-| Discovery, addresses, ports, wake | mDNS, IPv4/IPv6, `hostname`, `LocalIP`, `mac`, `HttpsPort`, `ExternalPort` | Existing discovery, manual addresses, port handling and Wake-on-LAN. |
+| Discovery, addresses, ports, wake | mDNS, IPv4/IPv6, `hostname`, `LocalIP`, `mac`, `HttpsPort`, `ExternalPort` | Existing discovery, manual addresses and port handling. Wake-on-LAN validates the MAC, tries every active IPv4 interface broadcast plus global broadcast/resolved addresses, deduplicates destinations, bounds alternate ports and sends three packets per destination despite partial failures. |
 | Pairing and device identity | PIN/certificate pairing, `PairStatus`, host `uniqueid`; device UUID bound to certificate | Persistent installation ID, Android model name, certificate pinning and authenticated HTTPS unpair. Installation ID, private key and client certificate are excluded from backup/device transfer so a restored installation pairs independently. Same-install updates preserve identity. |
 | One-time PIN, device permissions | OTP creation via admin API, `otpauth` pairing; `Permission`, per-device enable and access masks | Host context menu accepts the generated four-digit PIN and passphrase; masked, transient fields and a timed pairing request. Ordinary PIN pairing remains available. Unsigned permission masks are displayed and refreshed before host actions; missing fields preserve stock behavior, malformed masks grant nothing. |
 | App list and artwork | `/applist`, `/appasset`; `AppTitle`, `ID`, `IsHdrSupported`, `UUID`, `IDX`, `ArtVersion`, permission-filtered entries | UUID-aware launch/resume and shortcuts, host index ordering with alphabetical fallback, live metadata updates, and artwork version/identity keys for memory, disk, pending loads and TV posters. Unknown fields remain compatible. Unchanged host artwork tokens cannot signal changed covers. |
@@ -42,14 +49,14 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Audio | Opus stereo, 5.1, 7.1, quality/channel-map negotiation, local playback, encryption | Existing audio negotiation/playback. Endpoint selection remains host configured. |
 | Transport and recovery | RTSP/encrypted RTSP, UDP video/audio, reliable encrypted control, FEC, keyframe recovery, optional reference invalidation, ping/connect-data extensions, QoS | Existing pinned moonlight-common-c `874ac954` handles these. Slice/reference negotiation and milestone 2 latency controls retained. |
 | Keyboard/mouse/touch/pen | Standard input plus `x-ss-general.featureFlags` pen/touch bit | Hardware/soft keyboards, captured/absolute mouse and stylus retained. Stream menu selects trackpad, direct touch-as-mouse or native multi-touch with capability fallback; native gestures send cancel-all on focus/mode changes. Keyboard/OSC cleanup and explicit soft-keyboard access added. |
-| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Android/vendor input and per-model digital remapping remain. The opt-in USB DualSense/Edge driver handles two touch contacts, calibrated motion, battery, rumble, LEDs, raw host trigger effects and Edge back paddles. USB-driver digital remapping and Bluetooth adaptive triggers remain outside this path. |
-| Frame limiter and VRR | `FrameLimiterSupported`, `FrameLimiterEnabled`, `VirtualDisplayFrameLimiterEnabled`, `FrameLimiterFpsLimitMilliHz`; `vrr` aliases and SDP `vrrLowLatency`, 1000 Hz virtual mode | Stream menu reports manual/virtual limiter state and fractional configured cap (zero means stream rate). Host defaults and selected Android pacing apply. Opt-in **Variable refresh (VRR)** sends `vrr=1` (not to GFE), which turns on the host's VRR pacing; the client then forces minimum-latency pacing at the panel's highest refresh rate. Android scanout itself stays fixed-rate before adaptive refresh rate (ARR) support. |
-| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Opt-in per-host control for ordinary codecs and a separate PyroWave controller using loss, queueing and completed decode time. Manual changes/request failure disable adaptation. Stock hosts retain startup behavior; no automatic codec/resolution switch. |
+| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Android/vendor input and per-model digital remapping remain. The opt-in USB DualSense/Edge driver handles two touch contacts, calibrated motion, battery, rumble, LEDs, raw host trigger effects and Edge back paddles. Saved model-specific digital mappings also apply to USB reports; Bluetooth adaptive triggers remain outside this path. |
+| Frame limiter and VRR | `FrameLimiterSupported`, `FrameLimiterEnabled`, `VirtualDisplayFrameLimiterEnabled`, `FrameLimiterFpsLimitMilliHz`; `vrr` aliases and SDP `vrrLowLatency`, 1000 Hz virtual mode | Stream menu reports manual/virtual limiter state and fractional configured cap (zero means stream rate). Host defaults and selected Android pacing apply. Opt-in **Variable refresh (VRR)** sends `vrr=1` (not to GFE), which turns on the host's VRR pacing; the client uses minimum-latency pacing with measured-cadence hints on Android 16 ARR displays and Android 15 SurfaceView. Older platforms, Android 15 TextureView and Android 16 without ARR retain fixed-rate selection. |
+| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Opt-in per-host control using loss and completed decode budgets for ordinary codecs; separate PyroWave control also uses queueing. Both require decode headroom for recovery and reset healthy streaks during menus/host actions. Manual changes/request failure disable adaptation. Stock hosts retain startup behavior; no automatic codec/resolution switch. |
 | Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Monitor input is blocked; Input-only skips media threads/decoders/watchdogs. Scoped disconnect, ownership refresh and Material 3 confirmation handle recognized XML status 410 replies (HTTP transport status 200). Device lifecycle checks remain required. |
 | Clipboard and server commands | Permission-scoped text `/actions/clipboard`, advertised `ServerCommand` names | Explicit foreground text send/receive over paired HTTPS with direction permissions, UTF-8, 1 MiB limit and no content logging. Commands use reliable encrypted control type `0x3000`, original 8-bit index and host-specific payload size; confirmation, permission refresh and one-second spacing. Host enforces app restrictions; no execution acknowledgment exists. |
 | PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Explicit codec choice, Vulkan HDR/4:4:4, runtime/warm-up gates and bandwidth probe. Compatible Rust versions negotiate adaptive records via pyrowaveFeatures=1; unknown versions retain ordinary containers and a bitstream mismatch falls back to conventional codecs. Startup accepts 2 Gbps; runtime changes cap at 500 Mbps. Phone certification remains open. |
 | Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Accepts the current host's `7.1.431.-1` trailing build sentinel while rejecting other malformed negatives. Rust version gates decimal launch rates. Loopback-only diagnostics ignored safely. |
-| Android integration and overlay | Android launcher/PiP and existing stream telemetry | Wake-on-LAN, pinned app shortcuts, TV channels and PiP retained. Overlay toggles immediately from the stream menu or Ctrl+Alt+Shift+S. Shortcut intents carry app UUID; native touch uses the menu for soft-keyboard access. |
+| Android integration and overlay | Android launcher/PiP and existing stream telemetry | Pinned app shortcuts and TV channels retained. PiP adds local Disconnect and bounds custom aspect ratios. Settings search uses device-filtered titles, descriptions and categories, then opens the original setting. Overlay toggles immediately from the stream menu or Ctrl+Alt+Shift+S. Shortcut intents carry app UUID; native touch uses the menu for soft-keyboard access. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
 
 Source: host [protocol handlers](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/nvhttp.rs),
@@ -83,7 +90,9 @@ swap, deadzone controls and multi-controller mode. **Settings → Controller but
 buttons per controller model (USB vendor/product ID, or name when IDs are missing): press a button,
 then pick A/B/X/Y, bumpers, stick clicks, Start, Select, Guide or nothing. A mapping replaces
 face-button flipping for that button and applies from the next stream. D-pad, analog triggers and
-stick axes are not remappable, and controllers claimed by the built-in Xbox USB driver bypass it. OSC editing moves/resizes existing controls and saves their layout; it does not create
+stick axes are not remappable. USB Xbox/DualSense/Edge reports now apply the same saved model mappings;
+explicit bindings override face swapping, mappings do not chain, and a shared target stays held until
+all sources release. Configure the model in Settings before streaming. OSC editing moves/resizes existing controls and saves their layout; it does not create
 arbitrary keyboard/mouse macro buttons. Native multi-touch forwards finger pointers; the stream menu
 opens the soft keyboard so three fingers remain available to the host. Mouse-emulation modes retain
 their existing three-finger keyboard gesture.
@@ -104,10 +113,11 @@ their existing three-finger keyboard gesture.
   Transport errors offer reconnect. Touch cancellation and input release prevent the new menu paths
   from leaving emulated input held; hardware/OEM behavior still needs the checks below.
 - Automatic bitrate is opt-in and saved per host, available on Butterpollo. For ordinary codecs it
-  samples recent video/network loss and common-c poor-connection status once per second, waits
+  samples recent video/network loss, completed decode time and common-c poor-connection status once per second, waits
   through transient bad samples, reduces by 20% no faster than every five seconds, then increases
-  slowly after 15 healthy seconds. It respects the host's applied cap, pauses decisions during menu
-  interaction/other host actions and disables itself after a request failure or a manual bitrate
+  slowly after 15 healthy seconds with at least 25% decode headroom. Missing decode measurements prevent
+  recovery; a decoder over its frame budget can trigger reduction without network loss. It respects the host's applied cap, pauses decisions during menu
+  interaction/other host actions, clears healthy streaks during that pause, and disables itself after a request failure or a manual bitrate
   change. PyroWave has separate saved opt-in state: two congested samples reduce by 15%, no faster
   than every three seconds; 20 healthy seconds allow a 2% rise (at least 250 kbps). Its signals include
   missing records, lost frames, queue delay and completed decode time versus the stream frame budget.
@@ -143,16 +153,67 @@ their existing three-finger keyboard gesture.
 | Virtual-display layouts, sharing/disable policy, DPI and retained displays | `display_session.rs` reads `virtual_display_mode`, `display_mode` and `virtual_display_layout` from paired-device extras, app extras or host configuration. Only `virtualDisplay`, `mode` and `scaleFactor` are client launch options here. Sending invented layout/DPI parameters would have no effect. Requesting no virtual display does not override a host/app forced display policy. Configure exclusive/extended/primary layouts and desktop scale in the host console. |
 | Editing host or per-app/per-device settings and permissions | `/api/config`, `/api/apps`, `/api/clients/update`, `/api/clients/display-layout` and HDR-profile APIs require separate administrator authentication. Pairing certificates do not grant that access. Host overrides already apply during ordinary launches; a native admin UI/credential store is not implemented. |
 | Detailed capture/encode/frame-age telemetry | The video short header carries one processing duration. Capture/encode breakdown, host warnings and broader diagnostics belong to authenticated host telemetry. The overlay/CSV reports available processing avg/p95/p99 and never infers encode-only or end-to-end time by subtracting unrelated clocks. A native admin telemetry view remains open. |
-| VRR | Requested on opt-in with launch `vrr=1`; the host ORs it into `vrrLowLatency`, so no SDP change is needed. The phone presents each frame immediately at its highest fixed refresh rate; true variable scanout needs Android 16 ARR and is not implemented or measured. |
+| VRR / ARR scanout | Client implemented and policy-tested: Android 16 detects ARR support; Android 15 SurfaceView uses seamless cadence hints without claiming detected support. Android 15 TextureView/older OS/non-ARR Android 16 use fixed-rate fallback. Actual refresh, touch boosts, power policy and presentation remain hardware checks. |
 | PyroWave transport and 4K quality | Record framing now recovers surviving coefficients and conceals missing records with cached data; a datagram may affect several records or a split record. Framing and bitrate state machines have unit coverage, but packet loss, GPU performance and quality still need phone checks. Startup accepts 2000 Mbps; runtime /bitrate remains capped at 500 Mbps. Recommended-quality 4K60 may require more than gigabit Ethernet. |
 | Remote Monitor, Remote Input and control-tile lifecycle | Implemented role-specific media/input gating, scoped disconnect and explicit confirmation. Replacement/Terminate XML 410 challenges require a user decision within 60 seconds, retry at most once and cancel on background/stop. Completion messages are distinguished from errors. Verify persistence/rejoin and two-client ownership on hardware. |
-| Axis mapping and advanced feedback | Axis mapping and USB-driver digital remapping remain unimplemented. USB DualSense/Edge feedback is wired through common-c/JNI to physical USB reports, including opaque rc.23+ trigger payloads. Bluetooth adaptive triggers and USB audio haptics are not claimed. |
+| Axis mapping and advanced feedback | Axis mapping remains outside the current digital-mapping UI. USB-driver digital remapping is implemented and unit-tested. USB DualSense/Edge feedback is wired through common-c/JNI to physical USB reports, including opaque rc.23+ trigger payloads. Bluetooth adaptive triggers and USB audio haptics are not claimed. |
 | Other Artemis desktop conveniences | Arbitrary virtual-button bindings/import/export, automatic clipboard sync, view pan/zoom, external-monitor-specific UI and SBS 3D remain absent. Manual foreground text clipboard is intentional current behavior. No claim of every Artemis feature being reproduced. |
 | Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain startup bitrate. PyroWave has its own loss/queue/decode policy. Automatic resolution/codec switching remains unimplemented. |
 
+### Client follow-up evidence and UI audit
+
+- ARR API boundaries follow the [Android ARR guide](https://developer.android.com/develop/ui/views/animations/adaptive-refresh-rate)
+  and [Display capability API](https://developer.android.com/reference/android/view/Display#hasArrSupport()).
+  Android 15 Surface hints request only seamless changes; the overlay says **cadence hints**, without
+  claiming detected support. Android 16 checks ARR support for either rendering surface. Unit tests cover
+  fixed-rate fallback, fractional rates, missing samples and votes capped at the requested stream rate.
+- The PyroWave overlay separates **records missing**, **queue**, **completed decode**, and **GPU decode (last)**.
+  Record loss is distinct from lost frames. Missing samples read **unavailable**; no render/scanout or
+  end-to-end measurement is invented. JUnit covers formatting and completed-frame sampling/reset.
+- Ordinary-codec adaptation reduces for sustained decode-budget overruns and permits recovery only with
+  measured decode headroom. Both controllers restart healthy observation after menus/host actions suspend
+  sampling; tests cover thresholds, unavailable data, cooldowns, floors, runtime caps and pause/recovery.
+- Wake-on-LAN tests use a recording datagram socket and synthetic subnet destinations, with no host
+  traffic. They cover magic-packet bytes, MAC separators/malformed values, duplicate targets, port overflow,
+  failed routes and transient send failure. Interface enumeration and actual routing remain Android checks.
+  Directed broadcasts reach attached subnets, not arbitrary networks through routers.
+- Search matching is literal, case/accent insensitive and multi-word. Only preferences retained by the
+  existing device checks are indexed. Results navigate to the original setting and scroll it into view,
+  retaining dependencies and persistence. Query text survives recreation; Back clears search first.
+  Matching is unit-tested; Android focus/lifecycle is not rendered.
+- PiP Disconnect uses a per-activity action, immutable package-scoped PendingIntent and a receiver that
+  is not exported. It only finishes an active media session while in PiP, preserving the host app.
+  Ultrawide/portrait bounds follow the [Android PiP builder](https://developer.android.com/reference/android/app/PictureInPictureParams.Builder#setAspectRatio(android.util.Rational)).
+  Ratio and role/lifecycle policy tests run without Android UI.
+- Keyboard tests cover numpad Enter/separator, left/right modifiers, Print Screen and supplementary
+  Unicode without truncation; dead keys and invalid code points are not sent as text. Virtual-key
+  assignments follow [Microsoft's table](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes).
+  USB report tests cover disabled buttons, chained/many-to-one maps, face-swap precedence, release and
+  preservation of paddles/touchpad/D-pad. Android and USB model IDs must match the saved profile.
+- Audited every manifest Activity: PcView, AppView, AddComputerManually and StreamSettings already use
+  Material 3 layouts; ControllerMappingActivity and HelpActivity now share that navigation shell.
+  Game retains its streaming surface with a Material theme and explicit white telemetry text;
+  ShortcutTrampoline has no content UI and uses the converted shared dialogs. The unused OSC container
+  has no controls to convert. Remaining explicit dialogs (stream menu/touch/OSC/reconnect/commands/status/
+  bitrate, profile, host details, bandwidth, errors/confirmations and loading) use Material builders and
+  progress indicators. Native ListPreference/SeekBarPreference/language/reset-OSC dialogs retain the
+  existing matching PlatformDialogTheme to preserve platform preference state/persistence.
+- Role badges grow below artwork rather than occupying a fixed image area; TalkBack descriptions include
+  role/action, and remote tiles no longer advertise global Quit. Host status text can grow. Profile
+  controls and the OSC settings button have at least 48 dp targets. Controller rows are keyboard-focusable
+  with grouped screen-reader content. Rendering verification below is still required.
+
 ### Current verification scope and real-device checklist
 
-2026-10-09 follow-up, Windows/JDK 17: `:app:assembleNonRootDebug`,
+Usability-pass validation on Windows/JDK 17: `:app:assembleNonRootDebug`,
+`:app:testNonRootDebugUnitTest` and `:app:lintNonRootDebug` passed with
+`--no-daemon --max-workers=2`, a 1.5 GiB heap and two active processors. JUnit passed **460 tests**
+(28 added), with zero failures, errors or skips; lint reported **0 errors and 180 warnings**.
+There is no Robolectric, Paparazzi, Roborazzi or other JVM rendering/screenshot suite in this project;
+the existing screenshot script requires an emulator and was not run. No adb, emulator, phone,
+physical controller or host was used for this pass. No dependency, commit or push was added.
+
+Earlier 2026-10-09 follow-up (before the usability pass), Windows/JDK 17: `:app:assembleNonRootDebug`,
 `:app:testNonRootDebugUnitTest` and `:app:lintNonRootDebug` all passed with
 `--no-daemon --max-workers=2`. The APK includes all four Android ABIs. JUnit passed
 432 tests with zero failures, errors or skips; lint reported zero errors and 178 warnings.
@@ -275,6 +336,42 @@ The following still require real Android hardware and a host; passing synthetic 
     AV1/HDR/120. Keep network loss separate from decode/render stalls. Elite/Tensor G4 timing and useful
     vendor keys remain unknown until measured; see [decoder-errata.txt](../decoder-errata.txt). No new
     SoC tuning was added on the strength of issue reports, and no phone timings were generated locally.
+
+13. **ARR / fixed-rate fallback:** compare Android 15 SurfaceView and TextureView, Android 16 with
+    and without ARR, and an older fixed-rate device. Enable VRR and vary stream cadence through
+    30/59.94/60/90/119.88/120, a static scene, idle/no frames, resume and surface recreation. Compare
+    **ARR**, **cadence hints**, or **max Hz** in the overlay with actual display diagnostics. Check
+    hint updates do not cause black-screen mode switches on Android 15/16, touch boosts do not dominate
+    supported ARR, and disabling VRR restores ordinary pacing. Battery Saver, thermal policy, HDR and
+    OEM mode restrictions can override hints.
+14. **PiP / USB mapping / wake:** try 16:9, portrait and 32:9 PiP. Use system Disconnect, expand,
+    close, re-enter and reconnect; the host app must remain running and stale controls must do nothing.
+    Input-only must not enter PiP. Save USB model remaps before a stream, including A→B, B→X, two
+    buttons→A and a disabled button; test simultaneous hold/release, face swap, focus loss, disconnect
+    and reconnect. For wake, test Wi-Fi plus Ethernet/VPN, different subnet masks and custom ports,
+    one broken route, stale ARP, DNS failure, sleeping NICs and router/firewall policy.
+
+**Caller emulator checklist (not run here):** use both **360 × 800 dp** and **393 × 851 dp**, portrait
+and landscape, with font scales **1.0, 1.3 and 2.0**, plus gesture and three-button navigation.
+Check light/dark system settings, long host/app names and at least one long-translation locale.
+
+- Visit host list, app library (both tile sizes, running/hidden/monitor/input/end-role tiles), Add PC,
+  all five settings sections, search/empty results, Controller buttons and Help. Confirm readable wrapping,
+  scrolling, visible navigation, no clipped buttons, and bottom rows clear of IME/system insets.
+- Search title/description/category words, accented text and punctuation. Select a result, change a
+  value, go Back, clear the query and rotate with a query active. Unsupported preferences must stay absent;
+  dependencies must still work after search (OSC/vibration, virtual display/render scale, HDR).
+- Open per-host profile (inputs, validation errors, Match screen, Save/Reset), OTP, pairing/error/loading,
+  quit/delete/reset, USB explanation, About, host details, bandwidth and every stream subdialog (touch mode,
+  controller layout, bitrate, commands, status, confirmation/reconnect). Scroll to all content at 200% font;
+  dialog buttons and slider +/-/presets must remain reachable. Use the caller's host/fixtures for stream UI.
+- With TalkBack, traverse icon buttons, host/app cards and role labels, form fields/errors, preferences,
+  search, controller rows and dialog buttons. Check each action is named once, headings are navigable,
+  focus returns after dismissing dialogs, and touch bounds are at least 48 dp. Test keyboard/D-pad too.
+- Stream in trackpad, direct touch and native multi-touch modes; open/cancel the Material touch selector
+  during taps/drag/scroll, use three fingers, focus loss, Android edge cancellation and mouse capture.
+  No stuck key/button or delayed release should affect the next gesture. These are device checks,
+  not certifications from the JVM policy tests.
 
 ## Milestone 5: extras and packaging (historical record)
 

@@ -67,4 +67,10 @@ public final class PyroWaveBitrateController {
         congestedSamples = 0;
         previousLoss = previousQueueMs = -1;
     }
+
+    public void suspend() {
+        healthySinceMs = -1;
+        congestedSamples = 0;
+        previousLoss = previousQueueMs = -1;
+    }
 }

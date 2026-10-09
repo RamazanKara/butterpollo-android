@@ -14,6 +14,26 @@ import static org.junit.Assert.*;
 
 public class FrameLatencyStatsTest {
     @Test
+    public void bitrateDecodeSamplesRequireCompletedValidFramesAndResetEachWindow() {
+        FrameLatencyStats stats = new FrameLatencyStats();
+        assertEquals(-1, stats.takeDecodeTimeMs(), 0);
+        stats.onDecoderInput(1, 1000, 1000000, 2000000, (char) 0);
+        assertEquals(-1, stats.takeDecodeTimeMs(), 0);
+        stats.onDecoderOutput(1, 1000, 6000000);
+        stats.onDecoderInput(2, 2000, 7000000, 8000000, (char) 0);
+        stats.onDecoderOutput(2, 2000, 14000000);
+        assertEquals(5, stats.takeDecodeTimeMs(), 0);
+        assertEquals(-1, stats.takeDecodeTimeMs(), 0);
+        stats.onDecoderInput(3, 3000, 15000000, 16000000, (char) 0);
+        stats.onDecoderOutput(3, 3000, 14000000);
+        assertEquals(-1, stats.takeDecodeTimeMs(), 0);
+        stats.onDecoderInput(4, 4000, 20000000, 21000000, (char) 0);
+        stats.onDecoderOutput(4, 4000, 22000000);
+        stats.discardPending("stopped");
+        assertEquals(-1, stats.takeDecodeTimeMs(), 0);
+    }
+
+    @Test
     public void reusedOutputIndexKeepsBothPendingRenderCallbacks() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 100, 200, (char) 0);

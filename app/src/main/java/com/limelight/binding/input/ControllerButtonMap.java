@@ -1,6 +1,7 @@
 package com.limelight.binding.input;
 
 import android.content.Context;
+import static com.limelight.nvstream.input.ControllerPacket.*;
 
 import java.util.Locale;
 import java.util.Map;
@@ -59,6 +60,44 @@ public final class ControllerButtonMap {
     public int map(int keyCode) {
         Integer target = mappings.get(keyCode);
         return target == null ? UNMAPPED : target;
+    }
+
+    public int mapButtonFlags(int flags, boolean flipFaceButtons) {
+        int result = flags;
+        for (int source : TARGETS) result &= ~buttonFlag(source);
+        for (int source : TARGETS) {
+            if ((flags & buttonFlag(source)) == 0) continue;
+            int target = map(source);
+            if (target == UNMAPPED) {
+                target = source;
+                if (flipFaceButtons) {
+                    if (source == BUTTON_A) target = BUTTON_B;
+                    else if (source == BUTTON_B) target = BUTTON_A;
+                    else if (source == BUTTON_X) target = BUTTON_Y;
+                    else if (source == BUTTON_Y) target = BUTTON_X;
+                }
+            }
+            // Map the original report once; chained and many-to-one bindings must not release held targets.
+            result |= buttonFlag(target);
+        }
+        return result;
+    }
+
+    private static int buttonFlag(int keyCode) {
+        switch (keyCode) {
+            case BUTTON_A: return A_FLAG;
+            case BUTTON_B: return B_FLAG;
+            case BUTTON_X: return X_FLAG;
+            case BUTTON_Y: return Y_FLAG;
+            case BUTTON_L1: return LB_FLAG;
+            case BUTTON_R1: return RB_FLAG;
+            case BUTTON_THUMBL: return LS_CLK_FLAG;
+            case BUTTON_THUMBR: return RS_CLK_FLAG;
+            case BUTTON_START: return PLAY_FLAG;
+            case BUTTON_SELECT: return BACK_FLAG;
+            case BUTTON_MODE: return SPECIAL_BUTTON_FLAG;
+            default: return 0;
+        }
     }
 
     public void put(int source, int target) {

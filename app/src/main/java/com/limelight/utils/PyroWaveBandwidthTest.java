@@ -1,8 +1,9 @@
 package com.limelight.utils;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.widget.ProgressBar;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 
 import com.limelight.R;
 import com.limelight.binding.PlatformBinding;
@@ -28,7 +29,7 @@ public final class PyroWaveBandwidthTest {
     }
 
     public void show() {
-        dialog = new AlertDialog.Builder(activity)
+        dialog = new MaterialAlertDialogBuilder(activity)
                 .setTitle(R.string.bandwidth_probe_title)
                 .setMessage(R.string.bandwidth_probe_confirmation)
                 .setPositiveButton(R.string.bandwidth_probe_start, (d, which) -> start())
@@ -38,12 +39,12 @@ public final class PyroWaveBandwidthTest {
     }
 
     private void start() {
-        ProgressBar progress = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        LinearProgressIndicator progress = new LinearProgressIndicator(activity);
         progress.setMax(100);
         progress.setIndeterminate(true);
         int padding = Math.round(24 * activity.getResources().getDisplayMetrics().density);
         progress.setPadding(padding, 0, padding, 0);
-        dialog = new AlertDialog.Builder(activity)
+        dialog = new MaterialAlertDialogBuilder(activity)
                 .setTitle(R.string.bandwidth_probe_title)
                 .setMessage(R.string.bandwidth_probe_running)
                 .setView(progress)
@@ -62,8 +63,7 @@ public final class PyroWaveBandwidthTest {
                 ComputerDetails current = http.getComputerDetails(true);
                 double mbps = http.probePyroWaveBandwidth(current, percent -> activity.runOnUiThread(() -> {
                     if (!cancelled) {
-                        progress.setIndeterminate(false);
-                        progress.setProgress(percent);
+                        progress.setProgressCompat(percent, true);
                     }
                 }));
                 result = activity.getString(R.string.bandwidth_probe_result, mbps);
@@ -80,7 +80,7 @@ public final class PyroWaveBandwidthTest {
                     return;
                 }
                 dialog.dismiss();
-                dialog = new AlertDialog.Builder(activity)
+                dialog = new MaterialAlertDialogBuilder(activity)
                         .setTitle(R.string.bandwidth_probe_title)
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null).create();

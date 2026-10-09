@@ -123,11 +123,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private float pyroWaveLossTotal;
     private int pyroWaveLossSamples;
     private float pyroWaveQueueDelayTotal;
-    private float pyroWaveDecodeTimeTotal;
-    private int pyroWaveDecodeSamples;
-    private volatile float pyroWaveLossPercent;
-    private volatile float pyroWaveQueueDelayMs;
-    private volatile float pyroWaveDecodeTimeMs = -1;
+    private volatile float pyroWaveLossPercent = -1;
+    private volatile float pyroWaveQueueDelayMs = -1;
+    private volatile float decodeTimeMs = -1;
 
     private final FrameLatencyStats frameLatencyStats;
     private HandlerThread latencyThread;
@@ -191,8 +189,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return pyroWaveQueueDelayMs;
     }
 
-    public float getPyroWaveDecodeTimeMs() {
-        return pyroWaveDecodeTimeMs;
+    public float getDecodeTimeMs() {
+        return decodeTimeMs;
+    }
+
+    static String formatPyroWaveStats(float recordLoss, float queueMs, float decodeMs, int gpuUs) {
+        return "PyroWave records missing: " + metric(recordLoss, "%") +
+                "\nQueue: " + metric(queueMs, " ms") + " | completed decode: " + metric(decodeMs, " ms") +
+                "\nGPU decode (last): " + metric(gpuUs > 0 ? gpuUs / 1000.0f : -1, " ms");
+    }
+
+    private static String metric(float value, String unit) {
+        return value >= 0 && Float.isFinite(value) ?
+                String.format(java.util.Locale.getDefault(), "%.2f%s", value, unit) : "unavailable";
     }
 
     private long lastTimestampUs;
@@ -1745,9 +1754,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 pyroWaveLossTotal = pyroWaveQueueDelayTotal = 0;
                 pyroWaveLossSamples = 0;
             }
-            pyroWaveDecodeTimeMs = pyroWaveDecodeSamples == 0 ? -1 : pyroWaveDecodeTimeTotal / pyroWaveDecodeSamples;
-            pyroWaveDecodeTimeTotal = 0;
-            pyroWaveDecodeSamples = 0;
+            decodeTimeMs = frameLatencyStats.takeDecodeTimeMs();
             VideoStats lastTwo = new VideoStats();
             lastTwo.add(lastWindowVideoStats);
             lastTwo.add(activeWindowVideoStats);
@@ -1790,7 +1797,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs));
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
                     int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
-                    sb.append("\nGPU decode: ").append(gpuUs > 0 ? (gpuUs / 1000.0) + " ms" : "unavailable");
+                    sb.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
+                            this.decodeTimeMs, gpuUs));
                 }
                 sb.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(sb.toString());
@@ -1818,8 +1826,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
                 // The native completion timestamp excludes swapchain acquisition/presentation waits.
-                pyroWaveDecodeTimeTotal += (outputNs - inputNs) / 1000000.0f;
-                pyroWaveDecodeSamples++;
                 pyroWaveDecodeRemainderNs += outputNs - inputNs;
                 activeWindowVideoStats.decoderTimeMs += pyroWaveDecodeRemainderNs / 1000000;
                 pyroWaveDecodeRemainderNs %= 1000000;

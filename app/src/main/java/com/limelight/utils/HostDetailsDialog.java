@@ -1,7 +1,8 @@
 package com.limelight.utils;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -31,7 +32,9 @@ public final class HostDetailsDialog {
     }
 
     private void section(int title) {
-        TextView header = new TextView(activity, null, android.R.attr.listSeparatorTextViewStyle);
+        TextView header = new TextView(activity);
+        header.setTextAppearance(activity, com.google.android.material.R.style.TextAppearance_Material3_TitleSmall);
+        androidx.core.view.ViewCompat.setAccessibilityHeading(header, true);
         header.setText(title);
         header.setPadding(0, padding / 2, 0, padding / 6);
         content.addView(header);
@@ -44,12 +47,12 @@ public final class HostDetailsDialog {
         if (label != 0) {
             TextView name = new TextView(activity);
             name.setText(label);
-            name.setTextAppearance(activity, android.R.style.TextAppearance_Material_Caption);
+            name.setTextAppearance(activity, com.google.android.material.R.style.TextAppearance_Material3_LabelMedium);
             content.addView(name);
         }
         TextView text = new TextView(activity);
         text.setText(value);
-        text.setTextAppearance(activity, android.R.style.TextAppearance_Material_Body1);
+        text.setTextAppearance(activity, com.google.android.material.R.style.TextAppearance_Material3_BodyLarge);
         text.setTextIsSelectable(true);
         text.setPadding(0, 0, 0, padding / 3);
         content.addView(text);
@@ -64,7 +67,7 @@ public final class HostDetailsDialog {
         dialog.build(details);
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(dialog.content);
-        new AlertDialog.Builder(activity)
+        new MaterialAlertDialogBuilder(activity)
                 .setTitle(details.name)
                 .setView(scroll)
                 .setPositiveButton(R.string.host_details_close, null)

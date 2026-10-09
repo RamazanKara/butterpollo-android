@@ -3,8 +3,41 @@ package com.limelight.binding.input;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import static com.limelight.nvstream.input.ControllerPacket.*;
 
 public class ControllerButtonMapTest {
+    @Test
+    public void usbReportsUseTheSameModelMappingsWithoutChaining() {
+        ControllerButtonMap map = new ControllerButtonMap();
+        map.put(96, 97);
+        map.put(97, 99);
+        assertEquals(B_FLAG, map.mapButtonFlags(A_FLAG, false));
+        assertEquals(B_FLAG | X_FLAG, map.mapButtonFlags(A_FLAG | B_FLAG, false));
+        assertEquals(0, map.mapButtonFlags(0, false));
+    }
+
+    @Test
+    public void usbMergedTargetsRemainPressedUntilAllSourcesRelease() {
+        ControllerButtonMap map = new ControllerButtonMap();
+        map.put(97, 96);
+        assertEquals(A_FLAG, map.mapButtonFlags(A_FLAG | B_FLAG, false));
+        assertEquals(A_FLAG, map.mapButtonFlags(B_FLAG, false));
+        assertEquals(A_FLAG, map.mapButtonFlags(A_FLAG, false));
+        assertEquals(0, map.mapButtonFlags(0, false));
+    }
+
+    @Test
+    public void usbBindingsOverrideFaceSwapAndPreservePaddlesAndTouchpad() {
+        ControllerButtonMap map = new ControllerButtonMap();
+        map.put(96, 99);
+        map.put(97, ControllerButtonMap.DISABLED);
+        int extended = PADDLE1_FLAG | TOUCHPAD_FLAG | MISC_FLAG | UP_FLAG;
+        assertEquals(X_FLAG | extended, map.mapButtonFlags(A_FLAG | B_FLAG | extended, true));
+        assertEquals(Y_FLAG, map.mapButtonFlags(X_FLAG, true));
+        assertEquals(A_FLAG | B_FLAG | X_FLAG | Y_FLAG,
+                new ControllerButtonMap().mapButtonFlags(A_FLAG | B_FLAG | X_FLAG | Y_FLAG, true));
+    }
+
     private static final int A = 96, B = 97, X = 99, Y = 100, L2 = 104, START = 108, BUTTON_1 = 188;
     private static final int DPAD_UP = 19;
 

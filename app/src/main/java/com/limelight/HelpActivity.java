@@ -1,6 +1,9 @@
 package com.limelight;
 
-import android.app.Activity;
+import androidx.appcompat.app.AppCompatActivity;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import com.limelight.utils.UiHelper;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,7 +14,7 @@ import android.window.OnBackInvokedDispatcher;
 
 import com.limelight.utils.SpinnerDialog;
 
-public class HelpActivity extends Activity {
+public class HelpActivity extends AppCompatActivity {
 
     private SpinnerDialog loadingDialog;
     private WebView webView;
@@ -36,8 +39,12 @@ public class HelpActivity extends Activity {
             };
         }
 
+        setContentView(R.layout.activity_stream_settings);
+        ((TextView) findViewById(R.id.settings_title)).setText(R.string.help);
+        findViewById(R.id.settings_back).setOnClickListener(v -> onBackPressed());
         webView = new WebView(this);
-        setContentView(webView);
+        ((FrameLayout) findViewById(R.id.stream_settings)).addView(webView);
+        UiHelper.notifyNewRootView(this);
 
         // These allow the user to zoom the page
         webView.getSettings().setBuiltInZoomControls(true);

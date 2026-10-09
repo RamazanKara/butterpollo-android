@@ -19,7 +19,7 @@
                     android:layout_marginEnd="8dp" app:tint="@color/on_surface_variant" />
                 <TextView android:id="@+id/grid_status" android:layout_width="0dp" android:layout_height="wrap_content"
                     android:layout_weight="1" android:textSize="16sp" android:textColor="@color/on_surface_variant"
-                    android:minLines="2" android:maxLines="2" />
+                    android:minLines="2" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

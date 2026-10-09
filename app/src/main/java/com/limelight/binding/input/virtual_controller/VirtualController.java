@@ -148,7 +148,7 @@ public class VirtualController {
 
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
 
-        int buttonSize = (int)(screen.heightPixels*0.06f);
+        int buttonSize = Math.max(Math.round(48 * screen.density), (int)(screen.heightPixels*0.06f));
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(buttonSize, buttonSize);
         params.leftMargin = 15;
         params.topMargin = 15;
