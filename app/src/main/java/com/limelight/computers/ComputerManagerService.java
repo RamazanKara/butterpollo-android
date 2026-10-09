@@ -528,6 +528,7 @@ public class ComputerManagerService extends Service {
         }
     }
 
+<<<<<<< HEAD
     private boolean getLocalDatabaseReference() {
         int count;
         do {
@@ -536,10 +537,18 @@ public class ComputerManagerService extends Service {
                 return false;
             }
         } while (!dbRefCount.compareAndSet(count, count + 1));
+=======
+    private synchronized boolean getLocalDatabaseReference() {
+        if (dbRefCount.get() == 0) {
+            return false;
+        }
+
+        dbRefCount.incrementAndGet();
+>>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
         return true;
     }
 
-    private void releaseLocalDatabaseReference() {
+    private synchronized void releaseLocalDatabaseReference() {
         if (dbRefCount.decrementAndGet() == 0) {
             dbManager.close();
         }

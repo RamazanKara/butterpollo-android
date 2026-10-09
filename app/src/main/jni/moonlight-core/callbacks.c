@@ -172,12 +172,18 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
             return DR_OK;
         }
         (*env)->DeleteGlobalRef(env, DecodedFrameBuffer);
+<<<<<<< HEAD
         DecodedFrameBuffer = (*env)->NewGlobalRef(env, frameBuffer);
         (*env)->DeleteLocalRef(env, frameBuffer);
         if (DecodedFrameBuffer == NULL) {
             (*JVM)->DetachCurrentThread(JVM);
             return DR_OK;
         }
+=======
+        jbyteArray frameBuffer = (*env)->NewByteArray(env, decodeUnit->fullLength);
+        DecodedFrameBuffer = (*env)->NewGlobalRef(env, frameBuffer);
+        (*env)->DeleteLocalRef(env, frameBuffer);
+>>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
     }
 
     PLENTRY currentEntry;

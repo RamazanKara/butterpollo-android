@@ -103,12 +103,24 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
         // we have to delay a bit before requesting capture because otherwise
         // we'll hit the "requestPointerCapture called for a window that has no focus"
         // error and it will not actually capture the cursor.
+<<<<<<< HEAD
         handler.postDelayed(recapture, 500);
     }
 
     @Override
     public void destroy() {
         disableCapture();
+=======
+        Handler h = new Handler();
+        h.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (isCapturing && !isCursorVisible && targetView.hasWindowFocus() && hasCaptureCompatibleInputDevice()) {
+                    targetView.requestPointerCapture();
+                }
+            }
+        }, 500);
+>>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
     }
 
     @Override
