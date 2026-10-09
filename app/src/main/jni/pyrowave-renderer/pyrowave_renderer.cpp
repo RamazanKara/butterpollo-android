@@ -1294,6 +1294,9 @@ namespace {
             }
             timespec released;
             clock_gettime(CLOCK_MONOTONIC, &released);
+            timespec released;
+            clock_gettime(CLOCK_MONOTONIC, &released);
+            lastReleaseNs = uint64_t(released.tv_sec) * 1000000000ULL + uint64_t(released.tv_nsec);
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
             framePresented = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
             if (displayTimingSupported && framePresented) {
@@ -1449,6 +1452,7 @@ namespace {
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
+        uint64_t lastReleaseNs = 0;
         bool framePresented = false;
         bool displayTimingSupported = false;
         std::vector<jlong> renderedFrames;

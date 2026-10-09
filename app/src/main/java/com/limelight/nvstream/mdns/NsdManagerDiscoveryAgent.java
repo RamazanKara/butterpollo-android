@@ -122,10 +122,6 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                                     return;
                                 }
                             }
-<<<<<<< HEAD
-=======
-                            // Reporting can perform network I/O; stopDiscovery() runs on the UI thread.
->>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
                             LimeLog.info("NSD: Machine resolved: " + nsdServiceInfo.getServiceName());
                             reportNewComputer(nsdServiceInfo.getServiceName(), nsdServiceInfo.getPort(),
                                     getV4Addrs(nsdServiceInfo.getHostAddresses()),

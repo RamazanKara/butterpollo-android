@@ -48,15 +48,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
 
             // Bind a local listening socket for evdevreader to connect to
             try {
-<<<<<<< HEAD
                 servSock = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
-=======
-                servSock = new ServerSocket(0, 1);
-                if (shutdown) {
-                    servSock.close();
-                    return;
-                }
->>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
             } catch (IOException e) {
                 e.printStackTrace();
                 return;
@@ -122,7 +114,6 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
             }
             LimeLog.info("Waiting for EvdevReader connection to port "+servSock.getLocalPort());
             try {
-<<<<<<< HEAD
                 servSock.setSoTimeout(1000);
                 while (!shutdown && evdevSock == null) {
                     try {
@@ -140,11 +131,6 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                 }
                 if (shutdown) {
                     closeResources();
-=======
-                evdevSock = servSock.accept();
-                if (shutdown) {
-                    evdevSock.close();
->>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
                     return;
                 }
                 evdevIn = evdevSock.getInputStream();

@@ -298,7 +298,6 @@ public class ShortcutTrampoline extends Activity {
         super.onCreate(savedInstanceState);
 
         UiHelper.notifyNewRootView(this);
-<<<<<<< HEAD
         ComputerDetails _computer = null;
 >>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
 
@@ -329,8 +328,6 @@ public class ShortcutTrampoline extends Activity {
             // Use nameString to find the corresponding UUID
 <<<<<<< HEAD
             ComputerDetails _computer;
-=======
->>>>>>> 3e3c11a4 (fix: bug hunt B5: see docs/BUGHUNT and tests)
             ComputerDatabaseManager dbManager = new ComputerDatabaseManager(this);
             try {
                 _computer = dbManager.getComputerByName(nameString);
