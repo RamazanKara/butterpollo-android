@@ -104,7 +104,7 @@ public class XboxOneController extends AbstractXboxController {
         rightStickY = ~buffer.getShort() / 32767.0f;
     }
 
-    private void ackModeReport(byte seqNum) {
+    private synchronized void ackModeReport(byte seqNum) {
         byte[] payload = {0x01, 0x20, seqNum, 0x09, 0x00, 0x07, 0x20, 0x02,
                 0x00, 0x00, 0x00, 0x00, 0x00};
         connection.bulkTransfer(outEndpt, payload, payload.length, 3000);
@@ -189,30 +189,35 @@ public class XboxOneController extends AbstractXboxController {
     }
 
     private void sendRumblePacket() {
-        byte[] data = {
-                0x09, 0x00, seqNum++, 0x09, 0x00,
-                0x0F,
-                (byte)(leftTriggerMotor >> 9),
-                (byte)(rightTriggerMotor >> 9),
-                (byte)(lowFreqMotor >> 9),
-                (byte)(highFreqMotor >> 9),
-                (byte)0xFF, 0x00, (byte)0xFF
-        };
+        byte[] data = createRumblePacket(seqNum++, lowFreqMotor, highFreqMotor, leftTriggerMotor, rightTriggerMotor);
         int res = connection.bulkTransfer(outEndpt, data, data.length, 100);
         if (res != data.length) {
             LimeLog.warning("Rumble transfer failed: "+res);
         }
     }
 
+    static byte[] createRumblePacket(byte sequence, short lowFreqMotor, short highFreqMotor,
+                                     short leftTriggerMotor, short rightTriggerMotor) {
+        return new byte[] {
+                0x09, 0x00, sequence, 0x09, 0x00,
+                0x0F,
+                (byte)((leftTriggerMotor & 0xFFFF) >> 9),
+                (byte)((rightTriggerMotor & 0xFFFF) >> 9),
+                (byte)((lowFreqMotor & 0xFFFF) >> 9),
+                (byte)((highFreqMotor & 0xFFFF) >> 9),
+                (byte)0xFF, 0x00, (byte)0xFF
+        };
+    }
+
     @Override
-    public void rumble(short lowFreqMotor, short highFreqMotor) {
+    public synchronized void rumble(short lowFreqMotor, short highFreqMotor) {
         this.lowFreqMotor = lowFreqMotor;
         this.highFreqMotor = highFreqMotor;
         sendRumblePacket();
     }
 
     @Override
-    public void rumbleTriggers(short leftTrigger, short rightTrigger) {
+    public synchronized void rumbleTriggers(short leftTrigger, short rightTrigger) {
         this.leftTriggerMotor = leftTrigger;
         this.rightTriggerMotor = rightTrigger;
         sendRumblePacket();

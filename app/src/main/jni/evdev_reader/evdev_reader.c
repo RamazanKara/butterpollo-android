@@ -50,17 +50,21 @@ static int sock;
 #define test_bit(bit, array)    (array[bit/8] & (1<<(bit%8)))
 
 static int hasRelAxis(int fd, short axis) {
-    unsigned char relBitmask[(REL_MAX + 1) / 8];
+    unsigned char relBitmask[(REL_MAX + 1) / 8] = {0};
 
-    ioctl(fd, EVIOCGBIT(EV_REL, sizeof(relBitmask)), relBitmask);
+    if (ioctl(fd, EVIOCGBIT(EV_REL, sizeof(relBitmask)), relBitmask) < 0) {
+        return 0;
+    }
 
     return test_bit(axis, relBitmask);
 }
 
 static int hasKey(int fd, short key) {
-    unsigned char keyBitmask[(KEY_MAX + 1) / 8];
+    unsigned char keyBitmask[(KEY_MAX + 1) / 8] = {0};
 
-    ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keyBitmask)), keyBitmask);
+    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keyBitmask)), keyBitmask) < 0) {
+        return 0;
+    }
 
     return test_bit(key, keyBitmask);
 }
@@ -74,7 +78,19 @@ static void outputEvdevData(char *data, int dataSize) {
 
     // Lock to prevent other threads from sending at the same time
     pthread_mutex_lock(&SocketSendLock);
-    send(sock, packetBuffer, dataSize + sizeof(dataSize), 0);
+    size_t offset = 0;
+    size_t packetSize = dataSize + sizeof(dataSize);
+    while (offset < packetSize) {
+        ssize_t sent = send(sock, packetBuffer + offset, packetSize - offset, MSG_NOSIGNAL);
+        if (sent < 0 && errno == EINTR) {
+            continue;
+        }
+        if (sent <= 0) {
+            shutdown(sock, SHUT_RDWR);
+            break;
+        }
+        offset += sent;
+    }
     pthread_mutex_unlock(&SocketSendLock);
 }
 
@@ -86,14 +102,17 @@ void* pollThreadFunc(void* context) {
 
     __android_log_print(ANDROID_LOG_INFO, "EvdevReader", "Polling /dev/input/%s", device->devName);
 
+    pthread_mutex_lock(&DeviceListLock);
     if (grabbing) {
         // Exclusively grab the input device (required to make the Android cursor disappear)
         if (ioctl(device->fd, EVIOCGRAB, 1) < 0) {
             __android_log_print(ANDROID_LOG_ERROR, "EvdevReader",
                                 "EVIOCGRAB failed for %s: %d", device->devName, errno);
+            pthread_mutex_unlock(&DeviceListLock);
             goto cleanup;
         }
     }
+    pthread_mutex_unlock(&DeviceListLock);
 
     for (;;) {
         do {

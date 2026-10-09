@@ -12,6 +12,11 @@ import static org.junit.Assert.*;
 
 public class KeyboardTranslatorTest {
     @Test
+    public void numpadEqualsUsesTheEqualsVirtualKey() {
+        assertEquals((short) 0x80BB, KeyboardTranslator.translateKeyCode(KeyEvent.KEYCODE_NUMPAD_EQUALS));
+    }
+
+    @Test
     public void numpadAndPrintScreenHaveWindowsVirtualKeys() {
         assertEquals((short) 0x800D, KeyboardTranslator.translateKeyCode(KeyEvent.KEYCODE_NUMPAD_ENTER));
         assertEquals((short) 0x806C, KeyboardTranslator.translateKeyCode(KeyEvent.KEYCODE_NUMPAD_COMMA));

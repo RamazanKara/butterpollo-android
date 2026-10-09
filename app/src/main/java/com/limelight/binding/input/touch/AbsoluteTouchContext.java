@@ -19,6 +19,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private boolean cancelled;
     private boolean confirmedLongPress;
     private boolean confirmedTap;
+    private boolean pendingLeftButtonUp;
 
     private final Runnable longPressRunnable = new Runnable() {
         @Override
@@ -51,6 +52,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private final Runnable leftButtonUpRunnable = new Runnable() {
         @Override
         public void run() {
+            pendingLeftButtonUp = false;
             conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT);
         }
     };
@@ -145,6 +147,7 @@ public class AbsoluteTouchContext implements TouchContext {
                 // Release the left mouse button in 100ms to allow for apps that use polling
                 // to detect mouse button presses.
                 handler.removeCallbacks(leftButtonUpRunnable);
+                pendingLeftButtonUp = true;
                 handler.postDelayed(leftButtonUpRunnable, 100);
             }
         }
@@ -179,6 +182,10 @@ public class AbsoluteTouchContext implements TouchContext {
 
         confirmedTap = true;
         cancelTapDownTimer();
+        if (pendingLeftButtonUp) {
+            handler.removeCallbacks(leftButtonUpRunnable);
+            leftButtonUpRunnable.run();
+        }
 
         // Left button down at original position
         if (lastTouchDownTime - lastTouchUpTime > DOUBLE_TAP_TIME_THRESHOLD ||
@@ -228,14 +235,16 @@ public class AbsoluteTouchContext implements TouchContext {
         // Cancel the timers
         cancelLongPressTimer();
         cancelTapDownTimer();
+        handler.removeCallbacks(leftButtonUpRunnable);
 
         // Raise the mouse buttons
         if (confirmedLongPress) {
             conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT);
         }
-        else if (confirmedTap) {
+        else if (confirmedTap || pendingLeftButtonUp) {
             conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT);
         }
+        pendingLeftButtonUp = false;
     }
 
     @Override

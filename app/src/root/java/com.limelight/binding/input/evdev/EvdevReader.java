@@ -5,8 +5,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import com.limelight.LimeLog;
-
 public class EvdevReader {
     private static void readAll(InputStream in, ByteBuffer bb) throws IOException {
         byte[] buf = bb.array();

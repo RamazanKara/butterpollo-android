@@ -404,7 +404,8 @@ void BridgeClRumbleTriggers(unsigned short controllerNumber, unsigned short left
 void BridgeClSetMotionEventState(uint16_t controllerNumber, uint8_t motionType, uint16_t reportRateHz) {
     JNIEnv* env = GetThreadEnv();
 
-    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSetMotionEventStateMethod, controllerNumber, motionType, reportRateHz);
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSetMotionEventStateMethod,
+                               (jshort)controllerNumber, (jbyte)motionType, (jshort)reportRateHz);
     if ((*env)->ExceptionCheck(env)) {
         // We will crash here
         (*JVM)->DetachCurrentThread(JVM);

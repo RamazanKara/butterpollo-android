@@ -201,7 +201,7 @@ public class DigitalButton extends VirtualControllerElement {
 
         switch (action) {
             case MotionEvent.ACTION_DOWN: {
-                movingButton = null;
+                movingButton = this;
                 setPressed(true);
                 onClickCallback();
 
@@ -216,6 +216,7 @@ public class DigitalButton extends VirtualControllerElement {
             }
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP: {
+                movingButton = null;
                 setPressed(false);
                 onReleaseCallback();
 

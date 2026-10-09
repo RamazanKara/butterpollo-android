@@ -107,7 +107,7 @@ public class EvdevTranslator {
         KeyEvent.KEYCODE_SYSRQ,
         KeyEvent.KEYCODE_ALT_RIGHT,
         0, //KeyEvent.VK_LINEFEED,
-        KeyEvent.KEYCODE_HOME,
+        KeyEvent.KEYCODE_MOVE_HOME,
         KeyEvent.KEYCODE_DPAD_UP,
         KeyEvent.KEYCODE_PAGE_UP,
         KeyEvent.KEYCODE_DPAD_LEFT,
@@ -129,7 +129,7 @@ public class EvdevTranslator {
     };
 
     public static short translateEvdevKeyCode(short evdevKeyCode) {
-        if (evdevKeyCode < EVDEV_KEY_CODES.length) {
+        if (evdevKeyCode >= 0 && evdevKeyCode < EVDEV_KEY_CODES.length) {
             return EVDEV_KEY_CODES[evdevKeyCode];
         }
 

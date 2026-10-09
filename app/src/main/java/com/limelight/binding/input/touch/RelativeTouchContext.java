@@ -19,6 +19,7 @@ public class RelativeTouchContext implements TouchContext {
     private boolean confirmedMove;
     private boolean confirmedDrag;
     private boolean confirmedScroll;
+    private boolean pendingButtonUp;
     private double distanceMoved;
     private float xFactor, yFactor;
     private final MouseDeltaAccumulator deltaXAccumulator = new MouseDeltaAccumulator();
@@ -49,42 +50,17 @@ public class RelativeTouchContext implements TouchContext {
 
             // We haven't been cancelled before the timer expired so begin dragging
             confirmedDrag = true;
+            releasePendingButtonUp();
             conn.sendMouseButtonDown(getMouseButtonIndex());
         }
     };
 
-    // Indexed by MouseButtonPacket.BUTTON_XXX - 1
-    private final Runnable[] buttonUpRunnables = new Runnable[] {
-            new Runnable() {
-                @Override
-                public void run() {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT);
-                }
-            },
-            new Runnable() {
-                @Override
-                public void run() {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_MIDDLE);
-                }
-            },
-            new Runnable() {
-                @Override
-                public void run() {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT);
-                }
-            },
-            new Runnable() {
-                @Override
-                public void run() {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_X1);
-                }
-            },
-            new Runnable() {
-                @Override
-                public void run() {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_X2);
-                }
-            }
+    private final Runnable buttonUpRunnable = new Runnable() {
+        @Override
+        public void run() {
+            pendingButtonUp = false;
+            conn.sendMouseButtonUp(getMouseButtonIndex());
+        }
     };
 
     private static final int TAP_MOVEMENT_THRESHOLD = 20;
@@ -191,13 +167,13 @@ public class RelativeTouchContext implements TouchContext {
         }
         else if (isTap(eventTime))
         {
+            releasePendingButtonUp();
             // Lower the mouse button
             conn.sendMouseButtonDown(buttonIndex);
 
             // Release the mouse button in 100ms to allow for apps that use polling
             // to detect mouse button presses.
-            Runnable buttonUpRunnable = buttonUpRunnables[buttonIndex - 1];
-            handler.removeCallbacks(buttonUpRunnable);
+            pendingButtonUp = true;
             handler.postDelayed(buttonUpRunnable, 100);
         }
     }
@@ -209,6 +185,13 @@ public class RelativeTouchContext implements TouchContext {
 
     private void cancelDragTimer() {
         handler.removeCallbacks(dragTimerRunnable);
+    }
+
+    private void releasePendingButtonUp() {
+        if (pendingButtonUp) {
+            handler.removeCallbacks(buttonUpRunnable);
+            buttonUpRunnable.run();
+        }
     }
 
     private void checkForConfirmedMove(int eventX, int eventY) {
@@ -293,6 +276,7 @@ public class RelativeTouchContext implements TouchContext {
         cancelDragTimer();
 
         // If it was a confirmed drag, we'll need to raise the button now
+        releasePendingButtonUp();
         if (confirmedDrag) {
             conn.sendMouseButtonUp(getMouseButtonIndex());
         }

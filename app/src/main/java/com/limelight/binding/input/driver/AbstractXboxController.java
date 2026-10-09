@@ -19,7 +19,8 @@ public abstract class AbstractXboxController extends AbstractController {
     protected final UsbDeviceConnection connection;
 
     private Thread inputThread;
-    private boolean stopped;
+    private volatile boolean stopped;
+    private int claimedInterfaceCount;
 
     protected UsbEndpoint inEndpt, outEndpt;
 
@@ -29,7 +30,7 @@ public abstract class AbstractXboxController extends AbstractController {
         this.connection = connection;
         this.type = MoonBridge.LI_CTYPE_XBOX;
         this.capabilities = MoonBridge.LI_CCAP_ANALOG_TRIGGERS | MoonBridge.LI_CCAP_RUMBLE;
-        this.buttonFlags =
+        this.supportedButtonFlags =
                 ControllerPacket.A_FLAG | ControllerPacket.B_FLAG | ControllerPacket.X_FLAG | ControllerPacket.Y_FLAG |
                         ControllerPacket.UP_FLAG | ControllerPacket.DOWN_FLAG | ControllerPacket.LEFT_FLAG | ControllerPacket.RIGHT_FLAG |
                         ControllerPacket.LB_FLAG | ControllerPacket.RB_FLAG |
@@ -96,7 +97,7 @@ public abstract class AbstractXboxController extends AbstractController {
         };
     }
 
-    public boolean start() {
+    public synchronized boolean start() {
         // Force claim all interfaces
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface iface = device.getInterface(i);
@@ -105,6 +106,7 @@ public abstract class AbstractXboxController extends AbstractController {
                 LimeLog.warning("Failed to claim interfaces");
                 return false;
             }
+            claimedInterfaceCount++;
         }
 
         // Find the endpoints
@@ -145,7 +147,7 @@ public abstract class AbstractXboxController extends AbstractController {
         return true;
     }
 
-    public void stop() {
+    public synchronized void stop() {
         if (stopped) {
             return;
         }
@@ -153,7 +155,10 @@ public abstract class AbstractXboxController extends AbstractController {
         stopped = true;
 
         // Cancel any rumble effects
-        rumble((short)0, (short)0);
+        if (outEndpt != null) {
+            rumble((short)0, (short)0);
+            rumbleTriggers((short)0, (short)0);
+        }
 
         // Stop the input thread
         if (inputThread != null) {
@@ -162,7 +167,7 @@ public abstract class AbstractXboxController extends AbstractController {
         }
 
         // Let Android reclaim controllers that were detached by claimInterface().
-        for (int i = 0; i < device.getInterfaceCount(); i++) {
+        for (int i = 0; i < claimedInterfaceCount; i++) {
             if (!connection.releaseInterface(device.getInterface(i))) {
                 LimeLog.warning("Failed to release controller interface");
             }

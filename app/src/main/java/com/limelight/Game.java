@@ -2004,30 +2004,32 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
     };
 
-    // Returns true if the key stroke was consumed
-    private boolean handleSpecialKeys(int androidKeyCode, boolean down) {
-        int modifierMask = 0;
-        int nonModifierKeyCode = KeyEvent.KEYCODE_UNKNOWN;
-
+    private static int getModifierMask(int androidKeyCode) {
         if (androidKeyCode == KeyEvent.KEYCODE_CTRL_LEFT ||
             androidKeyCode == KeyEvent.KEYCODE_CTRL_RIGHT) {
-            modifierMask = KeyboardPacket.MODIFIER_CTRL;
+            return KeyboardPacket.MODIFIER_CTRL << (androidKeyCode == KeyEvent.KEYCODE_CTRL_RIGHT ? 8 : 0);
         }
         else if (androidKeyCode == KeyEvent.KEYCODE_SHIFT_LEFT ||
                  androidKeyCode == KeyEvent.KEYCODE_SHIFT_RIGHT) {
-            modifierMask = KeyboardPacket.MODIFIER_SHIFT;
+            return KeyboardPacket.MODIFIER_SHIFT << (androidKeyCode == KeyEvent.KEYCODE_SHIFT_RIGHT ? 8 : 0);
         }
         else if (androidKeyCode == KeyEvent.KEYCODE_ALT_LEFT ||
                  androidKeyCode == KeyEvent.KEYCODE_ALT_RIGHT) {
-            modifierMask = KeyboardPacket.MODIFIER_ALT;
+            return KeyboardPacket.MODIFIER_ALT << (androidKeyCode == KeyEvent.KEYCODE_ALT_RIGHT ? 8 : 0);
         }
         else if (androidKeyCode == KeyEvent.KEYCODE_META_LEFT ||
                 androidKeyCode == KeyEvent.KEYCODE_META_RIGHT) {
-            modifierMask = KeyboardPacket.MODIFIER_META;
+            return KeyboardPacket.MODIFIER_META << (androidKeyCode == KeyEvent.KEYCODE_META_RIGHT ? 8 : 0);
         }
         else {
-            nonModifierKeyCode = androidKeyCode;
+            return 0;
         }
+    }
+
+    // Returns true if the key stroke was consumed
+    private boolean handleSpecialKeys(int androidKeyCode, boolean down) {
+        int modifierMask = getModifierMask(androidKeyCode);
+        int nonModifierKeyCode = modifierMask == 0 ? androidKeyCode : KeyEvent.KEYCODE_UNKNOWN;
 
         if (down) {
             this.modifierFlags |= modifierMask;
@@ -2094,7 +2096,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
         // Check if Ctrl+Alt+Shift is down when a non-modifier key is pressed
-        else if ((modifierFlags & (KeyboardPacket.MODIFIER_CTRL | KeyboardPacket.MODIFIER_ALT | KeyboardPacket.MODIFIER_SHIFT)) ==
+        else if ((getModifierState() & (KeyboardPacket.MODIFIER_CTRL | KeyboardPacket.MODIFIER_ALT | KeyboardPacket.MODIFIER_SHIFT)) ==
                 (KeyboardPacket.MODIFIER_CTRL | KeyboardPacket.MODIFIER_ALT | KeyboardPacket.MODIFIER_SHIFT) &&
                 (down && nonModifierKeyCode != KeyEvent.KEYCODE_UNKNOWN)) {
             switch (androidKeyCode) {
@@ -2155,7 +2157,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private byte getModifierState() {
-        return (byte) modifierFlags;
+        return (byte) (modifierFlags | (modifierFlags >> 8));
     }
 
     @Override
@@ -2830,15 +2832,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
                             lastAbsTouchDownTime = event.getEventTime();
-                            lastAbsTouchDownX = event.getX(0);
-                            lastAbsTouchDownY = event.getY(0);
+                            lastAbsTouchDownX = event.getX(0) - (view == streamView ? 0 : streamView.getX());
+                            lastAbsTouchDownY = event.getY(0) - (view == streamView ? 0 : streamView.getY());
 
                             // Stylus is left click
                             conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_LEFT);
                         } else if (event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER) {
                             lastAbsTouchDownTime = event.getEventTime();
-                            lastAbsTouchDownX = event.getX(0);
-                            lastAbsTouchDownY = event.getY(0);
+                            lastAbsTouchDownX = event.getX(0) - (view == streamView ? 0 : streamView.getX());
+                            lastAbsTouchDownY = event.getY(0) - (view == streamView ? 0 : streamView.getY());
 
                             // Eraser is right click
                             conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_RIGHT);
@@ -2847,15 +2849,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     else if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
                         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
                             lastAbsTouchUpTime = event.getEventTime();
-                            lastAbsTouchUpX = event.getX(0);
-                            lastAbsTouchUpY = event.getY(0);
+                            lastAbsTouchUpX = event.getX(0) - (view == streamView ? 0 : streamView.getX());
+                            lastAbsTouchUpY = event.getY(0) - (view == streamView ? 0 : streamView.getY());
 
                             // Stylus is left click
                             conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT);
                         } else if (event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER) {
                             lastAbsTouchUpTime = event.getEventTime();
-                            lastAbsTouchUpX = event.getX(0);
-                            lastAbsTouchUpY = event.getY(0);
+                            lastAbsTouchUpX = event.getX(0) - (view == streamView ? 0 : streamView.getX());
+                            lastAbsTouchUpY = event.getY(0) - (view == streamView ? 0 : streamView.getY());
 
                             // Eraser is right click
                             conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT);
@@ -3741,6 +3743,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             pressedKeys.clear();
         }
         modifierFlags = 0;
+        specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+        waitingForAllModifiersUp = false;
+        getWindow().getDecorView().removeCallbacks(toggleGrab);
     }
 
     private void releaseMouseButtons() {

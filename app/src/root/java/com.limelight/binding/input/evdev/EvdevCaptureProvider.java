@@ -9,6 +9,7 @@ import com.limelight.LimeLog;
 import com.limelight.binding.input.capture.InputCaptureProvider;
 
 import java.io.DataOutputStream;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,18 +17,21 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 
 public class EvdevCaptureProvider extends InputCaptureProvider {
 
     private final EvdevListener listener;
     private final String libraryPath;
 
-    private boolean shutdown = false;
-    private InputStream evdevIn;
-    private OutputStream evdevOut;
-    private Process su;
-    private ServerSocket servSock;
-    private Socket evdevSock;
+    private volatile boolean shutdown = false;
+    private volatile InputStream evdevIn;
+    private volatile OutputStream evdevOut;
+    private volatile Process su;
+    private volatile ServerSocket servSock;
+    private volatile Socket evdevSock;
     private Activity activity;
     private boolean started = false;
 
@@ -49,6 +53,10 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                 e.printStackTrace();
                 return;
             }
+            if (shutdown) {
+                closeResources();
+                return;
+            }
 
             final String evdevReaderCmd = libraryPath+File.separatorChar+"libevdev_reader.so "+servSock.getLocalPort();
 
@@ -61,6 +69,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                 } catch (IOException e) {
                     reportDeviceNotRooted();
                     e.printStackTrace();
+                    closeResources();
                     return;
                 }
             }
@@ -74,28 +83,53 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                 } catch (IOException e) {
                     reportDeviceNotRooted();
                     e.printStackTrace();
+                    closeResources();
                     return;
                 }
 
                 // Start evdevreader
                 DataOutputStream suOut = new DataOutputStream(su.getOutputStream());
                 try {
-                    suOut.writeChars(evdevReaderCmd+"\n");
+                    suOut.write((evdevReaderCmd+"\n").getBytes(StandardCharsets.UTF_8));
                 } catch (IOException e) {
                     reportDeviceNotRooted();
                     e.printStackTrace();
+                    closeResources();
                     return;
                 }
             }
 
             // Wait for evdevreader's connection
+            if (shutdown) {
+                closeResources();
+                return;
+            }
             LimeLog.info("Waiting for EvdevReader connection to port "+servSock.getLocalPort());
             try {
-                evdevSock = servSock.accept();
+                servSock.setSoTimeout(1000);
+                while (!shutdown && evdevSock == null) {
+                    try {
+                        evdevSock = servSock.accept();
+                    } catch (SocketTimeoutException e) {
+                        try {
+                            su.exitValue();
+                            reportDeviceNotRooted();
+                            closeResources();
+                            return;
+                        } catch (IllegalThreadStateException stillRunning) {
+                            // A pending superuser prompt can outlive the socket timeout.
+                        }
+                    }
+                }
+                if (shutdown) {
+                    closeResources();
+                    return;
+                }
                 evdevIn = evdevSock.getInputStream();
                 evdevOut = evdevSock.getOutputStream();
             } catch (IOException e) {
                 e.printStackTrace();
+                closeResources();
                 return;
             }
             LimeLog.info("EvdevReader connected from port "+evdevSock.getPort());
@@ -117,15 +151,18 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                 switch (event.type) {
                     case EvdevEvent.EV_SYN:
                         if (deltaX != 0 || deltaY != 0) {
-                            listener.mouseMove(deltaX, deltaY);
+                            final int x = deltaX, y = deltaY;
+                            dispatch(() -> listener.mouseMove(x, y));
                             deltaX = deltaY = 0;
                         }
                         if (deltaVScroll != 0) {
-                            listener.mouseVScroll(deltaVScroll);
+                            final byte scroll = deltaVScroll;
+                            dispatch(() -> listener.mouseVScroll(scroll));
                             deltaVScroll = 0;
                         }
                         if (deltaHScroll != 0) {
-                            listener.mouseHScroll(deltaHScroll);
+                            final byte scroll = deltaHScroll;
+                            dispatch(() -> listener.mouseHScroll(scroll));
                             deltaHScroll = 0;
                         }
                         break;
@@ -148,28 +185,24 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                         break;
 
                     case EvdevEvent.EV_KEY:
+                        final boolean down = event.value != 0;
                         switch (event.code) {
                             case EvdevEvent.BTN_LEFT:
-                                listener.mouseButtonEvent(EvdevListener.BUTTON_LEFT,
-                                        event.value != 0);
+                                dispatch(() -> listener.mouseButtonEvent(EvdevListener.BUTTON_LEFT, down));
                                 break;
                             case EvdevEvent.BTN_MIDDLE:
-                                listener.mouseButtonEvent(EvdevListener.BUTTON_MIDDLE,
-                                        event.value != 0);
+                                dispatch(() -> listener.mouseButtonEvent(EvdevListener.BUTTON_MIDDLE, down));
                                 break;
                             case EvdevEvent.BTN_RIGHT:
-                                listener.mouseButtonEvent(EvdevListener.BUTTON_RIGHT,
-                                        event.value != 0);
+                                dispatch(() -> listener.mouseButtonEvent(EvdevListener.BUTTON_RIGHT, down));
                                 break;
 
                             case EvdevEvent.BTN_SIDE:
-                                listener.mouseButtonEvent(EvdevListener.BUTTON_X1,
-                                        event.value != 0);
+                                dispatch(() -> listener.mouseButtonEvent(EvdevListener.BUTTON_X1, down));
                                 break;
 
                             case EvdevEvent.BTN_EXTRA:
-                                listener.mouseButtonEvent(EvdevListener.BUTTON_X2,
-                                        event.value != 0);
+                                dispatch(() -> listener.mouseButtonEvent(EvdevListener.BUTTON_X2, down));
                                 break;
 
                             case EvdevEvent.BTN_FORWARD:
@@ -186,7 +219,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                                 // if we can't
                                 short keyCode = EvdevTranslator.translateEvdevKeyCode(event.code);
                                 if (keyCode != 0) {
-                                    listener.keyboardEvent(event.value != 0, keyCode);
+                                    dispatch(() -> listener.keyboardEvent(down, keyCode));
                                 }
                                 break;
                         }
@@ -196,6 +229,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
                         break;
                 }
             }
+            closeResources();
         }
     };
 
@@ -205,11 +239,37 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
         this.libraryPath = activity.getApplicationInfo().nativeLibraryDir;
     }
 
+    private void dispatch(Runnable event) {
+        activity.runOnUiThread(() -> {
+            if (!shutdown && isCapturing && !isCursorVisible) {
+                event.run();
+            }
+        });
+    }
+
+    private void closeResources() {
+        for (Closeable resource : new Closeable[] {servSock, evdevSock, evdevIn, evdevOut}) {
+            if (resource != null) {
+                try {
+                    resource.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        Process process = su;
+        if (process != null) {
+            process.destroy();
+        }
+    }
+
     private void reportDeviceNotRooted() {
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                Toast.makeText(activity, "This device is not rooted - Mouse capture is unavailable", Toast.LENGTH_LONG).show();
+                if (!shutdown) {
+                    Toast.makeText(activity, "This device is not rooted - Mouse capture is unavailable", Toast.LENGTH_LONG).show();
+                }
             }
         });
     }
@@ -300,46 +360,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
         shutdown = true;
         handlerThread.interrupt();
 
-        runInNetworkSafeContextSynchronously(new Runnable() {
-            @Override
-            public void run() {
-                if (servSock != null) {
-                    try {
-                        servSock.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (evdevSock != null) {
-                    try {
-                        evdevSock.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (evdevIn != null) {
-                    try {
-                        evdevIn.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (evdevOut != null) {
-                    try {
-                        evdevOut.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        });
-
-        if (su != null) {
-            su.destroy();
-        }
+        runInNetworkSafeContextSynchronously(this::closeResources);
 
         try {
             handlerThread.join();

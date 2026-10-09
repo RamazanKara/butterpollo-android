@@ -50,35 +50,42 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     @Override
     public void reportControllerState(int controllerId, int buttonFlags, float leftStickX, float leftStickY,
                                       float rightStickX, float rightStickY, float leftTrigger, float rightTrigger) {
-        // Call through to the client's listener
-        UsbDriverListener current = listener;
-        if (current != null) {
-            current.reportControllerState(controllerId, buttonFlags, leftStickX, leftStickY, rightStickX, rightStickY, leftTrigger, rightTrigger);
-        }
+        handler.post(() -> {
+            UsbDriverListener current = listener;
+            if (started && current != null) {
+                current.reportControllerState(controllerId, buttonFlags, leftStickX, leftStickY, rightStickX, rightStickY, leftTrigger, rightTrigger);
+            }
+        });
     }
 
     @Override
     public void reportControllerTouch(int controllerId, byte eventType, int pointerId, float x, float y, float pressure) {
-        UsbDriverListener current = listener;
-        if (current != null) {
-            current.reportControllerTouch(controllerId, eventType, pointerId, x, y, pressure);
-        }
+        handler.post(() -> {
+            UsbDriverListener current = listener;
+            if (started && current != null) {
+                current.reportControllerTouch(controllerId, eventType, pointerId, x, y, pressure);
+            }
+        });
     }
 
     @Override
     public void reportControllerMotion(int controllerId, byte motionType, float x, float y, float z) {
-        UsbDriverListener current = listener;
-        if (current != null) {
-            current.reportControllerMotion(controllerId, motionType, x, y, z);
-        }
+        handler.post(() -> {
+            UsbDriverListener current = listener;
+            if (started && current != null) {
+                current.reportControllerMotion(controllerId, motionType, x, y, z);
+            }
+        });
     }
 
     @Override
     public void reportControllerBattery(int controllerId, byte state, byte percentage) {
-        UsbDriverListener current = listener;
-        if (current != null) {
-            current.reportControllerBattery(controllerId, state, percentage);
-        }
+        handler.post(() -> {
+            UsbDriverListener current = listener;
+            if (started && current != null) {
+                current.reportControllerBattery(controllerId, state, percentage);
+            }
+        });
     }
 
     @Override
@@ -140,8 +147,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
                     stateListener.onUsbPermissionPromptCompleted();
                 }
                 for (AbstractController controller : controllers) {
-                    if (controller instanceof DualSenseController &&
-                            ((DualSenseController)controller).getUsbDeviceId() == device.getDeviceId()) {
+                    if (isControllerForDevice(controller, device)) {
                         controller.stop();
                     }
                 }
@@ -194,14 +200,20 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         }
     }
 
+    private static boolean isControllerForDevice(AbstractController controller, UsbDevice device) {
+        return (controller instanceof DualSenseController &&
+                ((DualSenseController)controller).getUsbDeviceId() == device.getDeviceId()) ||
+                (controller instanceof AbstractXboxController &&
+                ((AbstractXboxController)controller).device.getDeviceId() == device.getDeviceId());
+    }
+
     private void handleUsbDeviceState(UsbDevice device) {
         if (!started || device == null || pendingPermissions.contains(device.getDeviceId()) ||
                 !usbManager.getDeviceList().containsKey(device.getDeviceName())) {
             return;
         }
         for (AbstractController controller : controllers) {
-            if (controller instanceof DualSenseController &&
-                    ((DualSenseController)controller).getUsbDeviceId() == device.getDeviceId()) {
+            if (isControllerForDevice(controller, device)) {
                 return;
             }
         }
@@ -282,6 +294,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
 
             // Start the controller
             if (!controller.start()) {
+                controller.stop();
                 connection.close();
                 return;
             }

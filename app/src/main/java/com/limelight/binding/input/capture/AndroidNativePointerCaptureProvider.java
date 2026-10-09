@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.hardware.input.InputManager;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
@@ -17,6 +18,8 @@ import android.view.View;
 public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptureProvider implements InputManager.InputDeviceListener {
     private final InputManager inputManager;
     private final View targetView;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable recapture = () -> onInputDeviceAdded(0);
 
     public AndroidNativePointerCaptureProvider(Activity activity, View targetView) {
         super(activity, targetView);
@@ -64,6 +67,7 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
     @Override
     public void showCursor() {
         super.showCursor();
+        handler.removeCallbacks(recapture);
 
         // It is important to unregister the listener *before* releasing pointer capture,
         // because releasing pointer capture can cause an onInputDeviceChanged() callback
@@ -87,6 +91,7 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
 
     @Override
     public void onWindowFocusChanged(boolean focusActive) {
+        handler.removeCallbacks(recapture);
         // NB: We have to check cursor visibility here because Android pointer capture
         // doesn't support capturing the cursor while it's visible. Enabling pointer
         // capture implicitly hides the cursor.
@@ -98,15 +103,12 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
         // we have to delay a bit before requesting capture because otherwise
         // we'll hit the "requestPointerCapture called for a window that has no focus"
         // error and it will not actually capture the cursor.
-        Handler h = new Handler();
-        h.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (hasCaptureCompatibleInputDevice()) {
-                    targetView.requestPointerCapture();
-                }
-            }
-        }, 500);
+        handler.postDelayed(recapture, 500);
+    }
+
+    @Override
+    public void destroy() {
+        disableCapture();
     }
 
     @Override
@@ -144,7 +146,8 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
     @Override
     public void onInputDeviceAdded(int deviceId) {
         // Check if we've added a capture-compatible device
-        if (!targetView.hasPointerCapture() && hasCaptureCompatibleInputDevice()) {
+        if (isCapturing && !isCursorVisible && targetView.hasWindowFocus() &&
+                !targetView.hasPointerCapture() && hasCaptureCompatibleInputDevice()) {
             targetView.requestPointerCapture();
         }
     }
