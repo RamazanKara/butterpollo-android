@@ -24,7 +24,7 @@
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
 
     <!-- Network test strings -->
-    <string name="nettest_text_blocked">A port check against Moonlight\'s public test server failed, so this network may block outgoing streaming traffic. That mainly affects streaming over the Internet; on a local network, check the PC\'s firewall instead.</string>
+    <string name="nettest_text_blocked">A port check against a public connectivity-test server failed, so this network may block outgoing streaming traffic. That mainly affects streaming over the Internet; on a local network, check the PC\'s firewall instead.</string>
 
     <!-- Pair messages -->
     <string name="pairing">Pairing…</string>
@@ -275,7 +275,7 @@
     <string name="title_troubleshooting">Help and troubleshooting</string>
     <string name="summary_troubleshooting">Help with pairing, connections and streaming</string>
     <string name="title_privacy_policy">Privacy policy</string>
-    <string name="summary_privacy_policy">View Moonlight\'s privacy policy</string>
+    <string name="summary_privacy_policy">View Butterpollo\'s privacy policy</string>
 
     <!-- Toasts -->
     <string name="toast_controller_type_changed">Gamepad type may be changed due to motion sensor emulation</string>

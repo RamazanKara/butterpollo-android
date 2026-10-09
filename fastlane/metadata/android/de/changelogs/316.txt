@@ -1,0 +1,4 @@
+Butterpollo 0.4.0
+Streame deinen PC mit geringer Latenz. Für Butterpollo-Hosts entwickelt, auch mit Sunshine und Apollo nutzbar.
+Wähle Voreinstellungen und eigene Einstellungen pro PC. Behalte die Latenz im kompakten Overlay im Blick. Passe die Steuerung im Stream-Menü an und belege Controller-Tasten neu.
+Neues Butterpollo-Design und klare Datenschutzinformationen.

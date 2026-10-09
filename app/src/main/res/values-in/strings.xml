@@ -13,7 +13,7 @@
     <string name="pcview_menu_unpair_pc">Batalkan pemasangan</string>
     <string name="pcview_menu_send_wol">Kirim permintaan Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Hapus komputer</string>
-    <string name="nettest_text_blocked">Koneksi jaringan perangkat anda memblokir Moonlight. Streaming lewat Internet mungkin tidak bekerja ketika terhubung dengan jaringan ini.</string>
+    <string name="nettest_text_blocked">Koneksi jaringan perangkat anda memblokir Butterpollo. Streaming lewat Internet mungkin tidak bekerja ketika terhubung dengan jaringan ini.</string>
     <string name="pair_pc_offline">Komputer tidak tersedia</string>
     <string name="pair_pairing_title">Memasang</string>
     <string name="pair_pairing_msg">Mohon isi PIN ini di komputer target:</string>
@@ -29,7 +29,7 @@
     <string name="unpair_fail">Gagal memutuskan pemasangan</string>
     <string name="error_pc_offline">Komputer tidak tersedia</string>
     <string name="title_decoding_error">Dekoder video berhenti bekerja</string>
-    <string name="message_decoding_error">Moonlight telah berhenti bekerja dikarenakan inkompatibilitas dengan dekoder video perangkat ini. Coba ganti pengaturan stream jika masih berlanjut.</string>
+    <string name="message_decoding_error">Butterpollo telah berhenti bekerja dikarenakan inkompatibilitas dengan dekoder video perangkat ini. Coba ganti pengaturan stream jika masih berlanjut.</string>
     <string name="title_decoding_reset">Pengaturan video dipulihkan</string>
     <string name="message_decoding_reset">Dekoder video perangkat Anda terus-menerus berhenti pada pengaturan stream yang dipilih. Pengaturan stream Anda telah dipulihkan ke bawaan.</string>
     <string name="error_usb_prohibited">Akses USB dilarang oleh Administrator perangkat Anda. Cek pengaturan Knox atau MDM Anda.</string>
@@ -143,7 +143,7 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/Satu driver gamepad USB</string>
     <string name="summary_checkbox_xb1_driver">Mengaktifkan driver USB bawaan untuk perangkat tanpa dukungan pengontrol Xbox asli</string>
     <string name="title_checkbox_usb_bind_all">Ganti dukungan gamepad Xbox asli</string>
-    <string name="summary_checkbox_usb_bind_all">Gunakan driver USB Moonlight untuk semua gamepad yang didukung, meskipun ada dukungan pengontrol Xbox asli</string>
+    <string name="summary_checkbox_usb_bind_all">Gunakan driver USB Butterpollo untuk semua gamepad yang didukung, meskipun ada dukungan pengontrol Xbox asli</string>
     <string name="title_checkbox_mouse_nav_buttons">Aktifkan tombol mouse mundur dan maju</string>
     <string name="title_checkbox_absolute_mouse_mode">Mode mouse desktop jarak jauh</string>
     <string name="summary_checkbox_show_onscreen_controls">Tampilkan hamparan pengontrol virtual di layar sentuh</string>
@@ -179,7 +179,7 @@
     <string name="title_native_res_dialog">Peringatan Resolusi Asli</string>
     <string name="text_native_res_dialog">Mode resolusi asli dan/atau FPS mungkin tidak didukung oleh server streaming, Anda mungkin perlu untuk mengatur custom display mode yang tempat untuk host PC secara manual.\n\nJika Anda memilih untuk membuat resolusi khusus di Panel Kontrol NVIDIA agar sesuai dengan resolusi perangkat Anda, pastikan Anda telah membaca dan memahami peringatan NVIDIA terkait kemungkinan kerusakan monitor, ketidakstabilan PC, dan potensi masalah lainnya.\n\nKami tidak bertanggung jawab atas masalah apa pun yang diakibatkan oleh pembuatan resolusi khusus pada PC Anda.\n\nTerakhir, perangkat atau PC host Anda mungkin tidak mendukung streaming pada resolusi asli. Jika tidak berfungsi pada perangkat Anda, sayangnya Anda kurang beruntung.</string>
     <string name="summary_audio_config_list">Aktifkan suara surround 5.1 atau 7.1 untuk sistem home theater</string>
-    <string name="summary_seekbar_deadzone">Catatan: Beberapa game dapat menerapkan zona mati yang lebih besar daripada yang dikonfigurasi untuk digunakan oleh Moonlight.</string>
+    <string name="summary_seekbar_deadzone">Catatan: Beberapa game dapat menerapkan zona mati yang lebih besar daripada yang dikonfigurasi untuk digunakan oleh Butterpollo.</string>
     <string name="title_checkbox_mouse_emulation">Emulasi mouse melalui gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Menekan lama tombol Mulai akan mengalihkan gamepad ke mode mouse</string>
     <string name="title_reset_osc">Hapus tata letak kontrol di layar yang disimpan</string>

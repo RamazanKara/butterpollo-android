@@ -1,0 +1,61 @@
+# Butterpollo privacy
+
+Applies to Butterpollo for Android 0.4.0.
+
+Butterpollo streams your PC's desktop, apps, video and audio directly to your
+Android device. Your controls and any clipboard text you choose to send go to
+your PC. Butterpollo does not operate a streaming relay, advertising service,
+analytics service or automatic crash-report upload service.
+
+## What stays on your device
+
+Butterpollo stores saved and paired hosts, including their names, addresses,
+identifiers and host certificates. It also stores the client certificate and
+private key used for pairing, a locally generated client identifier, app and
+per-PC settings, controller mappings, and cached app lists and artwork.
+
+A short, redacted event log is kept in memory. A redacted record of the latest
+crash or abnormal exit is saved locally. Optional latency logging saves a local
+CSV file when you enable it. Preparing a problem report creates a temporary
+local file. These records can include the app version, Android version, device
+model, decoder settings, timing measurements and crash details.
+
+## Network connections
+
+Stream content, input and clipboard transfers are between your device and the
+PC you connect to. Pairing exchanges identity information with that PC. Host
+discovery also uses your local network.
+
+The current app also makes public network checks. It can contact
+`stun.moonlight-stream.org` to find an external network address and
+`android.conntest.moonlight-stream.org` to diagnose connection failures. Those
+servers receive your public IP address and network protocol traffic. They do
+not receive your stream, clipboard or problem reports. Their retention
+practices are not established by this repository.
+
+Opening a help or source link contacts the website you choose to visit. The
+site and your browser apply their own privacy practices.
+
+## Sharing a problem or crash report
+
+Butterpollo does not automatically send problem or crash reports. A report is
+shared only after you choose Share and select a receiving app in Android's
+share sheet. Canceling the sheet does not share the report. The report omits
+addresses, user-assigned host names, PINs, credentials and free-text diagnostic
+details. The receiving app controls what happens to the report afterward.
+
+## Backups and deletion
+
+Android backup and device transfer are enabled. Depending on your Android
+settings, eligible app data, including the saved-host database and optional
+latency files, may be backed up or transferred by Android. Client certificates,
+private keys, the client identifier and preferences are excluded. Crash records
+and temporary report files are kept outside Android backup.
+
+Remove a saved PC in Butterpollo to remove its saved-host entry. Revoke pairing
+on the PC to remove that device's access there. Clear Butterpollo's app storage
+or uninstall it to remove its local data. Separately delete any exported logs,
+shared reports or Android backups using the app or service holding them.
+
+Butterpollo has no developer-hosted user account to delete. For questions about
+this policy, use the contact details on the Butterpollo store listing.

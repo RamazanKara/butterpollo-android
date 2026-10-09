@@ -441,12 +441,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         WifiManager wifiMgr = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         try {
             if (wifiMgr != null) {
-                highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Moonlight High Perf Lock");
+                highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Butterpollo High Perf Lock");
                 highPerfWifiLock.setReferenceCounted(false);
                 highPerfWifiLock.acquire();
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Moonlight Low Latency Lock");
+                    lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Butterpollo Low Latency Lock");
                     lowLatencyWifiLock.setReferenceCounted(false);
                     lowLatencyWifiLock.acquire();
                 }

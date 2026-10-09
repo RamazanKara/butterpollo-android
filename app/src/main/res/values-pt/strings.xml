@@ -19,14 +19,14 @@
     <string name="pcview_menu_send_wol">Enviar pedido Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Apagar PC</string>
     <string name="pacing_balanced">Balanceado</string>
-    <string name="nettest_text_blocked">A conexão de rede atual do seu aparelho está a bloquear o Moonlight. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
+    <string name="nettest_text_blocked">A conexão de rede atual do seu aparelho está a bloquear o Butterpollo. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
     <string name="wol_waking_msg">Pode levar alguns segundos até o seu PC acordar. Se isso não acontecer, verifique se ele está configurado corretamente para Wake-On-LAN.</string>
     <string name="wol_fail">Falha ao enviar pacotes Wake-On-LAN</string>
     <string name="unpair_success">Despareado com sucesso</string>
     <string name="unpair_fail">Falha ao desparear</string>
     <string name="title_decoding_error">Decodificador de Vídeo Crashou</string>
     <string name="title_decoding_reset">Resetar Configurações de Vídeo</string>
-    <string name="message_decoding_error">Moonlight crashou devido a uma incompatibilidade com o decodificador de vídeo deste aparelho. Certifique-se de que o GeForce Experience esteja atualizado à versão mais recente no seu PC. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
+    <string name="message_decoding_error">Butterpollo crashou devido a uma incompatibilidade com o decodificador de vídeo deste aparelho. Certifique-se de que o GeForce Experience esteja atualizado à versão mais recente no seu PC. Tente ajustar as configurações de transmissão se as falhas continuarem.</string>
     <string name="unable_to_pin_shortcut">O seu launcher atual não permite a criação de atalhos fixados.</string>
     <string name="video_decoder_init_failed">Falha ao iniciar o decodificador de vídeo. O seu aparelho pode não suportar a resolução ou taxa de quadros selecionada.</string>
     <string name="frame_conversion_error">O PC host relatou um erro fatal de codificação de vídeo.
@@ -74,7 +74,7 @@
     <string name="summary_checkbox_enable_audiofx">Permitir que efeitos de audio funcionem durante o streaming, pode acrescentar latência de audio</string>
     <string name="summary_checkbox_xb1_driver">Ativa um driver USB integrado para aparelhos sem suporte nativo aos controles Xbox</string>
     <string name="title_checkbox_usb_bind_all">Substituir o suporte nativo ao gamepad do Xbox</string>
-    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Moonlight para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
+    <string name="summary_checkbox_usb_bind_all">Use o driver USB do Butterpollo para todos os gamepads suportados, mesmo se houver suporte nativo ao controle Xbox</string>
     <string name="title_checkbox_mouse_emulation">Emulação de rato pelo gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Segure o botão Start para mudar o gamepad ao modo de rato</string>
     <string name="summary_checkbox_flip_face_buttons">Inverte os botões A/B e X/Y dos gamepads e controles de ecrã</string>
@@ -119,7 +119,7 @@
     <string name="videoformat_auto">Automático (recomendado)</string>
     <string name="title_frame_pacing">Ritmo de quadros</string>
     <string name="pacing_smoothness">Preferir vídeo mais suave (pode aumentar significativamente a latência)</string>
-    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Moonlight está configurado para usar.</string>
+    <string name="summary_seekbar_deadzone">Nota: Alguns jogos podem impor uma zona morta maior do que o Butterpollo está configurado para usar.</string>
     <string name="dialog_text_reset_osc">Tem certeza de que deseja apagar o layout salvo dos controles de ecrã\?</string>
     <string name="category_host_settings">Configurações de Host</string>
     <string name="pacing_balanced_alt">Equilibrado com limite de FPS</string>
@@ -230,7 +230,7 @@
     <string name="summary_checkbox_mouse_nav_buttons">Ativar esta opção pode bugar o clique com o botão direito em alguns aparelhos com bugs</string>
     <string name="title_checkbox_flip_face_buttons">Inverter botões</string>
     <string name="title_privacy_policy">Política de privacidade</string>
-    <string name="summary_privacy_policy">Veja a política de privacidade do Moonlight</string>
+    <string name="summary_privacy_policy">Veja a política de privacidade do Butterpollo</string>
     <string name="resolution_480p">480p</string>
     <string name="resolution_720p">720p</string>
     <string name="analogscroll_none">Nenhum (ambos os sticks movem o rato)</string>

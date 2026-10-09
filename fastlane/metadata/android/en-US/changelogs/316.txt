@@ -1,0 +1,4 @@
+Butterpollo 0.4.0
+Stream from your PC with low latency. Built for Butterpollo hosts, with Sunshine and Apollo support.
+Choose stream presets and per-PC settings. View latency in the compact overlay. Adjust controls in the stream menu and map controller buttons.
+Fresh Butterpollo branding and clearer privacy information.
