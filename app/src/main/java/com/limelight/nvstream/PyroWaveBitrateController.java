@@ -22,6 +22,10 @@ public final class PyroWaveBitrateController {
 
     // Sample once per second while no runtime request is pending. Loss includes recovered frames' missing records.
     public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float queueMs, float decodeMs) {
+        return sample(nowMs, recentVideo, poorConnection, lossPercent, queueMs, decodeMs, 0);
+    }
+
+    public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float queueMs, float decodeMs, float jitterMs) {
         if (!recentVideo) {
             healthySinceMs = -1;
             previousLoss = previousQueueMs = -1;
@@ -31,6 +35,7 @@ public final class PyroWaveBitrateController {
             }
         }
         boolean congested = poorConnection || (recentVideo && (lossPercent >= 2 || decodeMs >= frameMs ||
+                jitterMs >= Math.max(5, frameMs * 0.75f) ||
                 queueMs >= Math.max(20, frameMs * 2) ||
                 (previousLoss >= 0 && lossPercent >= 0.5f && lossPercent - previousLoss >= 0.25f) ||
                 (previousQueueMs >= 0 && queueMs >= Math.max(8, frameMs * 0.75f) &&
@@ -45,8 +50,9 @@ public final class PyroWaveBitrateController {
             }
         } else {
             congestedSamples = 0;
-            if (lossPercent >= 0.1f || queueMs >= Math.max(4, frameMs / 2) ||
-                    decodeMs < 0 || decodeMs >= frameMs * 0.75f) {
+            if (!(lossPercent >= 0 && lossPercent < 0.1f) || !(queueMs >= 0 && queueMs < Math.max(4, frameMs / 2)) ||
+                    !(decodeMs >= 0 && decodeMs < frameMs * 0.75f) ||
+                    !(jitterMs >= 0 && jitterMs < Math.max(2, frameMs * 0.25f))) {
                 healthySinceMs = -1;
             } else if (healthySinceMs == -1) {
                 healthySinceMs = nowMs;

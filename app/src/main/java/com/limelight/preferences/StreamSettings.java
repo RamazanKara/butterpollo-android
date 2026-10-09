@@ -803,6 +803,10 @@ public class StreamSettings extends AppCompatActivity {
                 HelpLauncher.launchTroubleshooting(getActivity());
                 return true;
             });
+            findPreference("latency_benchmark").setOnPreferenceClickListener(preference -> {
+                startActivity(new Intent(getActivity(), com.limelight.LatencyBenchmarkActivity.class));
+                return true;
+            });
             findPreference("report_problem").setOnPreferenceClickListener(preference -> {
                 com.limelight.utils.ProblemReport.show(getActivity());
                 return true;

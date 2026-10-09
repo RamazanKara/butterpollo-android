@@ -19,12 +19,17 @@ public final class AdaptiveBitrateController {
 
     // Called once per second, only while no bitrate request is in flight.
     public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float decodeMs) {
+        return sample(nowMs, recentVideo, poorConnection, lossPercent, decodeMs, 0);
+    }
+
+    public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float decodeMs, float jitterMs) {
         if (!recentVideo && !poorConnection) {
             healthySinceMs = -1;
             poorSamples = 0;
             return 0;
         }
-        if (poorConnection || lossPercent >= 3 || (recentVideo && decodeMs >= frameMs)) {
+        if (poorConnection || (recentVideo && (lossPercent >= 3 || decodeMs >= frameMs ||
+                jitterMs >= Math.max(5, frameMs * 0.75f)))) {
             healthySinceMs = -1;
             poorSamples++;
             if (poorSamples >= 2 && nowMs - lastChangeMs >= 5000) {
@@ -33,7 +38,9 @@ public final class AdaptiveBitrateController {
             }
         } else {
             poorSamples = 0;
-            if (lossPercent >= 0.5f || !(decodeMs >= 0 && decodeMs < frameMs * 0.75f)) {
+            if (!(lossPercent >= 0 && lossPercent < 0.5f) ||
+                    !(decodeMs >= 0 && decodeMs < frameMs * 0.75f) ||
+                    !(jitterMs >= 0 && jitterMs < Math.max(2, frameMs * 0.25f))) {
                 healthySinceMs = -1;
             } else if (healthySinceMs == -1) {
                 healthySinceMs = nowMs;

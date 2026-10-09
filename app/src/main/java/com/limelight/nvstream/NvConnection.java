@@ -23,6 +23,10 @@ import java.security.cert.X509Certificate;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -30,6 +34,7 @@ import javax.crypto.SecretKey;
 import org.xmlpull.v1.XmlPullParserException;
 
 import com.limelight.LimeLog;
+import com.limelight.binding.input.InputBatcher;
 import com.limelight.nvstream.av.audio.AudioRenderer;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 import com.limelight.nvstream.http.ComputerDetails;
@@ -58,6 +63,31 @@ public class NvConnection {
     private boolean nativeStarted;
     private boolean nativeConnected;
     private long lastServerCommandTime;
+    private volatile ScheduledExecutorService inputPoller;
+    private ScheduledFuture<?> inputPoll;
+    private long inputIntervalNs = InputBatcher.intervalNs(60);
+    private final InputBatcher inputBatcher = new InputBatcher(motion -> {
+        if (!canSendInput()) return;
+        if (motion.kind == 0) MoonBridge.sendMouseMove((short) motion.x, (short) motion.y);
+        else if (motion.kind == 1) MoonBridge.sendMousePosition((short) motion.x, (short) motion.y, motion.width, motion.height);
+        else MoonBridge.sendMouseMoveAsMousePosition((short) motion.x, (short) motion.y, motion.width, motion.height);
+    });
+
+    public synchronized void setInputPollingRate(float panelHz) {
+        long interval = InputBatcher.intervalNs(panelHz);
+        if (interval == inputIntervalNs) return;
+        inputIntervalNs = interval;
+        if (inputPoller != null) {
+            inputPoll.cancel(false);
+            inputPoll = inputPoller.scheduleWithFixedDelay(inputBatcher::flush, 0, inputIntervalNs, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private synchronized void startInputPolling(boolean unbatched) {
+        if (stopRequested || unbatched) return;
+        inputPoller = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Input - Poll"));
+        inputPoll = inputPoller.scheduleWithFixedDelay(inputBatcher::flush, 0, inputIntervalNs, TimeUnit.NANOSECONDS);
+    }
 
     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
     {
@@ -102,6 +132,11 @@ public class NvConnection {
                 return;
             }
             stopRequested = true;
+            if (inputPoller != null) {
+                inputPoller.shutdownNow();
+                inputPoller = null;
+            }
+            inputBatcher.clear();
             if (connectionThread != null && !nativeStarted) {
                 connectionThread.interrupt();
             }
@@ -622,6 +657,7 @@ public class NvConnection {
                             return;
                         }
                         nativeConnected = true;
+                        startInputPolling(prefs.unbatchedInput);
                         started = true;
                     }
                 } catch (InterruptedException e) {
@@ -753,35 +789,38 @@ public class NvConnection {
     public void sendMouseMove(final short deltaX, final short deltaY)
     {
         if (canSendInput()) {
-            MoonBridge.sendMouseMove(deltaX, deltaY);
+            if (inputPoller != null) inputBatcher.mouse(0, deltaX, deltaY, (short) 0, (short) 0);
+            else MoonBridge.sendMouseMove(deltaX, deltaY);
         }
     }
 
     public void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight)
     {
         if (canSendInput()) {
-            MoonBridge.sendMousePosition(x, y, referenceWidth, referenceHeight);
+            if (inputPoller != null) inputBatcher.mouse(1, x, y, referenceWidth, referenceHeight);
+            else MoonBridge.sendMousePosition(x, y, referenceWidth, referenceHeight);
         }
     }
 
     public void sendMouseMoveAsMousePosition(short deltaX, short deltaY, short referenceWidth, short referenceHeight)
     {
         if (canSendInput()) {
-            MoonBridge.sendMouseMoveAsMousePosition(deltaX, deltaY, referenceWidth, referenceHeight);
+            if (inputPoller != null) inputBatcher.mouse(2, deltaX, deltaY, referenceWidth, referenceHeight);
+            else MoonBridge.sendMouseMoveAsMousePosition(deltaX, deltaY, referenceWidth, referenceHeight);
         }
     }
 
     public void sendMouseButtonDown(final byte mouseButton)
     {
         if (canSendInput()) {
-            MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton);
+            inputBatcher.boundary(() -> MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton));
         }
     }
     
     public void sendMouseButtonUp(final byte mouseButton)
     {
         if (canSendInput()) {
-            MoonBridge.sendMouseButton(MouseButtonPacket.RELEASE_EVENT, mouseButton);
+            inputBatcher.boundary(() -> MoonBridge.sendMouseButton(MouseButtonPacket.RELEASE_EVENT, mouseButton));
         }
     }
     
@@ -792,38 +831,43 @@ public class NvConnection {
             final short rightStickX, final short rightStickY)
     {
         if (canSendInput()) {
-            MoonBridge.sendMultiControllerInput(controllerNumber, activeGamepadMask, buttonFlags,
-                    leftTrigger, rightTrigger, leftStickX, leftStickY, rightStickX, rightStickY);
+            Runnable send = () -> {
+                if (canSendInput()) MoonBridge.sendMultiControllerInput(controllerNumber, activeGamepadMask, buttonFlags,
+                        leftTrigger, rightTrigger, leftStickX, leftStickY, rightStickX, rightStickY);
+            };
+            if (inputPoller != null) inputBatcher.controller(controllerNumber, activeGamepadMask, buttonFlags,
+                    leftTrigger, rightTrigger, send);
+            else send.run();
         }
     }
 
     public void sendKeyboardInput(final short keyMap, final byte keyDirection, final byte modifier, final byte flags) {
         if (canSendInput()) {
-            MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags);
+            inputBatcher.boundary(() -> MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags));
         }
     }
     
     public void sendMouseScroll(final byte scrollClicks) {
         if (canSendInput()) {
-            MoonBridge.sendMouseHighResScroll((short)(scrollClicks * 120)); // WHEEL_DELTA
+            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResScroll((short)(scrollClicks * 120))); // WHEEL_DELTA
         }
     }
 
     public void sendMouseHScroll(final byte scrollClicks) {
         if (canSendInput()) {
-            MoonBridge.sendMouseHighResHScroll((short)(scrollClicks * 120)); // WHEEL_DELTA
+            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResHScroll((short)(scrollClicks * 120))); // WHEEL_DELTA
         }
     }
 
     public void sendMouseHighResScroll(final short scrollAmount) {
         if (canSendInput()) {
-            MoonBridge.sendMouseHighResScroll(scrollAmount);
+            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResScroll(scrollAmount));
         }
     }
 
     public void sendMouseHighResHScroll(final short scrollAmount) {
         if (canSendInput()) {
-            MoonBridge.sendMouseHighResHScroll(scrollAmount);
+            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResHScroll(scrollAmount));
         }
     }
 

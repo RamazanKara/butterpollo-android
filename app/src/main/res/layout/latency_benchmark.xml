@@ -1,0 +1,22 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="24dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/latency_benchmark_description"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/benchmark_start"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:minHeight="48dp"
+            android:text="@string/latency_benchmark_start" />
+        <TextView android:id="@+id/benchmark_results"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:textIsSelectable="true"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:text="@string/latency_benchmark_limits"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+    </LinearLayout>
+</ScrollView>

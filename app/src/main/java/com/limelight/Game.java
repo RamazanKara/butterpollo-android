@@ -193,12 +193,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
             if (!hostActionInProgress && streamMenu == null) {
                 long now = SystemClock.uptimeMillis();
+                long rttInfo = MoonBridge.getEstimatedRttInfo();
+                float jitterMs = rttInfo == -1 ? -1 : (float) (rttInfo & 0xffffffffL);
                 int target = pyroWaveBitrate != null ?
                         pyroWaveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now), poorConnection,
                                 decoderRenderer.getPyroWaveLossPercent(), decoderRenderer.getPyroWaveQueueDelayMs(),
-                                decoderRenderer.getDecodeTimeMs()) :
+                                decoderRenderer.getDecodeTimeMs(), jitterMs) :
                         adaptiveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now),
-                                poorConnection, decoderRenderer.getNetworkFrameLossPercent(), decoderRenderer.getDecodeTimeMs());
+                                poorConnection, decoderRenderer.getNetworkFrameLossPercent(), decoderRenderer.getDecodeTimeMs(), jitterMs);
                 if (target != 0) {
                     applyAdaptiveBitrate(target);
                 }
@@ -214,6 +216,21 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private NvApp app;
     private float desiredRefreshRate;
     private float panelMaxRefreshRate;
+    private final android.hardware.display.DisplayManager.DisplayListener inputDisplayListener =
+            new android.hardware.display.DisplayManager.DisplayListener() {
+                @Override public void onDisplayAdded(int displayId) {}
+                @Override public void onDisplayRemoved(int displayId) {}
+                @Override public void onDisplayChanged(int displayId) {
+                    Display display = getWindowManager().getDefaultDisplay();
+                    if (conn != null && display.getDisplayId() == displayId) updateInputPollingRate();
+                }
+            };
+
+    private void updateInputPollingRate() {
+        Display display = getWindowManager().getDefaultDisplay();
+        conn.setInputPollingRate(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                display.getMode().getRefreshRate() : display.getRefreshRate());
+    }
     private boolean useArr;
     private PendingIntent pipDisconnectIntent;
     private final BroadcastReceiver pipReceiver = new BroadcastReceiver() {
@@ -641,6 +658,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 httpsPort, uniqueId, config,
                 PlatformBinding.getCryptoProvider(this), serverCert);
         controllerHandler = new ControllerHandler(this, conn, this, prefConfig);
+        updateInputPollingRate();
+        ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE))
+                .registerDisplayListener(inputDisplayListener, bitrateHandler);
         keyboardTranslator = new KeyboardTranslator();
 
         InputManager inputManager = (InputManager) getSystemService(Context.INPUT_SERVICE);
@@ -1244,6 +1264,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onDestroy() {
         stopConnection();
+        ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE))
+                .unregisterDisplayListener(inputDisplayListener);
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs(this);
         getWindow().getDecorView().removeCallbacks(hideSystemUi);

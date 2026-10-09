@@ -216,8 +216,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private PreferenceConfiguration prefs;
 
     private LinkedBlockingQueue<Integer> outputBufferQueue = new LinkedBlockingQueue<>();
-    private static final int OUTPUT_BUFFER_QUEUE_LIMIT = 2;
-    private long lastRenderedFrameTimeNanos;
+    private int outputBufferQueueLimit = 1;
+    private long nextFrameTimeNanos;
     private HandlerThread choreographerHandlerThread;
     private Handler choreographerHandler;
     private final Object vsyncMonitor = new Object();
@@ -1016,6 +1016,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
             // Throw the underlying codec exception on the last attempt if the caller requested it
             if (tryConfigureDecoder(selectedDecoderInfo, mediaFormat, !newFormat && throwOnCodecError)) {
+                outputBufferQueueLimit = DecoderQueuePolicy.outputLimit(selectedDecoderInfo.getName(),
+                        prefs.codecLowLatency && MediaCodecHelper.decoderSupportsAndroidRLowLatency(selectedDecoderInfo, mimeType),
+                        prefs.dropLateFrames, tryNumber != 0 || codecRecoveryAttempts != 0);
                 // Success!
                 break;
             }
@@ -1150,6 +1153,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 nextInputBuffer = null;
                 nextInputBufferIndex = -1;
                 outputBufferQueue.clear();
+                nextFrameTimeNanos = 0;
+                outputBufferQueueLimit = 1;
                 frameLatencyStats.discardPending("codec_reset");
 
                 // If we just need a flush, do so now with all threads quiesced.
@@ -1408,15 +1413,15 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             return;
         }
 
+        Display display = activity.getWindowManager().getDefaultDisplay();
+        synchronized (vsyncMonitor) {
+            vsyncTimeNs = frameTimeNanos - display.getAppVsyncOffsetNanos();
+            float physicalRefreshRate = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                    display.getMode().getRefreshRate() : display.getRefreshRate();
+            vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
+            vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
+        }
         if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY) {
-            Display display = activity.getWindowManager().getDefaultDisplay();
-            synchronized (vsyncMonitor) {
-                vsyncTimeNs = frameTimeNanos - display.getAppVsyncOffsetNanos();
-                float physicalRefreshRate = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
-                        display.getMode().getRefreshRate() : display.getRefreshRate();
-                vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
-                vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
-            }
             Choreographer.getInstance().postFrameCallback(this);
             return;
         }
@@ -1425,9 +1430,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Don't render unless a new frame is due. This prevents microstutter when streaming
         // at a frame rate that doesn't match the display (such as 60 FPS on 120 Hz).
-        long actualFrameTimeDeltaNs = frameTimeNanos - lastRenderedFrameTimeNanos;
-        long expectedFrameTimeDeltaNs = 800000000 / refreshRate; // within 80% of the next frame
-        if (actualFrameTimeDeltaNs >= expectedFrameTimeDeltaNs) {
+        if (frameTimeNanos >= nextFrameTimeNanos) {
             // Render up to one frame when in frame pacing mode.
             //
             // The queue holds at most two buffers to avoid starving the decoder. Keeping
@@ -1437,9 +1440,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 try {
                     frameLatencyStats.onOutputReleased(nextOutputBuffer, System.nanoTime(), true,
                             upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
-                    releaseOutputFrame(nextOutputBuffer, frameTimeNanos);
+                    releaseOutputFrame(nextOutputBuffer, nextVsyncTimeNs());
 
-                    lastRenderedFrameTimeNanos = frameTimeNanos;
+                    nextFrameTimeNanos = FramePacingPolicy.nextFrameTimeNs(nextFrameTimeNanos, frameTimeNanos, refreshRate);
                     activeWindowVideoStats.totalFramesRendered++;
                 } catch (IllegalStateException ignored) {
                     try {
@@ -1507,7 +1510,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 // Render the latest frame now if frame pacing isn't in balanced mode
                                 if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
                                     // Get the last output buffer in the queue
-                                    while ((outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
+                                    while (FramePacingPolicy.dropQueuedFrames(prefs.framePacing) &&
+                                            (outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
                                         frameLatencyStats.onDecoderOutput(outIndex, info.presentationTimeUs, System.nanoTime());
                                         frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), false,
                                                 upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
@@ -1547,7 +1551,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     // NB: We have to do this on the producer side because the consumer may not
                                     // run for a while (if there is a huge mismatch between stream FPS and display
                                     // refresh rate).
-                                    int queueLimit = prefs.dropLateFrames ? 1 : OUTPUT_BUFFER_QUEUE_LIMIT;
+                                    int queueLimit = prefs.dropLateFrames ? 1 : outputBufferQueueLimit;
                                     if (outputBufferQueue.size() >= queueLimit) {
                                         Integer droppedIndex = outputBufferQueue.poll();
                                         if (droppedIndex != null) {

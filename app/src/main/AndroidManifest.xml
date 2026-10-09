@@ -148,6 +148,7 @@
             <meta-data android:name="WindowManagerPreference:FreeformWindowSize" android:value="system-default" />
             <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
         </activity>
+        <activity android:name=".LatencyBenchmarkActivity" android:exported="false" android:resizeableActivity="true" />
         <activity
             android:name=".preferences.HostStreamSettings"
             android:resizeableActivity="true"

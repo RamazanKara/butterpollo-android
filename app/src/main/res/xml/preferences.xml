@@ -279,6 +279,7 @@
             android:title="@string/title_checkbox_small_icon_mode"
             android:summary="@string/summary_checkbox_small_icon_mode" />
         <Preference android:key="help" android:title="@string/help" />
+        <Preference android:key="latency_benchmark" android:title="@string/latency_benchmark_title" />
         <Preference android:key="report_problem" android:title="@string/report_problem" />
         <Preference
             android:key="about_app"

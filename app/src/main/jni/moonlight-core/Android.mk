@@ -15,6 +15,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    android_control.c \
                    moonlight-common-c/src/FakeCallbacks.c \
                    android_input.c \
+                   aaudio_output.c \
                    latency.c \
                    moonlight-common-c/src/LinkedBlockingQueue.c \
                    moonlight-common-c/src/Misc.c \
@@ -57,7 +58,7 @@ ifeq ($(NDK_DEBUG),1)
 LOCAL_CFLAGS += -DLC_DEBUG
 endif
 
-LOCAL_LDLIBS := -llog
+LOCAL_LDLIBS := -llog -ldl
 
 LOCAL_STATIC_LIBRARIES := libopus libcrypto cpufeatures
 LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL

@@ -205,6 +205,76 @@ their existing three-finger keyboard gesture.
 
 ### Current verification scope and real-device checklist
 
+#### Low-latency policies and hostless diagnostics (2026-10-09)
+
+Verification: JDK 17 `:app:assembleNonRootDebug` and `:app:testNonRootDebugUnitTest` pass with
+`--no-daemon --max-workers=2`, a 1.5 GiB heap and two active processors: **643 tests**, including
+28 new tests, zero failures/errors/skips. All four native ABIs compile. `:app:lintNonRootDebug`
+still fails on **603 existing MissingTranslation errors in unchanged resource files** (213 warnings);
+there are no new lint errors. The new benchmark provides English/German strings, with excluded-locale
+translation checking suppressed only for that new resource file. No device, adb, emulator or live
+host was used, so runtime/physical latency claims remain unverified.
+
+Implemented and unit-testable without a device:
+- Panel-rate input sampling reuses the existing immediate-input preference. Relative mouse motion
+  sums without short overflow; absolute motion keeps the latest coordinate within the same reference
+  size. Gamepad analog samples coalesce per slot, while digital/trigger-zero edges and detach flush
+  immediately. The timer waits one panel interval after each flush, avoiding catch-up bursts after
+  a scheduling stall. No API can raise a Bluetooth/USB controller's physical report rate.
+- Balanced pacing uses a phase-preserving stream deadline (including 60 FPS on a 90 Hz panel) and
+  the next display presentation deadline. Latency mode drains stale output; smoothness/cap modes do
+  not drain it. With no new frame the compositor keeps the last image; no synthetic codec frame is
+  enqueued. Confirmed Android ARR still releases immediately.
+- Decoder limits apply only to client-held decoded output. Legacy OMX MTK/Exynos/Tegra/Broadcom/TI/
+  Allwinner/Amlogic/Intel families retain one output; other families get a second balanced-pacing
+  slot only with advertised low-latency support. Configuration retries and codec recovery fall back
+  to one. Existing SPS/reference-picture fixups and vendor-key retries remain authoritative; newer
+  Qualcomm, Tensor, MediaTek and Exynos names alone do not justify new codec tuning.
+- AAudio is dynamically loaded, so API 21-26 still load the core library. API 27+ matching-rate stereo
+  without effects tries exclusive then shared LOW_LATENCY callback output, checking the actual
+  format/rate/mode. Failed setup and disconnection fall back to AudioTrack. Callback work uses a
+  bounded preallocated ring; close/fallback happens on the serialized Java audio path. Measured
+  native/producer underruns or AudioTrack underruns grow the buffer at most once per second;
+  30 clean seconds permit a one-burst reduction. Capacity and the accepted initial minimum bound
+  tuning; the normal upper bound is eight bursts. This is not a measured audio-latency claim.
+- Both bitrate controllers consume ENet RTT variation as a control-channel jitter proxy, alongside
+  residual frame/record loss and completed decode time (plus the existing PyroWave queue delay).
+  Invalid/missing measurements prevent recovery increases. Cooldowns, host-applied caps and opt-in
+  behavior remain. RTT variation is not a per-packet video-jitter measurement.
+- The existing common-c Sunshine FEC-status feedback hook remains in use for compatible hosts
+  (data/parity received, missing packets, block and FEC percentage; bounded best-effort feedback).
+  The inspected host reference has no negotiated runtime FEC-percentage request endpoint. No
+  speculative percentage request or change to PyroWave record negotiation is added.
+- Settings → App → Latency benchmark runs without pairing/network access. Frame callbacks,
+  their dispatch delay, 100 ms timer wakeups and Android input event age are measured for ten
+  seconds, retaining up to 2048 recent samples per metric. Results distinguish reported audio/display
+  properties from measured local timing. Input timestamps have millisecond resolution. Decode,
+  scanout, audio-output and glass-to-glass values are unavailable; no synthetic value is substituted.
+
+Android API basis: [MediaCodec presentation timestamps](https://developer.android.com/reference/android/media/MediaCodec#releaseOutputBuffer(int,%20long)),
+[display deadlines](https://developer.android.com/reference/android/view/Display#getPresentationDeadlineNanos()),
+and [AAudio callbacks, buffer sizing and disconnect handling](https://developer.android.com/ndk/guides/audio/aaudio/aaudio).
+
+Still required on real devices:
+- [ ] At 60/90/119.88/120/144/240 Hz, verify actual input send cadence, fractional mouse distance,
+      rapid click/trigger pulses, all controller slots, detach/reconnect and the immediate-input
+      override. Switch display modes and background/disconnect with pending motion.
+- [ ] Compare all four pacing modes at matching and mixed stream/panel rates, including 60→90,
+      60→120 and VRR/ARR fallback. Verify dropped vs held frames, callback-observed presentation,
+      mode switches, GPU upscaling and decoder recovery; capture CSV and a high-speed-camera check.
+- [ ] On the exact SoC/firmware/decoder, verify queue-starvation absence, first-frame output and
+      static-to-motion/thermal behavior. Keep the existing 2024+ errata evidence limits.
+- [ ] Confirm the actual AAudio sharing/performance mode, stereo/rate/effect/surround fallbacks,
+      unplug/Bluetooth route switches, pause/stop/reconnect, underrun-driven growth and slow recovery.
+      Measure output latency and A/V sync with physical equipment; inspect long-running audio.
+- [ ] Inject sustained/bursty loss and jitter separately from decoder overload. Check both bitrate
+      controllers' reduction/recovery, the 500 Mbps runtime cap and host FEC feedback handling.
+      Dynamic FEC percentage control remains host/protocol work.
+- [ ] Run the benchmark offline, with no input, with touch/mouse/controller input, and under load.
+      Verify unavailable values, avg/p95/p99, ten-second completion, manual stop/restart, Back,
+      rotation/background cancellation, large text, TalkBack and English/German layout.
+
+
 First-device robustness pass (2026-10-09, `bp-jobD`): source review covered every production
 Activity and Service listed in the manifest. No host code, dependency, commit or push was changed.
 
