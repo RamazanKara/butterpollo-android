@@ -429,7 +429,9 @@ public class StreamSettings extends AppCompatActivity {
             findPreference("stream_presets").setOnPreferenceClickListener(preference -> {
                 new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_presets)
                         .setItems(R.array.stream_preset_descriptions, (dialog, which) -> {
-                            StreamPreset.values()[which].apply(PreferenceManager.getDefaultSharedPreferences(getActivity()));
+                            StreamPreset.values()[which].apply(PreferenceManager.getDefaultSharedPreferences(getActivity()),
+                                    com.limelight.binding.video.DisplayFrameRatePolicy.maxRefreshRate(
+                                            getActivity().getWindowManager().getDefaultDisplay()));
                             updateSummaries();
                             Toast.makeText(getActivity(), R.string.stream_preset_applied, Toast.LENGTH_LONG).show();
                         })

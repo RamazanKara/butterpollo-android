@@ -79,7 +79,7 @@ public class FrameLatencyStatsTest {
         stats.onDecoderOutput(0, 10, 300);
         stats.onOutputReleased(0, 400, true, true);
         stats.onDecoderInput(2, 20, 100, 200, (char) 0);
-        stats.expire(5000000200L);
+        stats.expire(5000000400L);
         stats.onFrameRendered(10, 5000000300L);
 
         StringWriter csv = new StringWriter();
@@ -202,7 +202,7 @@ public class FrameLatencyStatsTest {
         assertEquals(0, stats.summarize()[4][0], 0);
         StringWriter csv = new StringWriter();
         stats.writeCsv(csv);
-        assertTrue(csv.toString().endsWith(",\n"));
+        assertEquals("", csv.toString().trim().split(",", -1)[13]);
     }
 
     @Test
@@ -233,7 +233,8 @@ public class FrameLatencyStatsTest {
         assertEquals("frame_number,pts_us,receive_ns,decoder_input_ns,decoder_output_ns," +
                 "render_ns,release_ns,status,receive_to_input_ms,input_to_output_ms,output_to_render_ms," +
                 "receive_to_render_ms,csv_rows_lost,host_processing_ms,decode_to_present_ms,receive_to_present_ms," +
-                "decode_to_release_ms,decode_interval_ms,release_interval_ms\n",
+                "decode_to_release_ms,decode_interval_ms,release_interval_ms," +
+                "fps_sample_ns,received_fps,released_fps,shown_fps,present_drops\n",
                 FrameLatencyStats.CSV_HEADER);
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(42, 123, 1000000, 2000000, (char) 123);
@@ -242,8 +243,9 @@ public class FrameLatencyStatsTest {
         stats.onFrameRendered(123, 9000000);
         StringWriter csv = new StringWriter();
         stats.writeCsv(csv);
-        assertEquals("42,123,1000000,2000000,5000000,9000000,6000000,rendered," +
-                "1.000000,3.000000,4.000000,8.000000,0,12.300000,4.000000,8.000000,,,\n", csv.toString());
+        assertTrue(csv.toString().startsWith("42,123,1000000,2000000,5000000,9000000,6000000,rendered," +
+                "1.000000,3.000000,4.000000,8.000000,0,12.300000,4.000000,8.000000,,,,"));
+        assertEquals(24, csv.toString().trim().split(",", -1).length);
     }
 
     @Test
@@ -266,8 +268,8 @@ public class FrameLatencyStatsTest {
         stats.writeCsv(csv);
         String[] rows = csv.toString().split("\n");
         assertEquals(2, rows.length);
-        assertTrue(rows[0].endsWith(",6.000000,9.000000,,,"));
-        assertTrue(rows[1].endsWith(",2.000000,5.000000,,,"));
+        assertTrue(rows[0].contains(",6.000000,9.000000,,,,"));
+        assertTrue(rows[1].contains(",2.000000,5.000000,,,,"));
     }
 
     @Test
@@ -286,7 +288,7 @@ public class FrameLatencyStatsTest {
         assertEquals(3, rows.length);
         for (String row : rows) {
             String[] fields = row.split(",", -1);
-            assertEquals(19, fields.length);
+            assertEquals(24, fields.length);
             for (int column : new int[] {5, 10, 11, 14, 15}) assertEquals("", fields[column]);
         }
         assertEquals(0, stats.summarize()[2][0], 0);
@@ -337,7 +339,7 @@ public class FrameLatencyStatsTest {
     }
 
     @Test
-    public void vrrCadenceUsesReleasesEvenWithoutOrWithReorderedPresentCallbacks() throws Exception {
+    public void vrrCadenceUsesDecoderOutputEvenWithoutOrWithReorderedPresentCallbacks() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats(true);
         for (int i = 1; i <= 3; i++) {
             long start = i * 20000000L;
@@ -345,8 +347,8 @@ public class FrameLatencyStatsTest {
             stats.onDecoderOutput(0, i, start + 3000000);
             stats.onOutputReleased(0, start + 4000000, true, i != 3);
         }
-        assertEquals(50, stats.takeReleaseFrameRate(), 0.00001);
-        assertEquals(0, stats.takeReleaseFrameRate(), 0);
+        assertEquals(50, stats.takeOutputFrameRate(), 0.00001);
+        assertEquals(0, stats.takeOutputFrameRate(), 0);
         stats.onFrameRendered(2, 49000000);
         stats.onFrameRendered(1, 29000000);
         StringWriter csv = new StringWriter();
@@ -354,13 +356,13 @@ public class FrameLatencyStatsTest {
         String[] rows = csv.toString().split("\n");
         assertEquals(3, rows.length);
         assertTrue(rows[0].contains("render_unavailable"));
-        assertTrue(rows[0].endsWith(",1.000000,20.000000,20.000000"));
-        assertTrue(rows[1].endsWith(",1.000000,20.000000,20.000000"));
-        assertTrue(rows[2].endsWith(",1.000000,,"));
+        assertTrue(rows[0].contains(",1.000000,20.000000,20.000000,"));
+        assertTrue(rows[1].contains(",1.000000,20.000000,20.000000,"));
+        assertTrue(rows[2].contains(",1.000000,,,"));
     }
 
     @Test
-    public void vrrDropsAreNotPresentationCadenceAndResetStartsANewSeries() throws Exception {
+    public void vrrCadenceIncludesOutputsDroppedBeforeReleaseAndResetStartsANewSeries() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats(true);
         for (int i = 1; i <= 3; i++) {
             long start = i * 10000000L;
@@ -368,19 +370,19 @@ public class FrameLatencyStatsTest {
             stats.onDecoderOutput(0, i, start + 2000000);
             stats.onOutputReleased(0, start + 3000000, i != 2, false);
         }
-        assertEquals(50, stats.takeReleaseFrameRate(), 0.00001);
+        assertEquals(100, stats.takeOutputFrameRate(), 0.00001);
         stats.discardPending("codec_reset");
         stats.onDecoderInput(4, 4, 40000000, 41000000, (char) 0);
         stats.onDecoderOutput(0, 4, 42000000);
         stats.onOutputReleased(0, 43000000, true, false);
-        assertEquals(0, stats.takeReleaseFrameRate(), 0);
+        assertEquals(0, stats.takeOutputFrameRate(), 0);
         StringWriter csv = new StringWriter();
         stats.writeCsv(csv);
         String[] rows = csv.toString().split("\n");
         assertTrue(rows[1].contains("dropped"));
-        assertTrue(rows[1].endsWith(",1.000000,10.000000,"));
-        assertTrue(rows[2].endsWith(",1.000000,10.000000,20.000000"));
-        assertTrue(rows[3].endsWith(",1.000000,,"));
+        assertTrue(rows[1].contains(",1.000000,10.000000,,"));
+        assertTrue(rows[2].contains(",1.000000,10.000000,20.000000,"));
+        assertTrue(rows[3].contains(",1.000000,,,"));
     }
 
     @Test
@@ -393,14 +395,14 @@ public class FrameLatencyStatsTest {
             stats.onDecoderOutput(0, i, start + 1000000);
             stats.onOutputReleased(0, start + 2000000, true, false);
         }
-        assertEquals(59.94, stats.takeReleaseFrameRate(), 0.001);
+        assertEquals(59.94, stats.takeOutputFrameRate(), 0.001);
         for (int i = 4; i < 7; i++) {
             start += 25000000;
             stats.onDecoderInput(i, i, start, start, (char) 0);
             stats.onDecoderOutput(0, i, start + 1000000);
             stats.onOutputReleased(0, start + 2000000, true, false);
         }
-        assertEquals(40, stats.takeReleaseFrameRate(), 0.00001);
+        assertEquals(40, stats.takeOutputFrameRate(), 0.00001);
     }
 
     @Test
@@ -411,11 +413,96 @@ public class FrameLatencyStatsTest {
         stats.onOutputReleased(0, 250, true, false);
         stats.onDecoderInput(2, 2, 400, 500, (char) 0);
         stats.discardPending("codec_reset");
-        assertEquals(0, stats.takeReleaseFrameRate(), 0);
+        assertEquals(0, stats.takeOutputFrameRate(), 0);
         StringWriter csv = new StringWriter();
         stats.writeCsv(csv);
         for (String row : csv.toString().split("\n")) {
-            assertTrue(row.endsWith(",,,"));
+            String[] fields = row.split(",", -1);
+            for (int column : new int[] {16, 17, 18}) assertEquals("", fields[column]);
         }
+    }
+
+    @Test
+    public void vrrCadenceDoesNotFollowReleasesOnAHalfRateDisplay() {
+        FrameLatencyStats stats = new FrameLatencyStats(true);
+        for (int i = 0; i < 120; i++) {
+            long outputNs = 1000000000L + i * 8333333L;
+            stats.onDecoderInput(i, i, outputNs - 2000000, outputNs - 1000000, (char) 0);
+            stats.onDecoderOutput(i, i, outputNs);
+        }
+        assertEquals(120, stats.takeOutputFrameRate(), 0.001);
+        for (int i = 0; i < 120; i++) {
+            stats.onOutputReleased(i, 3000000000L + i * 16666667L, true, true);
+        }
+        assertEquals(0, stats.takeOutputFrameRate(), 0);
+    }
+
+    @Test
+    public void halfRatePresentationIsVisibleInFpsAndPresentDropCount() throws Exception {
+        FrameLatencyStats stats = new FrameLatencyStats(true);
+        long startNs = 1000000000L;
+        stats.onFrameReceived(startNs);
+        for (int i = 1; i <= 240; i++) {
+            long receiveNs = startNs + i * 8333333L;
+            stats.onFrameReceived(receiveNs);
+            stats.onDecoderInput(i, i, receiveNs, receiveNs, (char) 0);
+            stats.onDecoderOutput(0, i, receiveNs);
+            stats.onOutputReleased(0, receiveNs, true, true);
+        }
+        // Deliver one batch backwards to ensure callback delivery time and ordering do not determine FPS.
+        for (int i = 240; i >= 2; i -= 2) {
+            stats.onFrameRendered(i, startNs + i * 8333333L);
+            stats.onFrameRendered(i, startNs + i * 8333333L);
+        }
+        assertArrayEquals(new float[] {120, 120, 60}, stats.getFrameRates(startNs + 2000000000L), 0.001f);
+        assertEquals(0, stats.getPresentDrops());
+        stats.expire(startNs + 7000000000L);
+        assertEquals(120, stats.getPresentDrops());
+        stats.expire(startNs + 8000000000L);
+        assertEquals(120, stats.getPresentDrops());
+        StringWriter csv = new StringWriter();
+        stats.writeCsv(csv);
+        int unobserved = 0;
+        for (String row : csv.toString().split("\n")) {
+            String[] fields = row.split(",", -1);
+            assertEquals(24, fields.length);
+            assertTrue(Long.parseLong(fields[19]) > 0);
+            assertEquals("120", fields[23]);
+            if (fields[7].equals("render_unobserved")) unobserved++;
+        }
+        assertEquals(120, unobserved);
+        assertArrayEquals(new float[] {0, 0, 0}, stats.getFrameRates(startNs + 8000000000L), 0);
+    }
+
+    @Test
+    public void delayedCallbacksPreRenderDropsAndResetsDoNotCountAsPresentDrops() {
+        FrameLatencyStats stats = new FrameLatencyStats();
+        for (int i = 1; i <= 4; i++) {
+            stats.onFrameReceived(i * 1000000L);
+            stats.onDecoderInput(i, i, i * 1000000L, i * 1000000L, (char) 0);
+            stats.onDecoderOutput(0, i, i * 1000000L);
+            stats.onOutputReleased(0, 1000000000L, i != 2, i != 3);
+        }
+        stats.expire(5999999999L);
+        assertEquals(0, stats.getPresentDrops());
+        stats.onFrameRendered(1, 2000000000L);
+        stats.discardPending("codec_reset");
+        stats.expire(9000000000L);
+        assertEquals(0, stats.getPresentDrops());
+    }
+
+    @Test
+    public void missingRenderCallbackSupportDoesNotClaimShownFrames() throws Exception {
+        FrameLatencyStats stats = new FrameLatencyStats();
+        stats.onFrameReceived(1000000);
+        stats.onDecoderInput(1, 1, 1000000, 2000000, (char) 0);
+        stats.onDecoderOutput(0, 1, 3000000);
+        stats.onOutputReleased(0, 4000000, true, false);
+        assertEquals(-1, stats.getFrameRates(5000000)[2], 0);
+        stats.expire(6000000000L);
+        assertEquals(0, stats.getPresentDrops());
+        StringWriter csv = new StringWriter();
+        stats.writeCsv(csv);
+        assertEquals("", csv.toString().trim().split(",", -1)[22]);
     }
 }

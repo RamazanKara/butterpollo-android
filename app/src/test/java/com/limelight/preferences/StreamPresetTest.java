@@ -10,16 +10,16 @@ import static org.junit.Assert.*;
 public class StreamPresetTest {
     @Test
     public void presetsHaveConsistentStreamValues() {
-        assertPreset(StreamPreset.BALANCED, "auto", 15000, 60, false, "balanced");
-        assertPreset(StreamPreset.LOW_LATENCY, "neverh265", 15000, 60, true, "latency");
-        assertPreset(StreamPreset.BEST_QUALITY, "auto", 40000, 60, false, "balanced");
+        assertPreset(StreamPreset.BALANCED, "auto", 15000, 120, false, "balanced");
+        assertPreset(StreamPreset.LOW_LATENCY, null, 15000, 120, true, "latency");
+        assertPreset(StreamPreset.BEST_QUALITY, "auto", 40000, 120, false, "balanced");
         assertPreset(StreamPreset.BATTERY_SAVER, "auto", 8000, 30, false, "cap-fps");
     }
 
     private void assertPreset(StreamPreset preset, String codec, int bitrate, int fps, boolean vrr, String pacing) {
         assertEquals(codec, preset.codec);
         assertEquals(bitrate, preset.bitrate);
-        assertEquals(fps, preset.fps);
+        assertEquals(fps, preset.fps(120));
         assertEquals(vrr, preset.vrr);
         assertEquals(pacing, preset.pacing);
     }
@@ -30,6 +30,51 @@ public class StreamPresetTest {
         values.put("list_resolution", "1920x1080");
         values.put("checkbox_enable_hdr", true);
         int[] applies = {0};
+        SharedPreferences preferences = preferences(values, applies);
+        for (StreamPreset preset : StreamPreset.values()) {
+            values.put("video_format", "forceav1");
+            values.put("checkbox_drop_late_frames", true);
+            preset.apply(preferences, 120);
+            assertEquals(preset == StreamPreset.LOW_LATENCY ? "forceav1" : preset.codec, values.get("video_format"));
+            assertEquals(preset.bitrate, values.get("seekbar_bitrate_kbps"));
+            assertEquals(preset == StreamPreset.BATTERY_SAVER ? "30" : "120", values.get("list_fps"));
+            assertEquals(preset.vrr, values.get("checkbox_vrr"));
+            assertEquals(preset.pacing, values.get("frame_pacing"));
+            assertEquals(false, values.get("checkbox_drop_late_frames"));
+            assertEquals(preset == StreamPreset.BATTERY_SAVER, values.get("checkbox_reduce_refresh_rate"));
+            assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_codec_performance"));
+            assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_phone_performance_hints"));
+        }
+        assertEquals(4, applies[0]);
+        assertEquals("1920x1080", values.get("list_resolution"));
+        assertEquals(true, values.get("checkbox_enable_hdr"));
+    }
+
+    @Test
+    public void lowLatencyPreservesEveryCodecIncludingDefaultAuto() {
+        for (String codec : new String[] {"auto", "forceav1", "forceh265", "neverh265", "forcepyrowave", null}) {
+            Map<String, Object> values = new HashMap<>();
+            if (codec != null) values.put("video_format", codec);
+            StreamPreset.LOW_LATENCY.apply(preferences(values, new int[1]), 144);
+            assertEquals(codec, values.get("video_format"));
+            assertEquals(codec != null, values.containsKey("video_format"));
+            assertEquals("144", values.get("list_fps"));
+        }
+    }
+
+    @Test
+    public void presetsFollowPanelRateWithinHostLimitExceptBatterySaver() {
+        for (StreamPreset preset : StreamPreset.values()) {
+            for (float rate : new float[] {59.94f, 90, 119.88f, 144, 165, 240, 1200}) {
+                Map<String, Object> values = new HashMap<>();
+                preset.apply(preferences(values, new int[1]), rate);
+                int expected = preset == StreamPreset.BATTERY_SAVER ? 30 : Math.min(1000, Math.round(rate));
+                assertEquals(Integer.toString(expected), values.get("list_fps"));
+            }
+        }
+    }
+
+    private SharedPreferences preferences(Map<String, Object> values, int[] applies) {
         SharedPreferences.Editor editor = (SharedPreferences.Editor) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[] {SharedPreferences.Editor.class}, (proxy, method, args) -> {
                     if (method.getName().startsWith("put")) {
@@ -41,23 +86,7 @@ public class StreamPresetTest {
                     }
                     return null;
                 });
-        SharedPreferences preferences = (SharedPreferences) Proxy.newProxyInstance(
+        return (SharedPreferences) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[] {SharedPreferences.class}, (proxy, method, args) -> editor);
-        for (StreamPreset preset : StreamPreset.values()) {
-            values.put("checkbox_drop_late_frames", true);
-            preset.apply(preferences);
-            assertEquals(preset.codec, values.get("video_format"));
-            assertEquals(preset.bitrate, values.get("seekbar_bitrate_kbps"));
-            assertEquals(Integer.toString(preset.fps), values.get("list_fps"));
-            assertEquals(preset.vrr, values.get("checkbox_vrr"));
-            assertEquals(preset.pacing, values.get("frame_pacing"));
-            assertEquals(false, values.get("checkbox_drop_late_frames"));
-            assertEquals(preset == StreamPreset.BATTERY_SAVER, values.get("checkbox_reduce_refresh_rate"));
-            assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_codec_performance"));
-            assertEquals(preset != StreamPreset.BATTERY_SAVER, values.get("checkbox_phone_performance_hints"));
-        }
-        assertEquals(4, applies[0]);
-        assertEquals("1920x1080", values.get("list_resolution"));
-        assertEquals(true, values.get("checkbox_enable_hdr"));
     }
 }

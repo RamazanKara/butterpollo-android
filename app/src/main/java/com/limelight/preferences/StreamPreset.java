@@ -2,29 +2,37 @@ package com.limelight.preferences;
 
 import android.content.SharedPreferences;
 
+import com.limelight.binding.video.DisplayFrameRatePolicy;
+
 public enum StreamPreset {
-    BALANCED("auto", 15000, 60, false, "balanced"),
-    LOW_LATENCY("neverh265", 15000, 60, true, "latency"),
-    BEST_QUALITY("auto", 40000, 60, false, "balanced"),
-    BATTERY_SAVER("auto", 8000, 30, false, "cap-fps");
+    BALANCED("auto", 15000, false, "balanced"),
+    LOW_LATENCY(null, 15000, true, "latency"),
+    BEST_QUALITY("auto", 40000, false, "balanced"),
+    BATTERY_SAVER("auto", 8000, false, "cap-fps");
 
     public final String codec, pacing;
-    public final int bitrate, fps;
+    public final int bitrate;
     public final boolean vrr;
 
-    StreamPreset(String codec, int bitrate, int fps, boolean vrr, String pacing) {
+    StreamPreset(String codec, int bitrate, boolean vrr, String pacing) {
         this.codec = codec;
         this.bitrate = bitrate;
-        this.fps = fps;
         this.vrr = vrr;
         this.pacing = pacing;
     }
 
-    void apply(SharedPreferences preferences) {
-        preferences.edit()
-                .putString(PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING, codec)
+    int fps(float panelMaxHz) {
+        return this == BATTERY_SAVER ? 30 : DisplayFrameRatePolicy.streamFrameRate(panelMaxHz);
+    }
+
+    void apply(SharedPreferences preferences, float panelMaxHz) {
+        SharedPreferences.Editor editor = preferences.edit();
+        if (codec != null) {
+            editor.putString(PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING, codec);
+        }
+        editor
                 .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrate)
-                .putString(PreferenceConfiguration.FPS_PREF_STRING, Integer.toString(fps))
+                .putString(PreferenceConfiguration.FPS_PREF_STRING, Integer.toString(fps(panelMaxHz)))
                 .putBoolean("checkbox_vrr", vrr)
                 .putString(PreferenceConfiguration.FRAME_PACING_PREF_STRING, pacing)
                 .putBoolean("checkbox_drop_late_frames", false)

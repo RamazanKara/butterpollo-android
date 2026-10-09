@@ -173,8 +173,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return lastVideoFrameTimeMs != 0 && nowMs - lastVideoFrameTimeMs < 2000;
     }
 
-    public float takeReleaseFrameRate() {
-        return frameLatencyStats.takeReleaseFrameRate();
+    public float takeOutputFrameRate() {
+        return frameLatencyStats.takeOutputFrameRate();
     }
 
     public float getNetworkFrameLossPercent() {
@@ -219,6 +219,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private long vsyncTimeNs;
     private long vsyncIntervalNs;
     private long vsyncPresentationDeadlineNs;
+    private final boolean useArr;
 
     private int numSpsIn;
     private int numPpsIn;
@@ -357,8 +358,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private MediaCodecInfo findAv1Decoder(PreferenceConfiguration prefs, boolean requestedHdr) {
         if (prefs.videoFormat != PreferenceConfiguration.FormatOption.FORCE_AV1 &&
-                !(requestedHdr && (prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO ||
-                        prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE))) {
+                prefs.videoFormat != PreferenceConfiguration.FormatOption.AUTO &&
+                !(requestedHdr && prefs.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)) {
             return null;
         }
 
@@ -409,6 +410,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         this.activity = activity;
         this.prefs = prefs;
         this.frameLatencyStats = new FrameLatencyStats(prefs.vrr);
+        this.useArr = DisplayFrameRatePolicy.useAdaptiveHints(Build.VERSION.SDK_INT, prefs.vrr,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+                        activity.getWindowManager().getDefaultDisplay().hasArrSupport());
         this.crashListener = crashListener;
         this.consecutiveCrashCount = consecutiveCrashCount;
         this.glRenderer = glRenderer;
@@ -1227,6 +1231,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private long nextVsyncTimeNs() {
+        if (useArr) return System.nanoTime();
         synchronized (vsyncMonitor) {
             return nextVsyncTimeNs(System.nanoTime(), vsyncTimeNs, vsyncIntervalNs, vsyncPresentationDeadlineNs);
         }
@@ -1243,7 +1248,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             Display display = activity.getWindowManager().getDefaultDisplay();
             synchronized (vsyncMonitor) {
                 vsyncTimeNs = frameTimeNanos - display.getAppVsyncOffsetNanos();
-                vsyncIntervalNs = (long) (1000000000.0 / display.getRefreshRate());
+                float physicalRefreshRate = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                        display.getMode().getRefreshRate() : display.getRefreshRate();
+                vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
                 vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
             }
             Choreographer.getInstance().postFrameCallback(this);
@@ -1293,7 +1300,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     private void startChoreographerThread() {
         if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED &&
-                !(prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY && prefs.codecLowLatency)) {
+                !(prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY && prefs.codecLowLatency && !useArr)) {
             // Not using Choreographer in this pacing mode
             return;
         }
@@ -1762,6 +1769,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     (float) lastTwo.framesLost / lastTwo.totalFrames * 100;
             if (prefs.enablePerfOverlay) {
                 VideoStatsFps fps = lastTwo.getFps();
+                float[] frameRates = frameLatencyStats.getFrameRates(System.nanoTime());
+                String shownFps = metric(frameRates[2], " FPS");
+                long presentDrops = frameLatencyStats.getPresentDrops();
+                boolean mediaCodec = (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0;
                 String decoder;
 
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
@@ -1782,9 +1793,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 StringBuilder sb = new StringBuilder();
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n');
-                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0) {
-                    sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
+                sb.append(context.getString(R.string.perf_overlay_incomingfps,
+                        mediaCodec ? frameRates[0] : fps.receivedFps)).append('\n');
+                if (mediaCodec) {
+                    sb.append(context.getString(R.string.perf_overlay_releasedfps, frameRates[1])).append('\n');
+                    sb.append(context.getString(R.string.perf_overlay_shownfps, shownFps)).append('\n');
+                    sb.append(context.getString(R.string.perf_overlay_presentdrops, presentDrops)).append('\n');
                 }
                 sb.append(context.getString(R.string.perf_overlay_netdrops,
                         networkFrameLossPercent)).append('\n');
@@ -1802,8 +1816,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             this.decodeTimeMs, gpuUs));
                 }
                 sb.append('\n').append(latencyOverlay);
-                perfListener.onPerfUpdate(sb.toString(), context.getString(R.string.overlay_compact_stats,
-                        fps.receivedFps, (int)(rttInfo >> 32), (int)rttInfo, networkFrameLossPercent));
+                String compact = context.getString(R.string.overlay_compact_stats,
+                        fps.receivedFps, (int)(rttInfo >> 32), (int)rttInfo, networkFrameLossPercent);
+                if (mediaCodec) {
+                    compact += "\n" + context.getString(R.string.overlay_compact_presentation,
+                            frameRates[0], frameRates[1], shownFps, presentDrops);
+                }
+                perfListener.onPerfUpdate(sb.toString(), compact);
             }
 
             globalVideoStats.add(activeWindowVideoStats);
@@ -1825,6 +1844,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             pyroWaveLossSamples++;
             activeWindowVideoStats.totalFrames++;
             activeWindowVideoStats.totalFramesReceived++;
+            frameLatencyStats.onFrameReceived(receiveTimeNs);
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
                 // The native completion timestamp excludes swapchain acquisition/presentation waits.
@@ -2066,6 +2086,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         activeWindowVideoStats.totalHostProcessingLatency += frameHostProcessingLatency;
 
         activeWindowVideoStats.totalFramesReceived++;
+        frameLatencyStats.onFrameReceived(receiveTimeNs);
         activeWindowVideoStats.totalFrames++;
 
         if (!FRAME_RENDER_TIME_ONLY) {

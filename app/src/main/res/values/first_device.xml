@@ -12,12 +12,12 @@
     <string name="stream_restore_help">The previous stream was interrupted. Open your PC and resume the game to reconnect.</string>
     <string name="stream_presets">Streaming presets</string>
     <string name="stream_presets_summary">Apply Balanced, Low latency, Best quality or Battery saver settings.</string>
-    <string name="stream_presets_help">Sets codec, bitrate, frame rate, variable refresh and frame pacing together. Per-PC video profiles still override global video values. Resolution and HDR stay as you set them.</string>
+    <string name="stream_presets_help">Sets bitrate, frame rate, variable refresh and frame pacing together. Low latency keeps your codec; Auto prefers low-latency AV1, then HEVC, then H.264. Except Battery saver, presets use the screen’s maximum refresh rate (up to 1000 FPS). Per-PC video profiles override global video values; VRR always requests the screen’s maximum rate. Resolution and HDR stay as you set them.</string>
     <string name="stream_preset_applied">Preset applied. Per-PC video profiles still take priority.</string>
     <string-array name="stream_preset_descriptions">
-        <item>Balanced · Auto codec, 15 Mbps, 60 FPS, VRR off, balanced pacing</item>
-        <item>Low latency · H.264, 15 Mbps, 60 FPS, VRR on, lowest-delay pacing</item>
-        <item>Best quality · Auto codec, 40 Mbps, 60 FPS, VRR off, balanced pacing</item>
+        <item>Balanced · Auto codec, 15 Mbps, screen maximum FPS, VRR off, balanced pacing</item>
+        <item>Low latency · Keep current codec, 15 Mbps, screen maximum FPS, VRR on, lowest-delay pacing</item>
+        <item>Best quality · Auto codec, 40 Mbps, screen maximum FPS, VRR off, balanced pacing</item>
         <item>Battery saver · Auto codec, 8 Mbps, 30 FPS, VRR off, frame-rate cap</item>
     </string-array>
     <string name="summary_stretch_video">Fill the screen; the image may look wider or taller.</string>
@@ -31,6 +31,10 @@
     <string name="overlay_copied">Stats copied</string>
     <string name="overlay_empty">Turn on the performance overlay and wait for a video frame to copy stats.</string>
     <string name="overlay_compact_stats">%1$.1f FPS · RTT %2$d ms · variation %3$d ms · frame loss %4$.1f%%</string>
+    <string name="perf_overlay_releasedfps">Released to display: %1$.2f FPS</string>
+    <string name="perf_overlay_shownfps">Shown (render callbacks): %1$s</string>
+    <string name="perf_overlay_presentdrops">Present drops (estimated, unobserved for 5 s): %1$d</string>
+    <string name="overlay_compact_presentation">Received %1$.1f · released %2$.1f · shown %3$s · present drops ≈%4$d</string>
     <string-array name="overlay_mode_names"><item>Compact</item><item>Expanded</item></string-array>
     <string-array name="overlay_mode_values"><item>compact</item><item>expanded</item></string-array>
     <string name="connection_test_title">Test your connection</string>

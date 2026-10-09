@@ -765,8 +765,8 @@ public class MediaCodecHelper {
             return false;
         }
 
-        // TODO: Test some AV1 decoders
-        return false;
+        return decoderSupportsAndroidRLowLatency(decoderInfo, "video/av01") ||
+                decoderSupportsKnownVendorLowLatencyOption(decoderInfo.getName());
     }
 
     @SuppressWarnings("deprecation")

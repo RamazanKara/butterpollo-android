@@ -5,27 +5,45 @@ import static org.junit.Assert.*;
 
 public class DisplayFrameRatePolicyTest {
     @Test
-    public void android15UsesOnlySurfaceHintsWithoutClaimingCapabilityDetection() {
-        assertTrue(DisplayFrameRatePolicy.useAdaptiveHints(35, true, false, false));
-        assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(35, true, true, false));
-    }
-
-    @Test
-    public void android16RequiresArrSupportForBothSurfaces() {
-        for (boolean texture : new boolean[] {false, true}) {
-            assertTrue(DisplayFrameRatePolicy.useAdaptiveHints(36, true, texture, true));
-            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(36, true, texture, false));
-            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(36, false, texture, true));
-            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(34, true, texture, true));
+    public void android15AndOlderKeepThePanelMaximumWithoutArrDetection() {
+        for (int sdk : new int[] {21, 30, 31, 34, 35}) {
+            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(sdk, true, false));
+            assertEquals(120, DisplayFrameRatePolicy.cadenceVote(60, 120,
+                    DisplayFrameRatePolicy.useAdaptiveHints(sdk, true, false)), 0);
         }
     }
 
     @Test
-    public void cadencePreservesFractionalRatesAndClearsMissingMeasurements() {
-        assertEquals(59.94f, DisplayFrameRatePolicy.cadenceVote(59.94f, 60), 0);
-        assertEquals(120, DisplayFrameRatePolicy.cadenceVote(180, 120), 0);
+    public void android16RequiresArrSupport() {
+        for (int sdk : new int[] {36, 37}) {
+            assertTrue(DisplayFrameRatePolicy.useAdaptiveHints(sdk, true, true));
+            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(sdk, true, false));
+            assertFalse(DisplayFrameRatePolicy.useAdaptiveHints(sdk, false, true));
+        }
+    }
+
+    @Test
+    public void arrCadenceUsesPanelMaximumAndRecoversFromLowerVotes() {
+        assertEquals(59.94f, DisplayFrameRatePolicy.cadenceVote(59.94f, 120, true), 0);
+        assertEquals(119.88f, DisplayFrameRatePolicy.cadenceVote(119.88f, 120, true), 0);
+        assertEquals(120, DisplayFrameRatePolicy.cadenceVote(180, 120, true), 0);
         for (float unavailable : new float[] {0, -1, Float.NaN, Float.POSITIVE_INFINITY}) {
-            assertEquals(0, DisplayFrameRatePolicy.cadenceVote(unavailable, 60), 0);
+            assertEquals(120, DisplayFrameRatePolicy.cadenceVote(unavailable, 120, true), 0);
         }
+    }
+
+    @Test
+    public void withoutArrCadenceNeverRatchetsTheVoteDownward() {
+        for (float cadence : new float[] {120, 60, 30, 0, Float.NaN, 144}) {
+            assertEquals(120, DisplayFrameRatePolicy.cadenceVote(cadence, 120, false), 0);
+        }
+    }
+
+    @Test
+    public void streamRequestRoundsPanelMaximumWithinHostLimits() {
+        assertEquals(120, DisplayFrameRatePolicy.streamFrameRate(119.88f));
+        assertEquals(144, DisplayFrameRatePolicy.streamFrameRate(144));
+        assertEquals(1000, DisplayFrameRatePolicy.streamFrameRate(1200));
+        assertEquals(1, DisplayFrameRatePolicy.streamFrameRate(0.5f));
     }
 }

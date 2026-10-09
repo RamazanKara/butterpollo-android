@@ -62,6 +62,21 @@ public class MediaCodecDecoderRendererTest {
     }
 
     @Test
+    public void sixtyHzRenderOverrideOn120HzPanelDoesNotCollapseConsecutiveFrames() {
+        long vsyncNs = 1000000000L;
+        long panelIntervalNs = (long) (1000000000.0 / 120);
+        long renderIntervalNs = (long) (1000000000.0 / 60);
+        long firstFrameNs = vsyncNs + 1000000L;
+        long secondFrameNs = firstFrameNs + panelIntervalNs;
+        assertEquals(vsyncNs + panelIntervalNs, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                firstFrameNs, vsyncNs, panelIntervalNs, 2000000L));
+        assertEquals(vsyncNs + 2 * panelIntervalNs, MediaCodecDecoderRenderer.nextVsyncTimeNs(
+                secondFrameNs, vsyncNs, panelIntervalNs, 2000000L));
+        assertEquals(MediaCodecDecoderRenderer.nextVsyncTimeNs(firstFrameNs, vsyncNs, renderIntervalNs, 2000000L),
+                MediaCodecDecoderRenderer.nextVsyncTimeNs(secondFrameNs, vsyncNs, renderIntervalNs, 2000000L));
+    }
+
+    @Test
     public void missingVsyncSampleDoesNotInventAPresentationTime() {
         assertEquals(1234L, MediaCodecDecoderRenderer.nextVsyncTimeNs(1234L, 0, 16666666L, 2000000L));
         assertEquals(1234L, MediaCodecDecoderRenderer.nextVsyncTimeNs(1234L, 1000L, 0, 2000000L));

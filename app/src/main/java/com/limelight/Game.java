@@ -211,6 +211,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private String appName;
     private NvApp app;
     private float desiredRefreshRate;
+    private float panelMaxRefreshRate;
     private boolean useArr;
     private PendingIntent pipDisconnectIntent;
     private final BroadcastReceiver pipReceiver = new BroadcastReceiver() {
@@ -221,13 +222,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
     };
-    private boolean useAdaptiveFrameRate;
     private final Runnable updateArrFrameRate = new Runnable() {
         @Override
         public void run() {
-            if (useAdaptiveFrameRate && surfaceCreated) {
+            if (useArr && surfaceCreated) {
                 setArrFrameRate(com.limelight.binding.video.DisplayFrameRatePolicy.cadenceVote(
-                        decoderRenderer.takeReleaseFrameRate(), prefConfig.fps));
+                        decoderRenderer.takeOutputFrameRate(), panelMaxRefreshRate, useArr));
                 streamView.postDelayed(this, 1000);
             }
         }
@@ -346,6 +346,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         // Read the stream preferences
         prefConfig = PreferenceConfiguration.readPreferences(this, getIntent().getStringExtra(EXTRA_PC_UUID));
+        panelMaxRefreshRate = com.limelight.binding.video.DisplayFrameRatePolicy.maxRefreshRate(
+                getWindowManager().getDefaultDisplay());
+        if (prefConfig.vrr) {
+            prefConfig.fps = com.limelight.binding.video.DisplayFrameRatePolicy.streamFrameRate(panelMaxRefreshRate);
+            prefConfig.launchRefreshRateX100 = Math.max(100, Math.min(100000, Math.round(panelMaxRefreshRate * 100)));
+        }
         nativeTouchEnabled = !prefConfig.touchscreenTrackpad &&
                 PreferenceManager.getDefaultSharedPreferences(this).getBoolean("checkbox_native_touch", false);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
@@ -963,15 +969,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         WindowManager.LayoutParams windowLayoutParams = getWindow().getAttributes();
         float displayRefreshRate;
 
-        useArr = prefConfig.vrr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && display.hasArrSupport();
-        useAdaptiveFrameRate = com.limelight.binding.video.DisplayFrameRatePolicy.useAdaptiveHints(
-                Build.VERSION.SDK_INT, prefConfig.vrr, prefConfig.useTextureView, useArr);
+        useArr = com.limelight.binding.video.DisplayFrameRatePolicy.useAdaptiveHints(
+                Build.VERSION.SDK_INT, prefConfig.vrr,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && display.hasArrSupport());
         if (prefConfig.vrr) {
             LimeLog.info(useArr ? "VRR: ARR (measured stream cadence)" :
-                    useAdaptiveFrameRate ? "VRR: seamless cadence hints (ARR support unknown)" : "VRR: max Hz (ARR unavailable)");
+                    "VRR: max Hz (ARR unavailable)");
         }
 
-        if (useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        if (useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
             // A mode or window refresh vote would override the stream's changing cadence.
             windowLayoutParams.preferredDisplayModeId = 0;
             windowLayoutParams.preferredRefreshRate = 0;
@@ -982,7 +988,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 streamView.getChildAt(0).setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
                 performanceOverlayView.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE);
             }
-            displayRefreshRate = display.getRefreshRate();
+            displayRefreshRate = panelMaxRefreshRate;
         }
         // On M, we can explicitly set the optimal display mode
         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1003,6 +1009,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                 LimeLog.info("Examining display mode: "+candidate.getPhysicalWidth()+"x"+
                         candidate.getPhysicalHeight()+"x"+candidate.getRefreshRate());
+
+                if (prefConfig.vrr) {
+                    if (candidate.getRefreshRate() > bestMode.getRefreshRate()) bestMode = candidate;
+                    continue;
+                }
 
                 if (candidate.getPhysicalWidth() > 4096 && prefConfig.width <= 4096) {
                     // Avoid resolutions options above 4K to be safe
@@ -1142,7 +1153,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
 
-        if (prefConfig.useTextureView && !useAdaptiveFrameRate) {
+        if (prefConfig.useTextureView && !useArr) {
             // A SurfaceTexture is composed into the window, so Surface.setFrameRate() cannot vote for it.
             windowLayoutParams.preferredRefreshRate = displayRefreshRate;
             getWindow().setAttributes(windowLayoutParams);
@@ -3512,10 +3523,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         LimeLog.info("Video surface: " + (prefConfig.useTextureView ? "TextureView" : "SurfaceView") +
                 ", pacing: " + prefConfig.framePacing + ", newest frame: " + prefConfig.dropLateFrames);
 
-        if (useAdaptiveFrameRate) {
-            // Use the requested target until release timestamps provide the actual cadence.
-            setArrFrameRate(prefConfig.launchRefreshRateX100 > 0 ?
-                    prefConfig.launchRefreshRateX100 / 100.0f : prefConfig.fps);
+        if (useArr) {
+            // Start at panel maximum until decoder output provides the stream's cadence.
+            setArrFrameRate(panelMaxRefreshRate);
             streamView.postDelayed(updateArrFrameRate, 1000);
         }
 
@@ -3528,7 +3538,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         // FPS value if there's no suitable matching refresh rate. In that case, Android could try to
         // select a lower refresh rate that avoids uneven pull-down (ex: 30 Hz for a 60 FPS stream on
         // a display that maxes out at 50 Hz).
-        if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
+        if (prefConfig.vrr) {
+            desiredFrameRate = panelMaxRefreshRate;
+        }
+        else if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
             desiredFrameRate = prefConfig.fps;
         }
         else {
@@ -3539,7 +3552,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         // Tell the OS about our frame rate to allow it to adapt the display refresh rate appropriately
-        if (!useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (!useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // We want to change frame rate even if it's not seamless, since prepareDisplayForRendering()
             // will not set the display mode on S+ if it only differs by the refresh rate. It depends
             // on us to trigger the frame rate switch here.
@@ -3547,7 +3560,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
                     Surface.CHANGE_FRAME_RATE_ALWAYS);
         }
-        else if (!useAdaptiveFrameRate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        else if (!useArr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             surface.setFrameRate(desiredFrameRate,
                     Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
         }
@@ -3746,9 +3759,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 if (!connected || isFinishing() || isDestroyed()) {
                     return;
                 }
+                Display display = getWindowManager().getDefaultDisplay();
+                float physicalRefreshRate = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                        display.getMode().getRefreshRate() : display.getRefreshRate();
                 String displayLine = prefConfig.vrr ? String.format(java.util.Locale.ROOT,
-                        "\nDisplay: %.2f Hz · VRR: %s", getWindowManager().getDefaultDisplay().getRefreshRate(),
-                        useArr ? "ARR" : useAdaptiveFrameRate ? "cadence hints" : "max Hz") : "";
+                        "\nPanel: %.2f Hz · render: %.2f Hz · VRR: %s", physicalRefreshRate, display.getRefreshRate(),
+                        useArr ? "ARR" : "max Hz") : "";
                 expandedPerformanceText = !isAdaptiveBitrateEnabled() ? text + displayLine : text + displayLine + "\n" +
                         getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0);
                 compactPerformanceText = compactText;

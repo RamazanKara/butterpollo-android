@@ -15,11 +15,13 @@ class FrameLatencyStats {
     private static final int MAX_PENDING = 2048;
     private static final int MAX_COMPLETED = 4096;
     private static final long CALLBACK_TIMEOUT_NS = 5000000000L;
+    private static final long FPS_WINDOW_NS = 2000000000L;
     static final String CSV_HEADER = "frame_number,pts_us,receive_ns,decoder_input_ns,decoder_output_ns," +
             "render_ns,release_ns,status,receive_to_input_ms,input_to_output_ms,output_to_render_ms," +
             "receive_to_render_ms,csv_rows_lost,host_processing_ms," +
             "decode_to_present_ms,receive_to_present_ms," +
-            "decode_to_release_ms,decode_interval_ms,release_interval_ms\n";
+            "decode_to_release_ms,decode_interval_ms,release_interval_ms," +
+            "fps_sample_ns,received_fps,released_fps,shown_fps,present_drops\n";
 
     private final LinkedHashMap<Long, Frame> pending = new LinkedHashMap<>();
     private final HashMap<Integer, Frame> outputs = new HashMap<>();
@@ -31,10 +33,15 @@ class FrameLatencyStats {
     private final boolean vrr;
     private long lastOutputNs;
     private long lastReleaseNs;
-    private long releaseIntervalTotalNs;
-    private int releaseIntervalCount;
+    private long outputIntervalTotalNs;
+    private int outputIntervalCount;
     private long decodeTimeTotalNs;
     private int decodeTimeSamples;
+    private final long[][] frameTimes = new long[3][MAX_PENDING];
+    private final int[] frameTimePositions = new int[3];
+    private long fpsStartNs;
+    private boolean renderCallbacksAvailable;
+    private long presentDrops;
 
     FrameLatencyStats() {
         this(false);
@@ -56,7 +63,13 @@ class FrameLatencyStats {
         long hostProcessingNs;
         long previousOutputNs;
         long previousReleaseNs;
+        boolean awaitingRender;
         String status;
+    }
+
+    synchronized void onFrameReceived(long receiveNs) {
+        if (fpsStartNs == 0) fpsStartNs = receiveNs;
+        recordFrameTime(0, receiveNs);
     }
 
     synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long inputNs, char hostProcessingLatency) {
@@ -84,6 +97,10 @@ class FrameLatencyStats {
             frame.outputNs = outputNs;
             if (vrr) {
                 frame.previousOutputNs = lastOutputNs;
+                if (lastOutputNs > 0 && outputNs > lastOutputNs) {
+                    outputIntervalTotalNs += outputNs - lastOutputNs;
+                    outputIntervalCount++;
+                }
                 lastOutputNs = outputNs;
             }
             outputs.put(index, frame);
@@ -100,12 +117,13 @@ class FrameLatencyStats {
         if (frame != null) {
             frame.outputIndex = -1;
             frame.releaseNs = releaseNs;
+            frame.awaitingRender = render && hasRenderCallback;
+            if (render) {
+                renderCallbacksAvailable = hasRenderCallback;
+                recordFrameTime(1, releaseNs);
+            }
             if (vrr && render && frame.outputNs > 0 && releaseNs >= frame.outputNs) {
                 frame.previousReleaseNs = lastReleaseNs;
-                if (lastReleaseNs > 0 && releaseNs > lastReleaseNs) {
-                    releaseIntervalTotalNs += releaseNs - lastReleaseNs;
-                    releaseIntervalCount++;
-                }
                 lastReleaseNs = releaseNs;
             }
             if (!render) {
@@ -122,6 +140,7 @@ class FrameLatencyStats {
             frame.renderNs = renderNs;
             boolean valid = frame.inputNs > 0 && frame.outputNs >= frame.inputNs && renderNs >= frame.outputNs;
             if (valid) {
+                recordFrameTime(2, renderNs);
                 addSample(2, frame.outputNs, renderNs);
                 addSample(3, frame.receiveNs, renderNs);
             }
@@ -140,10 +159,12 @@ class FrameLatencyStats {
         for (Frame frame : new ArrayList<>(pending.values())) {
             finish(frame, reason);
         }
-        lastOutputNs = lastReleaseNs = releaseIntervalTotalNs = 0;
-        releaseIntervalCount = 0;
+        lastOutputNs = lastReleaseNs = outputIntervalTotalNs = 0;
+        outputIntervalCount = 0;
         decodeTimeTotalNs = 0;
         decodeTimeSamples = 0;
+        fpsStartNs = 0;
+        for (long[] times : frameTimes) Arrays.fill(times, 0);
     }
 
     synchronized float takeDecodeTimeMs() {
@@ -153,17 +174,44 @@ class FrameLatencyStats {
         return result;
     }
 
-    synchronized float takeReleaseFrameRate() {
-        float frameRate = releaseIntervalCount == 0 ? 0 :
-                (float) (releaseIntervalCount * 1000000000.0 / releaseIntervalTotalNs);
-        releaseIntervalTotalNs = 0;
-        releaseIntervalCount = 0;
+    synchronized float takeOutputFrameRate() {
+        float frameRate = outputIntervalCount == 0 ? 0 :
+                (float) (outputIntervalCount * 1000000000.0 / outputIntervalTotalNs);
+        outputIntervalTotalNs = 0;
+        outputIntervalCount = 0;
         return frameRate;
+    }
+
+    private void recordFrameTime(int stage, long timeNs) {
+        frameTimes[stage][frameTimePositions[stage]] = timeNs;
+        frameTimePositions[stage] = (frameTimePositions[stage] + 1) % MAX_PENDING;
+    }
+
+    synchronized float[] getFrameRates(long nowNs) {
+        float[] rates = new float[3];
+        long startNs = Math.max(fpsStartNs, nowNs - FPS_WINDOW_NS);
+        if (fpsStartNs != 0 && nowNs > startNs) {
+            for (int stage = 0; stage < rates.length; stage++) {
+                int count = 0;
+                for (long timestamp : frameTimes[stage]) {
+                    if (timestamp > startNs && timestamp <= nowNs) count++;
+                }
+                rates[stage] = (float) (count * 1000000000.0 / (nowNs - startNs));
+            }
+        }
+        if (!renderCallbacksAvailable) rates[2] = -1;
+        return rates;
+    }
+
+    synchronized long getPresentDrops() {
+        return presentDrops;
     }
 
     synchronized void expire(long nowNs) {
         for (Frame frame : new ArrayList<>(pending.values())) {
-            if (nowNs - frame.inputNs >= CALLBACK_TIMEOUT_NS) {
+            if (nowNs - (frame.awaitingRender ? frame.releaseNs : frame.inputNs) >= CALLBACK_TIMEOUT_NS) {
+                // MediaCodec exposes no drop callback. Allow delayed render callbacks before estimating a drop.
+                if (frame.awaitingRender) presentDrops++;
                 finish(frame, frame.releaseNs != 0 ? "render_unobserved" : "output_unobserved");
             }
         }
@@ -228,10 +276,15 @@ class FrameLatencyStats {
     void writeCsv(Writer writer) throws IOException {
         List<Frame> frames;
         long lost;
+        long dropped;
+        long sampleNs = System.nanoTime();
+        float[] rates;
         synchronized (this) {
             frames = new ArrayList<>(completed);
             completed.clear();
             lost = csvRowsLost;
+            dropped = presentDrops;
+            rates = getFrameRates(sampleNs);
         }
         // Disk I/O and formatting must never hold the lock used by the decoder threads.
         for (Frame frame : frames) {
@@ -246,7 +299,9 @@ class FrameLatencyStats {
                     decodeToPresent + "," + receiveToPresent + "," +
                     (vrr ? duration(frame.outputNs, frame.releaseNs) : "") + "," +
                     duration(frame.previousOutputNs, frame.outputNs) + "," +
-                    duration(frame.previousReleaseNs, frame.releaseNs) + "\n");
+                    duration(frame.previousReleaseNs, frame.releaseNs) + "," + sampleNs + "," +
+                    String.format(Locale.ROOT, "%.2f,%.2f,", rates[0], rates[1]) +
+                    (rates[2] < 0 ? "" : String.format(Locale.ROOT, "%.2f", rates[2])) + "," + dropped + "\n");
         }
     }
 
