@@ -1294,8 +1294,6 @@ namespace {
             }
             timespec released;
             clock_gettime(CLOCK_MONOTONIC, &released);
-            timespec released;
-            clock_gettime(CLOCK_MONOTONIC, &released);
             lastReleaseNs = uint64_t(released.tv_sec) * 1000000000ULL + uint64_t(released.tv_nsec);
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
             framePresented = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
