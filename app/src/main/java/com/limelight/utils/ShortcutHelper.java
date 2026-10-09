@@ -13,6 +13,7 @@ import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -35,7 +36,7 @@ public class ShortcutHelper {
 
     @TargetApi(Build.VERSION_CODES.N_MR1)
     private void reapShortcutsForDynamicAdd() {
-        List<ShortcutInfo> dynamicShortcuts = sm.getDynamicShortcuts();
+        List<ShortcutInfo> dynamicShortcuts = new ArrayList<>(sm.getDynamicShortcuts());
         while (!dynamicShortcuts.isEmpty() && dynamicShortcuts.size() >= sm.getMaxShortcutCountPerActivity()) {
             ShortcutInfo maxRankShortcut = dynamicShortcuts.get(0);
             for (ShortcutInfo scut : dynamicShortcuts) {

@@ -297,7 +297,7 @@ public class ComputerManagerService extends Service {
         public ComputerDetails getComputer(String uuid) {
             synchronized (pollingTuples) {
                 for (PollingTuple tuple : pollingTuples) {
-                    if (uuid.equals(tuple.computer.uuid)) {
+                    if (uuid.equalsIgnoreCase(tuple.computer.uuid)) {
                         return tuple.computer;
                     }
                 }

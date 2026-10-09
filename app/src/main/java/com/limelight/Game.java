@@ -536,8 +536,16 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         // let's tell the user something when they open the app again
 
                         // We must use commit because the app will crash when we return from this function
-                        tombstonePrefs.edit().putInt("CrashCount", tombstonePrefs.getInt("CrashCount", 0) + 1).commit();
-                        reportedCrash = true;
+                        synchronized (tombstonePrefs) {
+                            if (reportedCrash) {
+                                return;
+                            }
+                            reportedCrash = true;
+                            tombstonePrefs.edit()
+                                    .putInt("CrashCount", tombstonePrefs.getInt("CrashCount", 0) + 1)
+                                    .putString("CrashHostUuid", getIntent().getStringExtra(EXTRA_PC_UUID))
+                                    .commit();
+                        }
                     }
                 },
                 tombstonePrefs.getInt("CrashCount", 0),
@@ -1405,11 +1413,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
 
             // Clear the tombstone count if we terminated normally
-            if (!reportedCrash && tombstonePrefs.getInt("CrashCount", 0) != 0) {
-                tombstonePrefs.edit()
-                        .putInt("CrashCount", 0)
-                        .putInt("LastNotifiedCrashCount", 0)
-                        .apply();
+            synchronized (tombstonePrefs) {
+                if (!reportedCrash && tombstonePrefs.getInt("CrashCount", 0) != 0) {
+                    tombstonePrefs.edit()
+                            .putInt("CrashCount", 0)
+                            .putInt("LastNotifiedCrashCount", 0)
+                            .remove("CrashHostUuid")
+                            .apply();
+                }
             }
         }
 

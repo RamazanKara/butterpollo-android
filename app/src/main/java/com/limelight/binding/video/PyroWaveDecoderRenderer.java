@@ -93,12 +93,13 @@ public final class PyroWaveDecoderRenderer {
             // The decode fence excludes the subsequent wait for a swapchain image/presentation.
             performanceHints.reportWorkDuration((outputNs > 0 ? outputNs : System.nanoTime()) - workStartNs, frameRate);
         }
+        long releaseNs = outputNs > 0 ? nativeGetLastReleaseTimeNs(handle) : 0;
         if (outputNs > 0) {
             stats.onDecoderOutput(0, ptsUs, outputNs);
             stats.onOutputReleased(0, System.nanoTime(), nativeWasFramePresented(handle), true);
         }
         // Keep output registration and polling under the same lock: a present can already be ready.
-        if (!nativePollRenderedFrames(handle, stats) && outputNs > 0) {
+        if (!nativePollRenderedFrames(handle, stats) && releaseNs != 0) {
             stats.discard(ptsUs, "render_unavailable");
         }
         return outputNs;

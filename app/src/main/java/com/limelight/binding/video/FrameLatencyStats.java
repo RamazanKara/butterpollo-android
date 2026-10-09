@@ -42,7 +42,7 @@ class FrameLatencyStats {
     private long totalDecodedFrames;
     private long totalClientTimeNs;
     private long totalClientTimeSamples;
-    private final long[][] frameTimes = new long[3][MAX_PENDING];
+    private final long[][] frameTimes = new long[3][2048];
     private final int[] frameTimePositions = new int[3];
     private long fpsStartNs;
     private boolean renderCallbacksAvailable;
@@ -208,7 +208,7 @@ class FrameLatencyStats {
 
     private void recordFrameTime(int stage, long timeNs) {
         frameTimes[stage][frameTimePositions[stage]] = timeNs;
-        frameTimePositions[stage] = (frameTimePositions[stage] + 1) % MAX_PENDING;
+        frameTimePositions[stage] = (frameTimePositions[stage] + 1) % frameTimes[stage].length;
     }
 
     synchronized float[] getFrameRates(long nowNs) {

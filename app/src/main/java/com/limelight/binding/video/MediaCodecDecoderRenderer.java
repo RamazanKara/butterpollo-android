@@ -1779,7 +1779,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             lastTwo.add(activeWindowVideoStats);
             networkFrameLossPercent = lastTwo.totalFrames == 0 ? 0 :
                     (float) lastTwo.framesLost / lastTwo.totalFrames * 100;
-            if (prefs.enablePerfOverlay) {
+            if (perfListener != null) {
                 VideoStatsFps fps = lastTwo.getFps();
                 float[] frameRates = frameLatencyStats.getFrameRates(System.nanoTime());
                 String shownFps = metric(frameRates[2], " FPS");
@@ -2213,6 +2213,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         private String text;
 
         RendererException(MediaCodecDecoderRenderer renderer, Exception e) {
+            super(e);
             this.text = generateText(renderer, e);
         }
 

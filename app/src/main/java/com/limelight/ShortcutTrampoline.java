@@ -71,17 +71,18 @@ public class ShortcutTrampoline extends Activity {
                     computer = localBinder.getComputer(uuidString);
 
                     if (computer == null) {
-                        Dialog.displayDialog(ShortcutTrampoline.this,
-                                getResources().getString(R.string.conn_error_title),
-                                getResources().getString(R.string.scut_pc_not_found),
-                                true);
-
-                        if (blockingLoadSpinner != null) {
-                            blockingLoadSpinner.dismiss();
-                            blockingLoadSpinner = null;
-                        }
-
                         runOnUiThread(() -> {
+                            if (stopped || isFinishing() || isDestroyed()) {
+                                return;
+                            }
+                            Dialog.displayDialog(ShortcutTrampoline.this,
+                                    getResources().getString(R.string.conn_error_title),
+                                    getResources().getString(R.string.scut_pc_not_found),
+                                    true);
+                            if (blockingLoadSpinner != null) {
+                                blockingLoadSpinner.dismiss();
+                                blockingLoadSpinner = null;
+                            }
                             if (managerServiceBound) {
                                 unbindService(serviceConnection);
                                 managerServiceBound = false;
@@ -136,7 +137,7 @@ public class ShortcutTrampoline extends Activity {
 
                                         // If the managerBinder was destroyed before this callback,
                                         // just finish the activity.
-                                        if (managerBinder == null || isFinishing() || isDestroyed()) {
+                                        if (stopped || managerBinder == null || isFinishing() || isDestroyed()) {
                                             finish();
                                             return;
                                         }
@@ -298,7 +299,6 @@ public class ShortcutTrampoline extends Activity {
 
         UiHelper.notifyNewRootView(this);
 <<<<<<< HEAD
-=======
         ComputerDetails _computer = null;
 >>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
 
@@ -330,7 +330,7 @@ public class ShortcutTrampoline extends Activity {
 <<<<<<< HEAD
             ComputerDetails _computer;
 =======
->>>>>>> 936f471d (fix: bug hunt B4: see docs/BUGHUNT and tests)
+>>>>>>> 3e3c11a4 (fix: bug hunt B5: see docs/BUGHUNT and tests)
             ComputerDatabaseManager dbManager = new ComputerDatabaseManager(this);
             try {
                 _computer = dbManager.getComputerByName(nameString);

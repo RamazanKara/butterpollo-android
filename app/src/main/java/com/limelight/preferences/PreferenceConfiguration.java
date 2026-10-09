@@ -443,6 +443,11 @@ public class PreferenceConfiguration {
     }
 
     public static void resetStreamingSettings(Context context) {
+        String crashHostUuid = context.getSharedPreferences("DecoderTombstone", Context.MODE_PRIVATE)
+                .getString("CrashHostUuid", null);
+        if (crashHostUuid != null) {
+            HostStreamProfile.reset(context, crashHostUuid);
+        }
         // We consider resolution, FPS, bitrate, HDR, and video format as "streaming settings" here
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         prefs.edit()

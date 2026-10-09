@@ -4,9 +4,25 @@ import java.io.BufferedReader;
 import java.io.CharArrayReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 /**
  * Game entry files for ES-DE, Daijisho, Pegasus and other Android frontends.
@@ -111,9 +127,20 @@ public final class FrontendEntry {
         String base = sb.toString().replaceAll("\\s+", " ").trim();
         // Leading dots hide files; trailing dots and spaces are dropped by FAT
         base = base.replaceAll("^[.\\s]+", "").replaceAll("[.\\s]+$", "");
-        if (base.length() > 120) {
-            base = base.substring(0, 120).trim();
+        int end = 0;
+        int bytes = 0;
+        while (end < base.length()) {
+            int codePoint = base.codePointAt(end);
+            int chars = Character.charCount(codePoint);
+            int encodedBytes = codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+            // Leave room for a collision suffix and extension on filesystems with a 255-byte limit.
+            if (end + chars > 120 || bytes + encodedBytes > 200) {
+                break;
+            }
+            end += chars;
+            bytes += encodedBytes;
         }
+        base = base.substring(0, end).replaceAll("[.\\s]+$", "");
         return base.isEmpty() ? "Game" : base;
     }
 
@@ -141,44 +168,69 @@ public final class FrontendEntry {
 
     /** Adds or replaces our system in an existing ES-DE custom_systems/es_systems.xml. */
     public static String mergeEsSystems(String existing, String hostLabel) {
-        return mergeBlock(existing, "systemList", "<system>", "</system>",
-                "<name>" + ES_SYSTEM_NAME + "</name>", esSystemBlock(hostLabel));
+        return mergeBlock(existing, "systemList", "system", ES_SYSTEM_NAME, esSystemBlock(hostLabel));
     }
 
     /** Adds or replaces our emulator in an existing ES-DE custom_systems/es_find_rules.xml. */
     public static String mergeEsFindRules(String existing, String packageName) {
-        return mergeBlock(existing, "ruleList", "<emulator", "</emulator>",
-                "name=\"" + ES_EMULATOR_NAME + "\"", esFindRuleBlock(packageName));
+        return mergeBlock(existing, "ruleList", "emulator", ES_EMULATOR_NAME, esFindRuleBlock(packageName));
     }
 
-    private static String mergeBlock(String existing, String root, String open, String close,
-                                     String marker, String block) {
-        String closeRoot = "</" + root + ">";
-        if (existing == null || !existing.contains(closeRoot)) {
-            return "<?xml version=\"1.0\"?>\n<" + root + ">\n" + block + closeRoot + "\n";
+    private static String mergeBlock(String existing, String root, String tag, String name, String block) {
+        if (existing == null || existing.trim().isEmpty()) {
+            return "<?xml version=\"1.0\"?>\n<" + root + ">\n" + block + "</" + root + ">\n";
         }
-        int markerAt = existing.indexOf(marker);
-        if (markerAt >= 0) {
-            int start = existing.lastIndexOf(open, markerAt);
-            int end = existing.indexOf(close, markerAt);
-            if (start >= 0 && end >= 0) {
-                // Replace from the start of our block's line through the end of its closing line
-                int lineStart = existing.lastIndexOf('\n', start) + 1;
-                int lineEnd = existing.indexOf('\n', end);
-                lineEnd = lineEnd < 0 ? existing.length() : lineEnd + 1;
-                return existing.substring(0, lineStart) + block + existing.substring(lineEnd);
+        // ES-DE files need no DTD, and must never resolve entities from files or the network.
+        if (existing.contains("<!DOCTYPE")) {
+            throw new IllegalArgumentException("ES-DE XML must not contain a DTD");
+        }
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            builder.setEntityResolver((publicId, systemId) -> {
+                throw new SAXException("External entities are not supported");
+            });
+            Document document = builder.parse(new InputSource(new StringReader(existing)));
+            Element parent = document.getDocumentElement();
+            if (!root.equals(parent.getTagName())) {
+                throw new IllegalArgumentException("Unexpected ES-DE XML root");
             }
+            Node replacement = document.importNode(
+                    builder.parse(new InputSource(new StringReader(block))).getDocumentElement(), true);
+            boolean replaced = false;
+            for (Node child = parent.getFirstChild(); child != null;) {
+                Node next = child.getNextSibling();
+                if (child instanceof Element && tag.equals(child.getNodeName())) {
+                    String childName = ((Element) child).getAttribute("name");
+                    if (tag.equals("system")) {
+                        for (Node field = child.getFirstChild(); field != null; field = field.getNextSibling()) {
+                            if (field instanceof Element && field.getNodeName().equals("name")) {
+                                childName = field.getTextContent().trim();
+                                break;
+                            }
+                        }
+                    }
+                    if (name.equals(childName)) {
+                        if (replaced) {
+                            parent.removeChild(child);
+                        } else {
+                            parent.replaceChild(replacement, child);
+                            replaced = true;
+                        }
+                    }
+                }
+                child = next;
+            }
+            if (!replaced) {
+                parent.appendChild(document.createTextNode("\n    "));
+                parent.appendChild(replacement);
+                parent.appendChild(document.createTextNode("\n"));
+            }
+            StringWriter result = new StringWriter();
+            TransformerFactory.newInstance().newTransformer().transform(new DOMSource(document), new StreamResult(result));
+            return result.toString().replace("\r\n", "\n");
+        } catch (ParserConfigurationException | SAXException | IOException | TransformerException e) {
+            throw new IllegalArgumentException("Unable to merge ES-DE XML", e);
         }
-        int insertAt = existing.lastIndexOf(closeRoot);
-        int lineStart = existing.lastIndexOf('\n', insertAt) + 1;
-        if (existing.substring(lineStart, insertAt).trim().isEmpty()) {
-            insertAt = lineStart;
-        }
-        String before = existing.substring(0, insertAt);
-        if (!before.endsWith("\n")) {
-            before += "\n";
-        }
-        return before + block + existing.substring(insertAt);
     }
 
     static String xmlEscape(String value) {
@@ -187,5 +239,14 @@ public final class FrontendEntry {
         }
         return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    static boolean matchesApp(Map<String, String> values, String hostUuid, String appUuid, int appId) {
+        if (!hostUuid.equalsIgnoreCase(values.get(KEY_HOST_UUID))) {
+            return false;
+        }
+        String entryUuid = values.get(KEY_APP_UUID);
+        return entryUuid != null ? entryUuid.equalsIgnoreCase(appUuid) :
+                appId > 0 && Integer.toString(appId).equals(values.get(KEY_APP_ID));
     }
 }

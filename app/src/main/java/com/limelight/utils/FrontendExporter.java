@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Writes one game entry file per host app into a frontend's ROMs folder and, when given the
@@ -75,7 +76,8 @@ public final class FrontendExporter {
     public int export(List<NvApp> apps, Uri romsTree, Uri esdeTree) throws IOException {
         Uri romsRoot = treeRoot(romsTree);
         Uri systemDir = directory(romsTree, romsRoot, FrontendEntry.ES_SYSTEM_NAME);
-        Map<String, Uri> existing = listChildren(romsTree, systemDir);
+        Map<String, Uri> existing = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        existing.putAll(listChildren(romsTree, systemDir));
 
         Uri coversDir = null;
         Map<String, Uri> existingCovers = new HashMap<>();
@@ -109,25 +111,27 @@ public final class FrontendExporter {
     }
 
     /**
-     * Keeps the plain game name unless another host already exported a game with that name
-     * into the same folder, in which case the host name is added.
+     * Preserve an existing game's file even when names collide after sanitizing or truncating.
      */
     private String entryBaseName(NvApp app, Map<String, Uri> existing) {
         String base = FrontendEntry.fileBaseName(app.getAppName());
-        Uri current = existing.get(base + FrontendEntry.EXTENSION);
-        if (current == null || belongsToThisHost(current)) {
-            return base;
+        String hostBase = FrontendEntry.fileBaseName(app.getAppName() + " (" + computer.name + ")");
+        for (int suffix = 1; ; suffix++) {
+            Uri current = existing.get(base + FrontendEntry.EXTENSION);
+            if (current == null || belongsToApp(current, app)) {
+                return base;
+            }
+            base = suffix == 1 ? hostBase : hostBase + " (" + suffix + ")";
         }
-        return FrontendEntry.fileBaseName(app.getAppName() + " (" + computer.name + ")");
     }
 
-    private boolean belongsToThisHost(Uri entry) {
+    private boolean belongsToApp(Uri entry, NvApp app) {
         try (InputStream in = resolver.openInputStream(entry)) {
             if (in == null) {
                 return false;
             }
             Map<String, String> values = FrontendEntry.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
-            return computer.uuid.equalsIgnoreCase(values.get(FrontendEntry.KEY_HOST_UUID));
+            return FrontendEntry.matchesApp(values, computer.uuid, app.getAppUuid(), app.getAppId());
         } catch (IOException | SecurityException e) {
             // Not one of our entries: never overwrite it
             return false;
@@ -160,7 +164,10 @@ public final class FrontendExporter {
         String existing = null;
         if (file != null) {
             try (InputStream in = resolver.openInputStream(file)) {
-                existing = in == null ? null : CacheHelper.readInputStreamToString(in);
+                if (in == null) {
+                    throw new IOException("Unable to read " + name);
+                }
+                existing = CacheHelper.readInputStreamToString(in);
             }
         } else {
             file = create(dir, "text/xml", name);

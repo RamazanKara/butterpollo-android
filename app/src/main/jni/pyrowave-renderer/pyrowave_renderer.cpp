@@ -1292,6 +1292,8 @@ namespace {
                 presentTimes.pTimes = &presentTime;
                 presentInfo.pNext = &presentTimes;
             }
+            timespec released;
+            clock_gettime(CLOCK_MONOTONIC, &released);
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
             framePresented = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
             if (displayTimingSupported && framePresented) {
@@ -1688,6 +1690,11 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEn
     if (env->ExceptionCheck()) return SUBMIT_ERROR;
     int result = renderer->submit(frame.data(), frame.size(), ptsUs);
     return result == SUBMIT_OK ? jlong(renderer->completedDecodeNs) : (result == SUBMIT_ERROR ? -1 : 0);
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastReleaseTimeNs(JNIEnv *, jclass, jlong handle) {
+    return jlong(reinterpret_cast<Renderer *>(handle)->lastReleaseNs);
 }
 
 JNIEXPORT jboolean JNICALL

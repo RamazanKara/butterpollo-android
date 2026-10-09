@@ -15,6 +15,30 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FrontendEntryTest {
+    @Test
+    public void entriesWithTheSameHostAndNameMustStillMatchTheApp() throws IOException {
+        Map<String, String> entry = parse(FrontendEntry.serialize("host", "Desk", "app-a", "Game", 42));
+        assertFalse(FrontendEntry.matchesApp(entry, "host", "app-b", 42));
+        assertTrue(FrontendEntry.matchesApp(entry, "HOST", "APP-A", 99));
+        assertFalse(FrontendEntry.matchesApp(entry, "other-host", "app-a", 42));
+    }
+
+    @Test
+    public void legacyEntriesMatchOnlyTheSameNumericAppId() throws IOException {
+        Map<String, String> entry = parse(FrontendEntry.serialize("host", "Desk", null, "Game", 42));
+        assertFalse(FrontendEntry.matchesApp(entry, "host", "", 99));
+        assertTrue(FrontendEntry.matchesApp(entry, "host", "new-uuid", 42));
+        entry.remove(FrontendEntry.KEY_APP_ID);
+        assertFalse(FrontendEntry.matchesApp(entry, "host", "", 0));
+    }
+
+    @Test
+    public void toleratesBomBeforeExportCommentOrBlankLine() throws IOException {
+        for (String prefix : new String[] {"\uFEFF# Butterpollo game entry\r\n", "\uFEFF\r\n"}) {
+            assertEquals("Desk", parse(prefix + "[host_name] Desk\n").get(FrontendEntry.KEY_HOST_NAME));
+        }
+    }
+
     private static Map<String, String> parse(String text) throws IOException {
         return FrontendEntry.parse(new StringReader(text));
     }
@@ -46,6 +70,93 @@ public class FrontendEntryTest {
         assertEquals("Desk", values.get(FrontendEntry.KEY_HOST_NAME));
         assertEquals("Hades", values.get(FrontendEntry.KEY_APP_NAME));
         assertFalse(values.containsKey(FrontendEntry.KEY_APP_UUID));
+    }
+
+    @Test
+    public void rejectsLongLinesBeforeReadingUnboundedInput() {
+        Reader source = new Reader() {
+            int read;
+
+            @Override
+            public int read(char[] buffer, int offset, int length) {
+                assertTrue("Read past the entry limit", read <= FrontendEntry.MAX_CHARS);
+                int count = Math.min(length, FrontendEntry.MAX_CHARS + 1 - read);
+                java.util.Arrays.fill(buffer, offset, offset + count, '#');
+                read += count;
+                return count;
+            }
+
+            @Override public void close() { }
+        };
+        try {
+            FrontendEntry.parse(source);
+            fail("Accepted unbounded line");
+        } catch (IOException expected) {
+            assertEquals("Entry file is too large", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void acceptsAnEntryExactlyAtTheCharacterLimit() throws IOException {
+        String text = "[host_name] Desk\n#";
+        text += "x".repeat(FrontendEntry.MAX_CHARS - text.length());
+        assertEquals("Desk", parse(text).get(FrontendEntry.KEY_HOST_NAME));
+    }
+
+    @Test
+    public void unicodeFileNamesFitOnDiskAndDoNotSplitSurrogatePairs() {
+        for (String name : new String[] {"界".repeat(120), "x".repeat(119) + "🎮"}) {
+            String base = FrontendEntry.fileBaseName(name);
+            assertTrue((base + ".art").getBytes(StandardCharsets.UTF_8).length <= 255);
+            assertFalse(Character.isHighSurrogate(base.charAt(base.length() - 1)));
+        }
+    }
+
+    @Test
+    public void mergingCompactXmlPreservesRootsAndNeighboringSystems() {
+        String before = "<system><name>n64</name></system>";
+        String after = "<system><name>ps2</name></system>";
+        String existing = "<systemList>" + before +
+                "<system><name>butterpollo</name><fullname>Old</fullname></system>" + after + "</systemList>";
+        String merged = FrontendEntry.mergeEsSystems(existing, "New");
+        assertTrue(merged.contains("<systemList>"));
+        assertTrue(merged.contains(before));
+        assertTrue(merged.contains(after));
+        assertTrue(merged.contains("</systemList>"));
+        assertFalse(merged.contains("Old"));
+    }
+
+    @Test
+    public void mergingCompactXmlPreservesOtherFindRules() {
+        String other = "<emulator name=\"OTHER\"><rule/></emulator>";
+        String merged = FrontendEntry.mergeEsFindRules("<ruleList>" + other +
+                "<emulator name=\"BUTTERPOLLO\"><rule/></emulator></ruleList>", "com.butterpollo.client");
+        assertTrue(merged.contains("<ruleList>"));
+        assertTrue(merged.contains(other));
+        assertTrue(merged.contains("</ruleList>"));
+    }
+
+    @Test
+    public void malformedExistingXmlIsNotSilentlyReplaced() {
+        for (String text : new String[] {"<systemList><system>", "<other/>",
+                "<systemList><system></systemList>",
+                "<!DOCTYPE systemList [<!ENTITY name 'secret'>]><systemList/>"}) {
+            org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                    () -> FrontendEntry.mergeEsSystems(text, "Butterpollo"));
+        }
+    }
+
+    @Test
+    public void mergesXmlByElementIdentityRatherThanCommentsOrWhitespace() {
+        String comment = "<!-- <system><name>butterpollo</name></system> -->";
+        String merged = FrontendEntry.mergeEsSystems("<systemList>" + comment +
+                "<system><name> butterpollo </name><fullname>Old</fullname></system></systemList>", "New");
+        assertTrue(merged.contains(comment));
+        assertFalse(merged.contains("Old"));
+        String rules = FrontendEntry.mergeEsFindRules(
+                "<ruleList><emulator name = 'BUTTERPOLLO'><rule>Old</rule></emulator></ruleList>", "client");
+        assertFalse(rules.contains("Old"));
+        assertEquals(1, count(rules, "<emulator"));
     }
 
     @Test
