@@ -119,7 +119,7 @@ saw, and the time it happened. Add the host log from the console (**Troubleshoot
 You can also use **Settings → App → Report a problem** to share a redacted report.
 
 Report Android issues at
-[github.com/RamazanKara/butterpollo-android/issues](https://github.com/RamazanKara/butterpollo-android/issues).
+[github.com/RamazanKara/rubylight-android/issues](https://github.com/RamazanKara/rubylight-android/issues).
 
 ## Connection test results
 

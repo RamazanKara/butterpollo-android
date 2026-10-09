@@ -15,13 +15,13 @@ and role-aware sessions. This follow-up adds decode time to PyroWave rate contro
 off-by-default DualSense toggle with Material 3 permission explanation, captured USB input fixtures,
 Material 3 launch confirmation and interruption/unknown-410 regressions. The current checklist below
 supersedes older milestone instructions about absent records, triggers or role support.
-The read-only local host reference was [118a0abb](https://github.com/RamazanKara/Butterpollo/tree/118a0abb18480ff1da5564c57a2e00049ed67e47);
+The read-only local host reference was [118a0abb](https://github.com/RamazanKara/Rubylight/tree/118a0abb18480ff1da5564c57a2e00049ed67e47);
 only this client changed.
 
 Re-audited on 2026-10-08 against the read-only host checkout at
-[Rubylight `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Butterpollo/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
-Remote HEAD was [rc.22 `3e264545e75d5da238b150dfca214825f7a4a1ec`](https://github.com/RamazanKara/Butterpollo/tree/3e264545e75d5da238b150dfca214825f7a4a1ec);
-the [comparison](https://github.com/RamazanKara/Butterpollo/compare/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b...3e264545e75d5da238b150dfca214825f7a4a1ec)
+[Rubylight `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Rubylight/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
+Remote HEAD was [rc.22 `3e264545e75d5da238b150dfca214825f7a4a1ec`](https://github.com/RamazanKara/Rubylight/tree/3e264545e75d5da238b150dfca214825f7a4a1ec);
+the [comparison](https://github.com/RamazanKara/Rubylight/compare/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b...3e264545e75d5da238b150dfca214825f7a4a1ec)
 contains release/version documentation only, with no protocol changes. The host checkout was not changed.
 The current Rust host is authoritative; the retained C++ implementation is historical.
 “Supported” below means implemented protocol paths, not a real-device streaming certification.
@@ -59,12 +59,12 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Android integration and overlay | Android launcher/PiP and existing stream telemetry | Pinned app shortcuts and TV channels retained. PiP adds local Disconnect and bounds custom aspect ratios. Settings search uses device-filtered titles, descriptions and categories, then opens the original setting. Overlay toggles immediately from the stream menu or Ctrl+Alt+Shift+S. Shortcut intents carry app UUID; native touch uses the menu for soft-keyboard access. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
 
-Source: host [protocol handlers](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/nvhttp.rs),
-[RTSP](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/rtsp.rs),
-[display policy](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/display_session.rs),
-[HDR layout](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/hdr.rs),
-[compatibility audit](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/PARITY.md),
-and [admin API](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/docs/api.md).
+Source: host [protocol handlers](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/nvhttp.rs),
+[RTSP](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/rtsp.rs),
+[display policy](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/display_session.rs),
+[HDR layout](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/hdr.rs),
+[compatibility audit](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/PARITY.md),
+and [admin API](https://github.com/RamazanKara/Rubylight/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/docs/api.md).
 Android limits: [codec profiles](https://developer.android.com/reference/android/media/MediaCodecInfo.CodecProfileLevel)
 and [MediaFormat HDR/color keys](https://developer.android.com/reference/android/media/MediaFormat).
 
@@ -501,10 +501,10 @@ Check light/dark system settings, long host/app names and at least one long-tran
 ## Milestone 5: extras and packaging (historical record)
 
 The latest host was cloned with `git clone --depth 1` outside this checkout and was only read.
-Sources: [HTTP/permissions/clipboard/bitrate](https://github.com/RamazanKara/Butterpollo/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/nvhttp.rs),
-[encrypted server commands](https://github.com/RamazanKara/Butterpollo/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/stream.rs),
-[pause status](https://github.com/RamazanKara/Butterpollo/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/web.rs),
-and [limiter policy](https://github.com/RamazanKara/Butterpollo/blob/f06e72c73c1960665d031d27f8dad02202bca56e/docs/configuration.md).
+Sources: [HTTP/permissions/clipboard/bitrate](https://github.com/RamazanKara/Rubylight/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/nvhttp.rs),
+[encrypted server commands](https://github.com/RamazanKara/Rubylight/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/stream.rs),
+[pause status](https://github.com/RamazanKara/Rubylight/blob/f06e72c73c1960665d031d27f8dad02202bca56e/rust/host/src/web.rs),
+and [limiter policy](https://github.com/RamazanKara/Rubylight/blob/f06e72c73c1960665d031d27f8dad02202bca56e/docs/configuration.md).
 Artemis Android was inspected at
 [`c5cf27f4`](https://github.com/ClassicOldSong/moonlight-android/tree/c5cf27f4dc822db0e863c4691e7a70c74bea977a),
 with common-c [`c9994368`](https://github.com/ClassicOldSong/moonlight-common-c/blob/c999436858471dfefa7617af3b7dc03ec1644ce4/src/ControlStream.c).
@@ -789,14 +789,14 @@ of this run is an explicit negotiation exclusion, fallback regression tests and 
 not a completed decoder or an assertion that the task's mobile-infeasibility condition was met.
 
 On 2026-10-07, cloned the latest
-[Rubylight `6772d4019c0837e372b801637f3bf1b57bea2765`](https://github.com/RamazanKara/Butterpollo/tree/6772d4019c0837e372b801637f3bf1b57bea2765)
+[Rubylight `6772d4019c0837e372b801637f3bf1b57bea2765`](https://github.com/RamazanKara/Rubylight/tree/6772d4019c0837e372b801637f3bf1b57bea2765)
 with `git clone --depth 1` into a temporary directory outside this repository; it was only read.
 Also inspected current upstream
 [PyroWave `c0b997f84ced7bd827ca737aa5145f4ec811de8d`](https://github.com/Themaister/pyrowave/tree/c0b997f84ced7bd827ca737aa5145f4ec811de8d)
 and the exact host compatibility target,
 [PyroWave `186f0393b77f7755953b5ecde994bb1cec2e4155`](https://github.com/Themaister/pyrowave/tree/186f0393b77f7755953b5ecde994bb1cec2e4155),
 C API 0.6.0, with Granite `b6cffd5ce81f540f0855e6778428483e14763d9b`.
-The host [build recipe](https://github.com/RamazanKara/Butterpollo/blob/6772d4019c0837e372b801637f3bf1b57bea2765/scripts/build_pyrowave.sh)
+The host [build recipe](https://github.com/RamazanKara/Rubylight/blob/6772d4019c0837e372b801637f3bf1b57bea2765/scripts/build_pyrowave.sh)
 pins those revisions and three patches, including rejection of short decoder blocks. Any port must
 retain that fix: a duplicate block with zero payload length can otherwise leave the parse cursor
 stationary indefinitely.
@@ -832,10 +832,10 @@ here, and Moonlight's GPL-3.0 license and attribution remain intact.
   upstream decoder path is impossible. Upstream prefers fragment iDWT on proprietary Qualcomm
   drivers; a compute-only port cannot assume desktop performance on mobile.
 - **Current wire format:** host
-  [RTSP](https://github.com/RamazanKara/Butterpollo/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/core/src/rtsp.rs)
+  [RTSP](https://github.com/RamazanKara/Rubylight/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/core/src/rtsp.rs)
   advertises `PYROWAVE/90000` and bitstream ID `186f0393`; selecting it requires
   `x-nv-vqos[0].bitStreamFormat=3`. The current
-  [framing code](https://github.com/RamazanKara/Butterpollo/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/core/src/pyrowave.rs)
+  [framing code](https://github.com/RamazanKara/Rubylight/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/core/src/pyrowave.rs)
   uses a little-endian packet count followed by little-endian lengths and codec packets, or record
   framing when negotiated. This differs from the reference Android renderer's big-endian `PYRW`
   version-1 container. Presence of `pyrowaveAdaptiveFec`, **even with value 0**, selects records;
@@ -843,7 +843,7 @@ here, and Moonlight's GPL-3.0 license and attribution remain intact.
   validate lengths and padding, and integrate with depacketization/FEC before advertising support.
   This client's pinned moonlight-common-c has neither PyroWave negotiation nor its framing path.
 - **HDR presentation:** the host
-  [conversion shader](https://github.com/RamazanKara/Butterpollo/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/windows/src/shaders/color.hlsl)
+  [conversion shader](https://github.com/RamazanKara/Rubylight/blob/6772d4019c0837e372b801637f3bf1b57bea2765/rust/windows/src/shaders/color.hlsl)
   writes ten-bit codes normalized by 1023 into R16_UNORM planes. Limited-range luma is 64–940;
   chroma is centred at 512 with scale 896. A port needs full-resolution high-precision planes,
   correct BT.2020/PQ and range conversion, and a supported ten-bit HDR surface format/colour-space

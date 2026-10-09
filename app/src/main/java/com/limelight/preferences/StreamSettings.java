@@ -795,7 +795,7 @@ public class StreamSettings extends AppCompatActivity {
                         .setMessage(getString(R.string.summary_about, BuildConfig.VERSION_NAME))
                         .setPositiveButton(android.R.string.ok, null)
                         .setNeutralButton(R.string.settings_source, (dialog, which) ->
-                                HelpLauncher.launchUrl(getActivity(), "https://github.com/RamazanKara/butterpollo-android"))
+                                HelpLauncher.launchUrl(getActivity(), "https://github.com/RamazanKara/rubylight-android"))
                         .show();
                 return true;
             });

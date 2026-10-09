@@ -38,7 +38,7 @@ public class HelpLauncher {
     }
 
     public static final String TROUBLESHOOTING_URL =
-            "https://github.com/RamazanKara/butterpollo-android/blob/main/docs/TROUBLESHOOTING.md";
+            "https://github.com/RamazanKara/rubylight-android/blob/main/docs/TROUBLESHOOTING.md";
 
     public static void launchSetupGuide(Context context) {
         launchUrl(context, TROUBLESHOOTING_URL + "#add-and-pair-a-host");

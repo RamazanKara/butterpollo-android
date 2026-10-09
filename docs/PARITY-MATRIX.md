@@ -1,11 +1,11 @@
 # Rubylight host ↔ Android parity matrix
 
 Host comparison baseline (2026-10-08): the host's `main` at
-[Rubylight `2cbb513`](https://github.com/RamazanKara/Butterpollo/tree/2cbb513) (rc.24 released,
+[Rubylight `2cbb513`](https://github.com/RamazanKara/Rubylight/tree/2cbb513) (rc.24 released,
 rc.25 changes on `main`). The host was only read. Detailed evidence, protocol notes and the real-device
 checklist stay in [BUTTERPOLLO_PARITY.md](BUTTERPOLLO_PARITY.md); this page is the short status.
 Client gap follow-up on 2026-10-09 also inspected the read-only local host reference
-[`118a0abb`](https://github.com/RamazanKara/Butterpollo/tree/118a0abb18480ff1da5564c57a2e00049ed67e47).
+[`118a0abb`](https://github.com/RamazanKara/Rubylight/tree/118a0abb18480ff1da5564c57a2e00049ed67e47).
 
 Status: **Done** = implemented in this app, **Partial** = works with a stated limit,
 **Gap** = missing. Nothing here is certified on a real phone yet; see the checklist in

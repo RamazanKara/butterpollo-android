@@ -1,6 +1,6 @@
 # Rubylight Android
 
-Rubylight Android is a latency-focused client for [Rubylight](https://github.com/RamazanKara/Butterpollo),
+Rubylight Android is a latency-focused client for [Rubylight](https://github.com/RamazanKara/Rubylight),
 based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibility.
 
 - Settings grouped into **Stream**, **Controls**, **Overlay & audio** and **App**, with expert
@@ -62,11 +62,11 @@ for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave r
 ## Install
 
 1. Download the `butterpollo-debug` artifact from a successful
-   [Android debug workflow](https://github.com/RamazanKara/butterpollo-android/actions/workflows/android.yml)
+   [Android debug workflow](https://github.com/RamazanKara/rubylight-android/actions/workflows/android.yml)
    and extract `app-nonRoot-debug.apk`, or build it below. Android 5.0 or later is required; no root needed.
 2. Open the APK on your Android device and allow installation from your file manager when prompted,
    or run `adb install -r app-nonRoot-debug.apk` with USB debugging enabled.
-3. Start [Rubylight](https://github.com/RamazanKara/Butterpollo) on your PC. Select the discovered
+3. Start [Rubylight](https://github.com/RamazanKara/Rubylight) on your PC. Select the discovered
    host (or use **Add PC** to enter its address), then enter the displayed PIN in **Devices** in the host
    web console. Grant this device the desired list, launch and input permissions there.
 4. Launch an app. Android **Back**, or **Ctrl+Alt+Shift+M** on a keyboard, opens the stream menu.
