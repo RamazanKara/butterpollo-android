@@ -4,6 +4,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 
+import com.limelight.binding.input.MouseDeltaAccumulator;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.preferences.PreferenceConfiguration;
@@ -19,7 +20,9 @@ public class RelativeTouchContext implements TouchContext {
     private boolean confirmedDrag;
     private boolean confirmedScroll;
     private double distanceMoved;
-    private double xFactor, yFactor;
+    private float xFactor, yFactor;
+    private final MouseDeltaAccumulator deltaXAccumulator = new MouseDeltaAccumulator();
+    private final MouseDeltaAccumulator deltaYAccumulator = new MouseDeltaAccumulator();
     private int pointerCount;
     private int maxPointerCountInGesture;
 
@@ -149,8 +152,8 @@ public class RelativeTouchContext implements TouchContext {
     public boolean touchDownEvent(int eventX, int eventY, long eventTime, boolean isNewFinger)
     {
         // Get the view dimensions to scale inputs on this touch
-        xFactor = referenceWidth / (double)targetView.getWidth();
-        yFactor = referenceHeight / (double)targetView.getHeight();
+        xFactor = referenceWidth / (float)targetView.getWidth() * prefConfig.trackpadSpeed / 100f;
+        yFactor = referenceHeight / (float)targetView.getHeight() * prefConfig.trackpadSpeed / 100f;
 
         originalTouchX = lastTouchX = eventX;
         originalTouchY = lastTouchY = eventY;
@@ -251,52 +254,29 @@ public class RelativeTouchContext implements TouchContext {
 
             // We only send moves and drags for the primary touch point
             if (actionIndex == 0) {
-                int deltaX = eventX - lastTouchX;
-                int deltaY = eventY - lastTouchY;
-
-                // Scale the deltas based on the factors passed to our constructor
-                deltaX = (int) Math.round((double) Math.abs(deltaX) * xFactor);
-                deltaY = (int) Math.round((double) Math.abs(deltaY) * yFactor);
-
-                // Fix up the signs
-                if (eventX < lastTouchX) {
-                    deltaX = -deltaX;
-                }
-                if (eventY < lastTouchY) {
-                    deltaY = -deltaY;
-                }
+                int deltaX = deltaXAccumulator.scale(eventX - lastTouchX, xFactor);
+                int deltaY = deltaYAccumulator.scale(eventY - lastTouchY, yFactor);
 
                 if (pointerCount == 2) {
                     if (confirmedScroll) {
                         conn.sendMouseHighResScroll((short)(deltaY * SCROLL_SPEED_FACTOR));
                     }
-                } else {
+                } else if (deltaX != 0 || deltaY != 0) {
                     if (prefConfig.absoluteMouseMode) {
                         conn.sendMouseMoveAsMousePosition(
                                 (short) deltaX,
                                 (short) deltaY,
-                                (short) targetView.getWidth(),
-                                (short) targetView.getHeight());
+                                (short) referenceWidth,
+                                (short) referenceHeight);
                     }
                     else {
                         conn.sendMouseMove((short) deltaX, (short) deltaY);
                     }
                 }
 
-                // If the scaling factor ended up rounding deltas to zero, wait until they are
-                // non-zero to update lastTouch that way devices that report small touch events often
-                // will work correctly
-                if (deltaX != 0) {
-                    lastTouchX = eventX;
-                }
-                if (deltaY != 0) {
-                    lastTouchY = eventY;
-                }
             }
-            else {
-                lastTouchX = eventX;
-                lastTouchY = eventY;
-            }
+            lastTouchX = eventX;
+            lastTouchY = eventY;
         }
 
         return true;

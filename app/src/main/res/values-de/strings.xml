@@ -125,6 +125,8 @@
     <string name="summary_audio_config_list">Aktivieren von 5.1- oder 7.1-Surround-Sound für Heimkinosysteme</string>
     <string name="category_input_settings">Controller Einstellungen</string>
     <string name="title_checkbox_touchscreen_trackpad">Touchscreen als Trackpad</string>
+    <string name="title_trackpad_speed">Trackpad-Tempo</string>
+    <string name="title_mouse_speed">Maustempo</string>
     <string name="summary_checkbox_touchscreen_trackpad">Wenn aktiviert, verhält sich der Touchscreen wie ein Trackpad. Wenn es deaktiviert ist, steuert der Touchscreen den Mauszeiger direkt.</string>
     <string name="title_checkbox_multi_controller">Automatische Controller Erkennung</string>
     <string name="summary_checkbox_multi_controller">Abwählen dieser Option erzwingt dass immer ein Controller präsent ist</string>

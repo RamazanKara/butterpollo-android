@@ -5,6 +5,7 @@ import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.audio.AndroidAudioRenderer;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.KeyboardTranslator;
+import com.limelight.binding.input.MouseDeltaAccumulator;
 import com.limelight.binding.input.capture.InputCaptureManager;
 import com.limelight.binding.input.capture.InputCaptureProvider;
 import com.limelight.binding.input.touch.AbsoluteTouchContext;
@@ -121,6 +122,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         OnSystemUiVisibilityChangeListener, GameGestures, StreamView.InputCallbacks,
         PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
     private int lastButtonState = 0;
+    private final MouseDeltaAccumulator mouseDeltaX = new MouseDeltaAccumulator();
+    private final MouseDeltaAccumulator mouseDeltaY = new MouseDeltaAccumulator();
 
     // Mouse emulation uses two touches; native touch forwards all pointers.
     private final TouchContext[] touchContextMap = new TouchContext[2];
@@ -128,9 +131,6 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean nativeTouchEnabled;
     private boolean nativeTouchUnsupported;
     private boolean nativeTouchGestureActive;
-
-    private static final int REFERENCE_HORIZ_RES = 1280;
-    private static final int REFERENCE_VERT_RES = 720;
 
     private static final int STYLUS_DOWN_DEAD_ZONE_DELAY = 100;
     private static final int STYLUS_DOWN_DEAD_ZONE_RADIUS = 20;
@@ -1556,7 +1556,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private void initializeTouchContexts() {
         for (int i = 0; i < touchContextMap.length; i++) {
             touchContextMap[i] = prefConfig.touchscreenTrackpad ?
-                    new RelativeTouchContext(conn, i, REFERENCE_HORIZ_RES, REFERENCE_VERT_RES, streamView, prefConfig) :
+                    new RelativeTouchContext(conn, i, prefConfig.width, prefConfig.height, streamView, prefConfig) :
                     new AbsoluteTouchContext(conn, i, streamView);
         }
     }
@@ -2628,9 +2628,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 // dealing with a stylus without hover support, our position might be
                 // significantly different than before.
                 if (inputCaptureProvider.eventHasRelativeMouseAxes(event)) {
-                    // Send the deltas straight from the motion event
-                    short deltaX = (short)inputCaptureProvider.getRelativeAxisX(event);
-                    short deltaY = (short)inputCaptureProvider.getRelativeAxisY(event);
+                    short deltaX = (short)mouseDeltaX.scale(inputCaptureProvider.getRelativeAxisX(event), prefConfig.mouseSpeed / 100f);
+                    short deltaY = (short)mouseDeltaY.scale(inputCaptureProvider.getRelativeAxisY(event), prefConfig.mouseSpeed / 100f);
 
                     if (deltaX != 0 || deltaY != 0) {
                         if (prefConfig.absoluteMouseMode) {
@@ -3555,7 +3554,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     public void mouseMove(int deltaX, int deltaY) {
-        conn.sendMouseMove((short) deltaX, (short) deltaY);
+        conn.sendMouseMove(
+                (short)mouseDeltaX.scale(deltaX, prefConfig.mouseSpeed / 100f),
+                (short)mouseDeltaY.scale(deltaY, prefConfig.mouseSpeed / 100f));
     }
 
     @Override

@@ -196,6 +196,8 @@
 
     <string name="category_input_settings">Touch and mouse</string>
     <string name="title_checkbox_touchscreen_trackpad">Touchscreen as trackpad</string>
+    <string name="title_trackpad_speed">Trackpad speed</string>
+    <string name="title_mouse_speed">Mouse speed</string>
     <string name="summary_checkbox_touchscreen_trackpad">On: drag to move the cursor like a laptop trackpad. Off: tap where you want the cursor.</string>
     <string name="title_checkbox_absolute_mouse_mode">Remote desktop mouse mode</string>
     <string name="summary_checkbox_absolute_mouse_mode">Natural mouse acceleration for desktop use. Breaks mouse look in many games.</string>
