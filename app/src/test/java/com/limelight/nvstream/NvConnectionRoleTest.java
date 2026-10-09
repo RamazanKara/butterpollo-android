@@ -214,6 +214,24 @@ public class NvConnectionRoleTest {
     }
 
     @Test
+    public void quitAppRejectsRemoteRolesAndRevokedPermissionBeforeSendingCancel() {
+        for (int appId : new int[] {2147483505, 2147483506, 73}) {
+            StreamConfiguration config = new StreamConfiguration.Builder()
+                    .setApp(new NvApp("Tile", appId, false)).build();
+            NvConnection connection = new NvConnection(null, new ComputerDetails.AddressTuple("192.0.2.1", 47989),
+                    47984, "device", config, null, null) {
+                @Override
+                public ComputerDetails refreshHostDetails() {
+                    ComputerDetails details = new ComputerDetails();
+                    details.permission = appId == 73 ? 0 : ComputerDetails.PERMISSION_LAUNCH;
+                    return details;
+                }
+            };
+            assertThrows(IOException.class, connection::quitApp);
+        }
+    }
+
+    @Test
     public void monitorSuppressesEveryInputFamilyBeforeTheNativeBridge() {
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setApp(new NvApp("Monitor", 2147483505, false)).build();

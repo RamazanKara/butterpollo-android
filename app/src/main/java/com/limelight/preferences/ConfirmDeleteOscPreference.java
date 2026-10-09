@@ -1,6 +1,7 @@
 package com.limelight.preferences;
 
-import android.annotation.TargetApi;
+import android.os.Bundle;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Build;
@@ -9,6 +10,7 @@ import android.util.AttributeSet;
 import android.widget.Toast;
 
 import com.limelight.R;
+import com.limelight.utils.UiHelper;
 
 import static com.limelight.binding.input.virtual_controller.VirtualControllerConfigurationLoader.OSC_PREFERENCE;
 
@@ -27,6 +29,13 @@ public class ConfirmDeleteOscPreference extends DialogPreference {
 
     public ConfirmDeleteOscPreference(Context context) {
         super(context);
+    }
+
+    @Override
+    protected void showDialog(Bundle state) {
+        UiHelper.showDialog(getContext(), new MaterialAlertDialogBuilder(getContext()).setTitle(getDialogTitle())
+                .setMessage(getDialogMessage()).setPositiveButton(getPositiveButtonText(), this)
+                .setNegativeButton(getNegativeButtonText(), null).create());
     }
 
     public void onClick(DialogInterface dialog, int which) {

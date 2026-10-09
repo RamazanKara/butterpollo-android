@@ -481,6 +481,9 @@ public class PreferenceConfiguration {
         HostStreamProfile profile = HostStreamProfile.load(context, hostUuid);
         if (profile != null) {
             profile.applyTo(config);
+            config.framePacing = config.vrr ? FRAME_PACING_MIN_LATENCY : getFramePacingValue(context);
+            config.reduceRefreshRate = !config.vrr && PreferenceManager.getDefaultSharedPreferences(context)
+                    .getBoolean(REDUCE_REFRESH_RATE_PREF_STRING, DEFAULT_REDUCE_REFRESH_RATE);
             config.enableHdr &= !isShieldAtvFirmwareWithBrokenHdr();
             config.useTextureView = PreferenceManager.getDefaultSharedPreferences(context)
                     .getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&

@@ -12,10 +12,18 @@ public final class HostStreamProfile {
     public final int width, height, refreshRateX100, bitrate, renderScale;
     public final PreferenceConfiguration.FormatOption codec;
     public final boolean virtualDisplay, hdr, fullRange, yuv444;
+    // Older profiles inherit VRR from the global settings.
+    public final Boolean vrr;
 
     public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
                              PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
                              boolean hdr, boolean fullRange, boolean yuv444) {
+        this(width, height, refreshRateX100, bitrate, renderScale, codec, virtualDisplay, hdr, fullRange, yuv444, null);
+    }
+
+    public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
+                             PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
+                             boolean hdr, boolean fullRange, boolean yuv444, Boolean vrr) {
         requireRange(width, 64, 16384);
         requireRange(height, 64, 16384);
         requireRange(refreshRateX100, 100, 100000);
@@ -31,6 +39,7 @@ public final class HostStreamProfile {
         this.hdr = hdr;
         this.fullRange = fullRange;
         this.yuv444 = yuv444;
+        this.vrr = vrr;
     }
 
     static int requireRange(int value, int min, int max) {
@@ -79,6 +88,9 @@ public final class HostStreamProfile {
         config.enableHdr = hdr;
         config.fullRange = fullRange;
         config.enableYuv444 = yuv444;
+        if (vrr != null) {
+            config.vrr = vrr;
+        }
         if (hdr || codec == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
             config.useTextureView = false;
         }
@@ -86,19 +98,21 @@ public final class HostStreamProfile {
 
     String serialize() {
         return width + "," + height + "," + refreshRateX100 + "," + bitrate + "," + renderScale +
-                "," + codec.name() + "," + virtualDisplay + "," + hdr + "," + fullRange + "," + yuv444;
+                "," + codec.name() + "," + virtualDisplay + "," + hdr + "," + fullRange + "," + yuv444 +
+                (vrr == null ? "" : "," + vrr);
     }
 
     static HostStreamProfile deserialize(String value) {
         String[] fields = value.split(",", -1);
-        if (fields.length != 10) {
+        if (fields.length != 10 && fields.length != 11) {
             throw new IllegalArgumentException("Invalid host profile");
         }
         return new HostStreamProfile(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]),
                 Integer.parseInt(fields[2]), Integer.parseInt(fields[3]), Integer.parseInt(fields[4]),
                 PreferenceConfiguration.FormatOption.valueOf(fields[5]),
                 Boolean.parseBoolean(fields[6]), Boolean.parseBoolean(fields[7]),
-                Boolean.parseBoolean(fields[8]), Boolean.parseBoolean(fields[9]));
+                Boolean.parseBoolean(fields[8]), Boolean.parseBoolean(fields[9]),
+                fields.length == 11 ? Boolean.parseBoolean(fields[10]) : null);
     }
 
     static HostStreamProfile load(Context context, String hostUuid) {

@@ -74,6 +74,33 @@ public class StreamPresetTest {
         }
     }
 
+    @Test
+    public void matchingReflectsValuesRatherThanLastSelectedPreset() {
+        Map<String, Object> values = new HashMap<>();
+        SharedPreferences preferences = preferences(values, new int[1]);
+        for (StreamPreset selected : StreamPreset.values()) {
+            selected.apply(preferences, 120);
+            for (StreamPreset candidate : StreamPreset.values()) {
+                assertEquals(selected == candidate, candidate.matches(preferences, 120));
+            }
+            values.put("seekbar_bitrate_kbps", selected.bitrate + 500);
+            assertFalse(selected.matches(preferences, 120));
+            selected.apply(preferences, 120);
+            values.put("checkbox_phone_performance_hints", true);
+            assertFalse(selected.matches(preferences, 120));
+        }
+    }
+
+    @Test
+    public void lowLatencyMatchingHonoursItsPreservedCodec() {
+        Map<String, Object> values = new HashMap<>();
+        values.put("video_format", "forceav1");
+        SharedPreferences preferences = preferences(values, new int[1]);
+        StreamPreset.LOW_LATENCY.apply(preferences, 144);
+        assertTrue(StreamPreset.LOW_LATENCY.matches(preferences, 144));
+        assertFalse(StreamPreset.LOW_LATENCY.matches(preferences, 120));
+    }
+
     private SharedPreferences preferences(Map<String, Object> values, int[] applies) {
         SharedPreferences.Editor editor = (SharedPreferences.Editor) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[] {SharedPreferences.Editor.class}, (proxy, method, args) -> {
@@ -87,6 +114,11 @@ public class StreamPresetTest {
                     return null;
                 });
         return (SharedPreferences) Proxy.newProxyInstance(
-                getClass().getClassLoader(), new Class<?>[] {SharedPreferences.class}, (proxy, method, args) -> editor);
+                getClass().getClassLoader(), new Class<?>[] {SharedPreferences.class}, (proxy, method, args) -> {
+                    if (method.getName().startsWith("get")) {
+                        return values.getOrDefault(args[0], args[1]);
+                    }
+                    return editor;
+                });
     }
 }

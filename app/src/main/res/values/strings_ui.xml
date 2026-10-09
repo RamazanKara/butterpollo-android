@@ -1,7 +1,7 @@
 <resources>
     <string name="library_computers">Computers</string>
-    <string name="pc_online_paired">Online · Paired</string>
-    <string name="pc_needs_pairing">Online · Needs pairing</string>
+    <string name="pc_online_paired">Online</string>
+    <string name="pc_needs_pairing">Not paired</string>
     <string name="pc_online">Online</string>
     <string name="pc_offline">Offline</string>
     <string name="pc_checking">Checking connection…</string>

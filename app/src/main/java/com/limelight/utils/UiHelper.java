@@ -31,6 +31,17 @@ import java.util.Locale;
 
 public class UiHelper {
 
+    public static void showDialog(Context context, android.app.Dialog dialog) {
+        // Native preferences no longer own the lifecycle of their Material dialogs.
+        androidx.lifecycle.Lifecycle lifecycle = ((androidx.lifecycle.LifecycleOwner) context).getLifecycle();
+        androidx.lifecycle.LifecycleEventObserver observer = (owner, event) -> {
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) dialog.dismiss();
+        };
+        dialog.setOnDismissListener(ignored -> lifecycle.removeObserver(observer));
+        lifecycle.addObserver(observer);
+        dialog.show();
+    }
+
     private static final int TV_VERTICAL_PADDING_DP = 16;
     private static final int TV_HORIZONTAL_PADDING_DP = 16;
 

@@ -18,8 +18,8 @@
     <string name="pcview_menu_app_list">View all apps</string>
     <string name="pcview_menu_pair_pc">Pair</string>
     <string name="pcview_menu_unpair_pc">Unpair</string>
-    <string name="pcview_menu_send_wol">Wake host (Wake-on-LAN)</string>
-    <string name="pcview_menu_delete_pc">Delete host</string>
+    <string name="pcview_menu_send_wol">Wake PC</string>
+    <string name="pcview_menu_delete_pc">Delete PC</string>
     <string name="pcview_menu_details">View details</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
 
@@ -86,7 +86,7 @@
 
     <!-- General strings -->
     <string name="ip_hint">IP address or hostname</string>
-    <string name="searching_pc">Looking for PCs…\n\nStart the host app and put both devices on the same network. Guest Wi-Fi or a VPN may block discovery. Add the PC address manually if it does not appear.</string>
+    <string name="searching_pc">Searching for PCs…</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
@@ -106,8 +106,8 @@
 
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connecting to PC…</string>
-    <string name="applist_menu_resume">Resume Session</string>
-    <string name="applist_menu_quit">Quit Session</string>
+    <string name="applist_menu_resume">Resume</string>
+    <string name="applist_menu_quit">Quit app</string>
     <string name="applist_menu_quit_and_start">Quit Current Game and Start</string>
     <string name="applist_menu_cancel">Cancel</string>
     <string name="applist_menu_details">View Details</string>
@@ -125,7 +125,7 @@
     <string name="applist_details_id">App ID:</string>
 
     <!-- Add computer manually activity -->
-    <string name="title_add_pc">Add streaming host</string>
+    <string name="title_add_pc">Add PC</string>
     <string name="msg_add_pc">Connecting to the PC…</string>
     <string name="addpc_fail">Unable to connect to the host. Check that Butterpollo is running and its ports are allowed through the PC\'s firewall.</string>
     <string name="addpc_success">Host added</string>
@@ -163,7 +163,7 @@
     <string name="title_checkbox_enable_audiofx">Allow system audio effects</string>
     <string name="summary_checkbox_enable_audiofx">Lets equalizers work while streaming. May add audio latency.</string>
 
-    <string name="category_gamepad_settings">Gamepad</string>
+    <string name="category_gamepad_settings">Controllers</string>
     <string name="title_checkbox_multi_controller">Automatic gamepad detection</string>
     <string name="summary_checkbox_multi_controller">When off, the host always sees a gamepad connected</string>
     <string name="title_checkbox_vibrate_fallback">Vibrate device for rumble</string>
@@ -194,7 +194,7 @@
     <string name="title_checkbox_gamepad_motion_fallback">Use device motion sensors</string>
     <string name="summary_checkbox_gamepad_motion_fallback">Use this device’s gyro when the gamepad has none. May appear as a PlayStation controller.</string>
 
-    <string name="category_input_settings">Touch and mouse</string>
+    <string name="category_input_settings">Touch &amp; mouse</string>
     <string name="title_checkbox_touchscreen_trackpad">Touchscreen as trackpad</string>
     <string name="title_trackpad_speed">Trackpad speed</string>
     <string name="title_mouse_speed">Mouse speed</string>
@@ -361,7 +361,7 @@
     <string name="category_codec_settings">Codec and color</string>
     <string name="stream_menu">Butterpollo stream</string>
     <string name="stream_continue">Continue streaming</string>
-    <string name="stream_disconnect">Pause stream / disconnect</string>
+    <string name="stream_disconnect">Disconnect</string>
     <string name="stream_status_unavailable">Host status is unavailable. Disconnecting leaves the host application running so you can resume it from the app list.</string>
     <string name="stream_clipboard_send">Send clipboard to host</string>
     <string name="stream_clipboard_receive">Copy host clipboard</string>
@@ -379,7 +379,7 @@
     <string name="stream_permission_denied">Denied</string>
     <string name="stream_permissions_help">Change these in the host web console under Devices. The host enforces them, along with any app-specific limits.</string>
     <string name="stream_input_denied">Host input is disabled for this device. Open the stream menu to review its permissions.</string>
-    <string name="stream_bitrate">Adjust stream bitrate</string>
+    <string name="stream_bitrate">Bitrate</string>
     <string name="stream_bitrate_help">Bitrate in Mbps for this session only. The host may cap it. Setting it turns off automatic bitrate.</string>
     <string name="stream_bitrate_invalid">Enter a bitrate from 0.5 to 500 Mbps</string>
     <string name="stream_bitrate_applied">Host applied %1$.1f Mbps</string>
@@ -395,26 +395,26 @@
     <string name="videoformat_pyrowave">Prefer PyroWave (experimental, high bandwidth)</string>
     <string name="settings">Settings</string>
     <string name="settings_navigate_up">Navigate up</string>
-    <string name="settings_section_video">Video and display</string>
+    <string name="settings_section_video">Stream</string>
     <string name="settings_section_video_summary">%1$s · %2$s · %3$s · %4$s</string>
     <string name="settings_section_latency">Latency and diagnostics</string>
     <string name="settings_section_latency_summary">%1$s · Performance overlay %2$s</string>
-    <string name="settings_section_input">Controllers, touch and mouse</string>
-    <string name="settings_section_input_summary">Gamepads, touch, mouse and on-screen controls</string>
-    <string name="settings_section_host">Host and audio</string>
+    <string name="settings_section_input">Controls</string>
+    <string name="settings_section_input_summary">Controllers · Touch &amp; mouse · On-screen controls</string>
+    <string name="settings_section_host">Overlay &amp; audio</string>
     <string name="settings_section_host_summary">Game settings, host audio, surround sound</string>
-    <string name="settings_section_app">App and about</string>
-    <string name="settings_section_app_summary">Language, appearance and app options · Version %1$s</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_section_app_summary">Language, help and about · %1$s</string>
     <string name="settings_category_support">Support</string>
     <string name="title_reset_settings">Reset all settings</string>
     <string name="summary_reset_settings">Restore defaults for these settings</string>
     <string name="dialog_reset_settings_title">Reset all settings?</string>
-    <string name="dialog_reset_settings_text">Video, latency, input, host and app settings return to their defaults. Paired PCs, per-PC streaming settings, controller button mappings, your on-screen control layout and the app language are kept.</string>
+    <string name="dialog_reset_settings_text">Stream, controls, overlay, audio, app and advanced settings return to their defaults. Paired PCs, per-PC streaming settings, controller button mappings, your on-screen control layout and the app language are kept.</string>
     <string name="dialog_reset_settings_confirm">Reset</string>
     <string name="toast_reset_settings">Settings reset to defaults</string>
     <string name="addpc_button">Add</string>
     <string name="category_about">About</string>
-    <string name="title_about">Butterpollo Android</string>
+    <string name="title_about">About</string>
     <string name="role_view_only">View only</string>
     <string name="role_input_only">Input only</string>
     <string name="stream_monitor_title">Remote Monitor</string>

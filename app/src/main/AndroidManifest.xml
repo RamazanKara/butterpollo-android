@@ -149,6 +149,12 @@
             <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
         </activity>
         <activity
+            android:name=".preferences.HostStreamSettings"
+            android:resizeableActivity="true"
+            android:enableOnBackInvokedCallback="true"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+        <activity
             android:name=".preferences.ControllerMappingActivity"
             android:resizeableActivity="true"
             android:enableOnBackInvokedCallback="true"
@@ -156,6 +162,7 @@
             android:label="@string/controller_mapping_title" />
         <activity
             android:name=".preferences.AddComputerManually"
+            android:theme="@style/AddPcTheme"
             android:resizeableActivity="true"
             android:windowSoftInputMode="stateVisible|adjustResize"
             android:enableOnBackInvokedCallback="true"

@@ -12,10 +12,10 @@
         </FrameLayout>
         <TextView android:id="@+id/grid_text" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="8dp" android:textSize="16sp" android:textColor="@color/on_surface"
-            android:minLines="2" android:maxLines="2" android:ellipsize="end" />
+            android:minLines="2" />
         <TextView android:id="@+id/grid_role" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" android:padding="6dp"
-            android:background="@drawable/dialog_background" android:drawablePadding="4dp"
+            android:layout_marginTop="8dp" android:padding="8dp"
+            android:background="@drawable/dialog_background" android:drawablePadding="8dp"
             android:textSize="14sp" android:textColor="@color/on_surface" android:visibility="gone" />
         <TextView android:id="@+id/grid_actions" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:minHeight="48dp" android:minLines="2" android:gravity="center_vertical"

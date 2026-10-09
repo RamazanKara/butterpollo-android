@@ -114,7 +114,7 @@ import java.lang.reflect.Method;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
+import com.limelight.ui.ActionSheet;
 import java.util.HashMap;
 import java.math.BigDecimal;
 import java.util.Locale;
@@ -161,7 +161,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean attemptedConnection = false;
     private Thread connectionStopThread;
     private int suppressPipRefCount = 0;
-    private AlertDialog streamMenu;
+    private android.app.Dialog streamMenu;
     private Runnable streamMenuAction;
     private androidx.appcompat.app.AlertDialog launchConfirmationDialog;
     private LaunchConfirmation pendingConfirmation;
@@ -1436,7 +1436,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
     }
 
-    private void showStreamDialog(AlertDialog dialog) {
+    private void showStreamDialog(android.app.Dialog dialog) {
         setInputGrabState(false);
         suppressPipRefCount++;
         updatePipAutoEnter();
@@ -1473,82 +1473,133 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
         restoreInputAfterMenu = grabbedInput;
         ComputerDetails details = conn.getHostDetails();
-        ArrayList<String> labels = new ArrayList<>();
-        ArrayList<Runnable> actions = new ArrayList<>();
-        // Everyday controls first, host tools next, and leaving the stream last
-        labels.add(getString(R.string.stream_continue));
-        actions.add(() -> {});
+        ActionSheet sheet = new ActionSheet(this, getString(app.getRole() == NvApp.Role.REMOTE_MONITOR ?
+                R.string.stream_monitor_title : app.getRole() == NvApp.Role.INPUT_ONLY ?
+                R.string.stream_input_title : R.string.stream_menu));
         if (conn.canSendInput()) {
-            labels.add(getString(R.string.stream_keyboard));
-            actions.add(this::toggleKeyboard);
-            labels.add(getString(R.string.stream_touch_mode));
-            actions.add(this::showTouchModeDialog);
-            labels.add(getString(prefConfig.onscreenController ? R.string.stream_controls_hide : R.string.stream_controls_show));
-            actions.add(() -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
-            if (prefConfig.onscreenController) {
-                labels.add(getString(R.string.stream_controls_layout));
-                actions.add(this::showControllerLayoutDialog);
-            }
+            addStreamAction(sheet, R.drawable.ic_keyboard, R.string.stream_keyboard, this::toggleKeyboard);
+            addStreamAction(sheet, R.drawable.ic_input_only, R.string.stream_input_menu, this::showInputMenu);
         }
         if (app.getRole() != NvApp.Role.INPUT_ONLY) {
-            labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
-            actions.add(this::togglePerformanceOverlay);
-            labels.add(getString(compactPerformanceOverlay ? R.string.overlay_advanced : R.string.overlay_compact));
-            actions.add(this::togglePerformanceOverlayMode);
-            labels.add(getString(R.string.overlay_copy));
-            actions.add(this::copyPerformanceStats);
+            addStreamAction(sheet, R.drawable.ic_remote_monitor, R.string.stream_overlay_menu, this::showOverlayMenu);
             if (details.rustHostVersion != null &&
                     details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
-                labels.add(getString(R.string.stream_bitrate));
-                actions.add(this::showBitrateDialog);
-                if (supportsAdaptiveBitrate()) {
-                    labels.add(getString(!isAdaptiveBitrateEnabled() ? R.string.stream_auto_bitrate_enable :
-                            R.string.stream_auto_bitrate_disable));
-                    actions.add(() -> {
-                        boolean enable = !isAdaptiveBitrateEnabled();
-                        if (!enable || !hostActionInProgress) {
-                            setAdaptiveBitrateEnabled(enable);
-                            if (enable) {
-                                Toast.makeText(this, pyroWaveBitrate != null ? R.string.stream_pyrowave_bitrate_help :
-                                        R.string.stream_auto_bitrate_help, Toast.LENGTH_LONG).show();
-                            }
-                        } else {
-                            Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
+                addStreamAction(sheet, R.drawable.ic_network, R.string.stream_bitrate, this::showBitrateMenu);
             }
         }
+        if ((app.getRole() != NvApp.Role.REMOTE_MONITOR && details.canWriteClipboard()) || details.canReadClipboard()) {
+            addStreamAction(sheet, R.drawable.ic_clipboard, R.string.stream_clipboard_menu, this::showClipboardMenu);
+        }
+        addStreamAction(sheet, R.drawable.ic_terminal, R.string.stream_host_menu, this::showHostMenu);
+        sheet.addDivider();
+        addStreamAction(sheet, R.drawable.ic_close, R.string.stream_disconnect, this::finish);
+        if (details.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+            if (app.getRole() == NvApp.Role.STREAM) {
+                addStreamAction(sheet, R.drawable.ic_stop, R.string.stream_quit_app, this::confirmQuitApp);
+            } else {
+                addStreamAction(sheet, R.drawable.ic_stop, app.getRole() == NvApp.Role.REMOTE_MONITOR ?
+                        R.string.stream_end_monitor : R.string.stream_end_input, this::endRemoteSession);
+            }
+        }
+        showStreamDialog(sheet);
+    }
+
+    private void addStreamAction(ActionSheet sheet, int icon, int label, Runnable action) {
+        sheet.addAction(icon, getString(label)).setOnClickListener(v -> {
+            streamMenuAction = action;
+            sheet.dismiss();
+        });
+    }
+
+    private void showInputMenu() {
+        if (!conn.canSendInput()) return;
+        ActionSheet sheet = new ActionSheet(this, getString(R.string.stream_input_menu));
+        addStreamAction(sheet, R.drawable.ic_input_only, R.string.stream_touch_mode, this::showTouchModeDialog);
+        addStreamAction(sheet, R.drawable.ic_input_only, prefConfig.onscreenController ?
+                R.string.stream_controls_hide : R.string.stream_controls_show,
+                () -> setOnscreenControlsEnabled(!prefConfig.onscreenController));
+        if (prefConfig.onscreenController) {
+            addStreamAction(sheet, R.drawable.ic_settings, R.string.stream_controls_layout, this::showControllerLayoutDialog);
+        }
+        showStreamDialog(sheet);
+    }
+
+    private void showOverlayMenu() {
+        ActionSheet sheet = new ActionSheet(this, getString(R.string.stream_overlay_menu));
+        addStreamAction(sheet, R.drawable.ic_remote_monitor, prefConfig.enablePerfOverlay ?
+                R.string.stream_overlay_hide : R.string.stream_overlay_show, this::togglePerformanceOverlay);
+        addStreamAction(sheet, compactPerformanceOverlay ? R.drawable.ic_check : R.drawable.ic_remote_monitor,
+                R.string.overlay_compact, () -> { if (!compactPerformanceOverlay) togglePerformanceOverlayMode(); });
+        addStreamAction(sheet, !compactPerformanceOverlay ? R.drawable.ic_check : R.drawable.ic_remote_monitor,
+                R.string.overlay_advanced, () -> { if (compactPerformanceOverlay) togglePerformanceOverlayMode(); });
+        addStreamAction(sheet, R.drawable.ic_clipboard, R.string.overlay_copy, this::copyPerformanceStats);
+        showStreamDialog(sheet);
+    }
+
+    private void showBitrateMenu() {
+        ActionSheet sheet = new ActionSheet(this, getString(R.string.stream_bitrate));
+        addStreamAction(sheet, R.drawable.ic_network, R.string.stream_bitrate_manual, this::showBitrateDialog);
+        if (supportsAdaptiveBitrate()) {
+            addStreamAction(sheet, R.drawable.ic_network, isAdaptiveBitrateEnabled() ?
+                    R.string.stream_auto_bitrate_disable : R.string.stream_auto_bitrate_enable, () -> {
+                boolean enable = !isAdaptiveBitrateEnabled();
+                if (!enable || !hostActionInProgress) {
+                    setAdaptiveBitrateEnabled(enable);
+                    if (enable) {
+                        Toast.makeText(this, pyroWaveBitrate != null ? R.string.stream_pyrowave_bitrate_help :
+                                R.string.stream_auto_bitrate_help, Toast.LENGTH_LONG).show();
+                    }
+                } else {
+                    Toast.makeText(this, R.string.stream_bitrate_busy, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        showStreamDialog(sheet);
+    }
+
+    private void showClipboardMenu() {
+        ComputerDetails details = conn.getHostDetails();
+        ActionSheet sheet = new ActionSheet(this, getString(R.string.stream_clipboard_menu));
         if (app.getRole() != NvApp.Role.REMOTE_MONITOR && details.canWriteClipboard()) {
-            labels.add(getString(R.string.stream_clipboard_send));
-            actions.add(() -> transferClipboard(true));
+            addStreamAction(sheet, R.drawable.ic_clipboard, R.string.stream_clipboard_send, () -> transferClipboard(true));
         }
         if (details.canReadClipboard()) {
-            labels.add(getString(R.string.stream_clipboard_receive));
-            actions.add(() -> transferClipboard(false));
+            addStreamAction(sheet, R.drawable.ic_clipboard, R.string.stream_clipboard_receive, () -> transferClipboard(false));
         }
+        showStreamDialog(sheet);
+    }
+
+    private void showHostMenu() {
+        ComputerDetails details = conn.getHostDetails();
+        ActionSheet sheet = new ActionSheet(this, getString(R.string.stream_host_menu));
         if (app.getRole() != NvApp.Role.REMOTE_MONITOR && details.canRunServerCommand(0)) {
-            labels.add(getString(R.string.stream_server_commands));
-            actions.add(() -> showServerCommands(details));
+            addStreamAction(sheet, R.drawable.ic_terminal, R.string.stream_server_commands, () -> showServerCommands(details));
         }
-        labels.add(getString(R.string.stream_host_status));
-        actions.add(this::refreshHostStatus);
-        labels.add(getString(R.string.stream_reconnect));
-        actions.add(this::reconnectStream);
-        if (app.getRole() != NvApp.Role.STREAM && details.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
-            labels.add(getString(app.getRole() == NvApp.Role.REMOTE_MONITOR ?
-                    R.string.stream_end_monitor : R.string.stream_end_input));
-            actions.add(this::endRemoteSession);
-        }
-        labels.add(getString(R.string.stream_disconnect));
-        actions.add(this::finish);
-        showStreamDialog(new MaterialAlertDialogBuilder(this)
-                .setTitle(app.getRole() == NvApp.Role.REMOTE_MONITOR ? R.string.stream_monitor_title :
-                        app.getRole() == NvApp.Role.INPUT_ONLY ? R.string.stream_input_title : R.string.stream_menu)
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                    streamMenuAction = actions.get(which);
-                    dialog.dismiss();
-                }).create());
+        addStreamAction(sheet, R.drawable.ic_help, R.string.stream_host_status, this::refreshHostStatus);
+        addStreamAction(sheet, R.drawable.ic_play, R.string.stream_reconnect, this::reconnectStream);
+        showStreamDialog(sheet);
+    }
+
+    private void confirmQuitApp() {
+        showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.stream_quit_app)
+                .setMessage(R.string.applist_quit_confirmation).setNegativeButton(R.string.no, null)
+                .setPositiveButton(R.string.yes, (dialog, which) -> streamMenuAction = this::quitStreamApp).create());
+    }
+
+    private void quitStreamApp() {
+        if (hostActionInProgress || !foreground || !connected) return;
+        int generation = foregroundGeneration;
+        hostActionInProgress = true;
+        new Thread(() -> {
+            try {
+                conn.quitApp();
+                runOnUiThread(this::finish);
+            } catch (IOException | XmlPullParserException e) {
+                showHostActionError(e, generation);
+            } finally {
+                runOnUiThread(() -> hostActionInProgress = false);
+            }
+        }, "Quit stream app").start();
     }
 
     private void endRemoteSession() {

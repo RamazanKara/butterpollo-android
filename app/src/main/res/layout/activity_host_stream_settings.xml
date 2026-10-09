@@ -1,0 +1,13 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/host_profile_toolbar"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="64dp"
+        app:title="@string/host_profile_menu" app:navigationIcon="@drawable/ic_arrow_back"
+        app:navigationContentDescription="@string/settings_navigate_up" />
+    <FrameLayout android:id="@+id/host_profile_settings" android:layout_width="match_parent"
+        android:layout_height="0dp" android:layout_weight="1" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/host_profile_save"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16dp"
+        android:minHeight="48dp" android:text="@string/host_profile_save" />
+</LinearLayout>

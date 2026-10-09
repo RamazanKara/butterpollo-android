@@ -2,7 +2,8 @@
 
 Needs Python 3 and the android-35 sunset AVD (Google APIs, not Google Play).
 Uses a disposable, read-only AVD session and a loopback serverinfo fixture.
-This checks UI rendering, manual discovery and frontend errors, not pairing or live streaming.
+This checks UI rendering, navigation, manual discovery and the pairing prompt.
+Pairing completion and the stream menu require a real host and phone.
 """
 import argparse
 import http.server
@@ -23,7 +24,7 @@ ADB = SDK / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
 EMULATOR = SDK / "emulator" / ("emulator.exe" if os.name == "nt" else "emulator")
 SERIAL = "emulator-5554"
 PACKAGE = "com.butterpollo.client"
-SHOTS = ROOT / "docs/screenshots"
+SHOTS = ROOT / "docs/screenshots/ui-v2"
 LOGS = ROOT / "app/build/emulator-smoke"
 HOST_NAME = "Butterpollo smoke fixture"
 DEBUGGABLE = True
@@ -85,28 +86,30 @@ def host_menu(item=None):
     x, y = str((x1+x2)//2), str((y1+y2)//2)
     adb("shell", "input", "swipe", x, y, x, y, "1000")
     if item is not None:
-        tap(item)
+        tap(item, scroll=True)
 
 
 def open_host_profile():
     host_menu("Streaming settings for this PC")
-    find(f"{HOST_NAME} streaming settings")
+    find("Streaming settings for this PC")
 
 
 def profile_number(label, value):
-    # Width and height share a row and are found by their content description
+    rows = {"Width": "Video resolution", "Height": "Video resolution",
+            "Refresh rate (Hz)": "Video frame rate", "Bitrate (Mbps)": "Video bitrate"}
     fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
               and n.get("content-desc") == label]
     if not fields:
-        label_bottom = bounds(find(label, scroll=True))[3]
+        tap(rows[label], scroll=True)
         fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
-                  and bounds(n)[1] >= label_bottom]
-    field = min(fields, key=lambda n: bounds(n)[1])
+                  and n.get("content-desc") == label]
+    field = fields[0]
     x1, y1, x2, y2 = bounds(field)
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
     adb("shell", "input", "keyevent", "123", *("67" for _ in range(len(field.get("text", "")))))
     adb("shell", "input", "text", value)
     adb("shell", "input", "keyevent", "4")
+    tap("android:id/button1")
 
 
 def prefs(name, check, message):
@@ -130,10 +133,9 @@ def screenshot(name):
     ui = tree()
     png = adb("exec-out", "screencap", "-p", binary=True)
     try:
-        # Keep committed screenshots small: half size, 128-color palette
+        # Retain native dimensions for font and touch-target review.
         from PIL import Image
         image = Image.open(io.BytesIO(png))
-        image = image.resize((image.width // 2, image.height // 2), Image.LANCZOS)
         image.quantize(128).save(SHOTS.joinpath(name + ".png"), optimize=True)
     except ImportError:
         SHOTS.joinpath(name + ".png").write_bytes(png)
@@ -161,8 +163,75 @@ def frontend_entry(name, contents):
     raise AssertionError(f"MediaStore did not index {remote}: {rows}")
 
 
+def capture_ui_set(width, font):
+    prefix = f"{width}dp-font-{font:g}"
+    adb("shell", "am", "force-stop", PACKAGE)
+    adb("shell", "wm", "size", f"{width * 2}x1704")
+    adb("shell", "wm", "density", "320")
+    adb("shell", "wm", "user-rotation", "lock", "0")
+    adb("shell", "settings", "put", "system", "font_scale", str(font))
+    adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
+    find(HOST_NAME)
+    screenshot(prefix + "-home-host")
+    host_menu()
+    find("Pairing")
+    find("This PC")
+    screenshot(prefix + "-pc-sheet")
+    adb("shell", "input", "keyevent", "4")
+    open_host_profile()
+    find("Use global settings")
+    assert find("Video resolution").get("enabled") == "false"
+    tap("Use global settings")
+    assert find("Video resolution").get("enabled") == "true"
+    screenshot(prefix + "-per-pc")
+    tap("Navigate up")
+    tap(f"{PACKAGE}:id/settingsButton")
+    find("Presets")
+    screenshot(prefix + "-settings-root")
+    for title, name, setting in (("Stream", "stream", "Video resolution"),
+                                 ("Controls", "controls", "Controller buttons"),
+                                 ("Advanced", "advanced", "Frame pacing")):
+        tap(title, scroll=True)
+        find(setting)
+        screenshot(prefix + "-" + name)
+        tap("Navigate up")
+    tap(f"{PACKAGE}:id/search_src_text")
+    adb("shell", "input", "text", "compatibility")
+    adb("shell", "input", "keyevent", "4")
+    find("Compatibility video view")
+    screenshot(prefix + "-settings-search")
+    tap("Compatibility video view")
+    find("Advanced")
+    find("Compatibility video view", scroll=True)
+    tap("Navigate up")
+    tap("Navigate up")
+    tap(HOST_NAME)
+    find("Pair Butterpollo Android")
+    screenshot(prefix + "-pairing-pin")
+    tap("android:id/button2")
+    find(HOST_NAME)
+    host_menu("Delete PC")
+    tap("android:id/button1")
+    find("Searching for PCs…")
+    screenshot(prefix + "-home-empty")
+    tap(f"{PACKAGE}:id/discovery_add")
+    tap(f"{PACKAGE}:id/hostTextView")
+    adb("shell", "input", "text", "127.0.0.1:47989")
+    tap(f"{PACKAGE}:id/addPcButton")
+    find(HOST_NAME)
+    if DEBUGGABLE:
+        adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
+        find(f"{PACKAGE}:id/performanceOverlay")
+        screenshot(prefix + "-overlay-compact")
+        adb("shell", "input", "keyevent", "4")
+
+
 class HostFixture(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path.split("?", 1)[0] == "/pair":
+            # Hold the real pairing prompt open without completing a synthetic pairing.
+            self.server.pairing_wait.wait(60)
+            return
         if self.path.split("?", 1)[0] != "/serverinfo":
             self.send_error(404)
             return
@@ -203,6 +272,7 @@ def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
     LOGS.mkdir(parents=True, exist_ok=True)
     fixture = http.server.ThreadingHTTPServer(("127.0.0.1", 0), HostFixture)
+    fixture.pairing_wait = threading.Event()
     threading.Thread(target=fixture.serve_forever, daemon=True).start()
     with LOGS.joinpath("emulator.log").open("w") as log:
         process = subprocess.Popen([str(EMULATOR), "-avd", "sunset", "-read-only",
@@ -263,6 +333,10 @@ def main():
                 LOGS.mkdir(parents=True, exist_ok=True)
             version = re.search(r"versionName=(\S+)", package_info).group(1)
             adb("shell", "pm", "clear", PACKAGE)
+            adb("shell", "cmd", "locale", "set-app-locales", PACKAGE, "--user", "0", "--locales", "en")
+            adb("shell", "wm", "size", "786x1704")
+            adb("shell", "wm", "density", "320")
+            adb("shell", "settings", "put", "system", "font_scale", "1.0")
             adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
             adb("shell", "svc", "wifi", "disable")
             adb("shell", "svc", "data", "disable")
@@ -273,7 +347,7 @@ def main():
             find("Connect to your PC")
             screenshot("01-launch")
             tap("android:id/button1")
-            tap(f"{PACKAGE}:id/manuallyAddPc")
+            tap(f"{PACKAGE}:id/discovery_add")
             tap(f"{PACKAGE}:id/hostTextView")
             adb("shell", "input", "text", "127.0.0.1:47989")
             screenshot("02-manual-host")
@@ -294,31 +368,40 @@ def main():
             screenshot("15-host-details")
             tap("android:id/button1")
             open_host_profile()
-            find("This PC uses your global settings. Save to give it its own.")
+            find("Use global settings")
+            assert find("Video resolution").get("enabled") == "false", "Global fields should be disabled"
+            tap("Use global settings")
             profile_number("Width", "0")
-            tap("android:id/button1")
-            find(f"{HOST_NAME} streaming settings")
+            find("Enter a whole number from 64 to 16384")
             profile_number("Width", "1920")
             profile_number("Height", "1080")
             profile_number("Refresh rate (Hz)", "59.94")
             profile_number("Bitrate (Mbps)", "45.5")
             screenshot("09-host-profile")
-            tap("android:id/button1")
+            tap(f"{PACKAGE}:id/host_profile_save")
             prefs("HostStreamProfiles", lambda root: any(
                 n.get("name") == "00000000-0000-4000-8000-000000000006" and
                 (n.text or "").startswith("1920,1080,5994,45500,") for n in root), "Host profile was not saved")
             open_host_profile()
-            find("This PC has its own settings. Use global settings to remove them.")
-            find("59.94")
+            find("Use global settings")
+            find("59.94 Hz")
             find("Prefer YUV 4:4:4", scroll=True)
             screenshot("10-host-codec-profile")
-            tap("android:id/button3")
+            tap("Use global settings", scroll="up")
+            tap(f"{PACKAGE}:id/host_profile_save")
             prefs("HostStreamProfiles", lambda root: not list(root), "Host profile reset did not clear overrides")
             tap(f"{PACKAGE}:id/settingsButton")
-            find("Reset all settings")
+            find("Presets")
             screenshot("04-settings")
-            tap("Video and display")
-            find("Display")
+            tap("Battery saver")
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "list_fps" and n.text == "30" for n in root), "Battery saver was not applied")
+            tap("Balanced")
+            prefs(f"{PACKAGE}_preferences", lambda root: any(
+                n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "15000" for n in root),
+                "Balanced was not applied")
+            tap("Stream")
+            find("Video resolution")
             screenshot("05-video-settings")
             tap("Video bitrate")
             tap("80")
@@ -331,23 +414,22 @@ def main():
                 "Bitrate was not stored in kbps")
             tap("Video codec", scroll=True)
             tap("Prefer PyroWave (experimental, high bandwidth)")
-            for _ in range(10):
-                time.sleep(1)
-                summary = find("Prefer PyroWave (experimental, high bandwidth)", scroll=True)
-                if "\nNot supported: " in summary.get("text", "") or "\nReady on this phone" in summary.get("text", ""):
-                    break
-            assert "\nNot supported: " in summary.get("text", "") or "\nReady on this phone" in summary.get("text", ""), summary.attrib
+            tap("Video codec")
+            tap("android:id/button3")
+            help_text = " ".join(n.get("text", "") for n in tree().iter("node"))
+            assert "Not supported: " in help_text or "Ready on this phone" in help_text, help_text
             screenshot("20-pyrowave-readiness")
+            tap("android:id/button1")
             tap("Video codec")
             tap("Automatic (recommended)")
             for _ in range(3):
                 adb("shell", "input", "keyevent", "4")
                 time.sleep(1)
-                if any("1280×720 · 60 FPS · 81 Mbps · Automatic" in n.get("text", "") for n in tree().iter("node")):
+                if any("720p · 60 FPS · 81 Mbps · Automatic" in n.get("text", "") for n in tree().iter("node")):
                     break
-            find("1280×720 · 60 FPS · 81 Mbps · Automatic")
-            tap("Video and display")
-            find("Host display", scroll=True)
+            find("720p · 60 FPS · 81 Mbps · Automatic")
+            find("Custom")
+            tap("Stream")
             vrr = "Variable refresh (VRR)"
             tap(vrr, scroll=True)
             prefs(f"{PACKAGE}_preferences", lambda root: any(
@@ -358,13 +440,12 @@ def main():
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find(HOST_NAME)
             tap(f"{PACKAGE}:id/settingsButton")
-            tap("Video and display")
-            find("Host display", scroll=True)
+            tap("Stream")
             find(vrr, scroll=True)
             row = next(n for n in tree().iter("node") if n.get("clickable") == "true" and
                        any(child.get("text") == vrr for child in n.iter("node")))
             assert any(n.get("checked") == "true" for n in row.iter("node")), \
-                "VRR checkbox was not restored after restarting the app"
+                "VRR switch was not restored after restarting the app"
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "checkbox_vrr" and n.get("value") == "true" for n in root),
                 "VRR preference did not persist after restarting the app")
@@ -373,7 +454,7 @@ def main():
                 n.get("name") == "checkbox_vrr" and n.get("value") == "false" for n in root),
                 "VRR preference could not be disabled")
             tap("Navigate up")
-            tap("Latency and diagnostics")
+            tap("Advanced")
             find("Android low-latency mode", scroll=True)
             hints = "Phone performance hints"
             tap(hints, scroll=True)
@@ -394,15 +475,16 @@ def main():
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find(overlay)
             tap("Navigate up")
-            tap("App and about")
-            find("Butterpollo Android", scroll=True)
+            tap("App")
+            tap("About", scroll=True)
             screenshot("14-settings-about")
             summary = next((n.get("text", "") for n in tree().iter("node")
                             if "Moonlight" in n.get("text", "")), "")
             assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
             assert f"Version {version}" in summary, "About entry does not show the installed app version"
+            tap("android:id/button1")
             tap("Navigate up")
-            tap("Controllers, touch and mouse")
+            tap("Controls")
             tap("Controller buttons", scroll=True)
             find("Waiting for a button press…")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
@@ -416,9 +498,11 @@ def main():
             adb("shell", "input", "keyevent", "4")
             find("Controller buttons")
             tap("Navigate up")
-            tap("Reset all settings")
+            tap("App")
+            tap("Reset all settings", scroll=True)
             tap("android:id/button1")
-            find("1280×720 · 60 FPS · 10 Mbps · Automatic")
+            tap("Navigate up")
+            find("720p · 60 FPS · 10 Mbps · Automatic")
             prefs(f"{PACKAGE}_preferences", lambda root: not any(
                 n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
                 "Reset kept the overlay setting")
@@ -483,7 +567,7 @@ def main():
             if app_crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
             overlay_result = "overlay rendering" if DEBUGGABLE else "overlay settings (live rendering needs a paired host)"
-            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, {overlay_result} and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: pairing guide and PIN prompt, manual discovery, OTP and details dialogs, host profile validation/save/reset, grouped sheets, settings screens and search at 393/412 dp and font scale 1.3, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, {overlay_result} and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
@@ -500,6 +584,7 @@ def main():
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=10)
+            fixture.pairing_wait.set()
             fixture.shutdown()
             fixture.server_close()
 

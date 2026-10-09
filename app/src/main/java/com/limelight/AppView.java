@@ -34,23 +34,20 @@ import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.view.ContextMenu;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
-import android.view.ContextMenu.ContextMenuInfo;
+import com.limelight.ui.ActionSheet;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.AdapterView.AdapterContextMenuInfo;
 
 import org.xmlpull.v1.XmlPullParserException;
 
 public class AppView extends AppCompatActivity implements AdapterFragmentCallbacks {
     private AppGridAdapter appGridAdapter;
+    private ActionSheet appMenu;
     private String uuidString;
     private ShortcutHelper shortcutHelper;
 
@@ -402,65 +399,61 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         super.onPause();
 
         inForeground = false;
+        if (appMenu != null) appMenu.dismiss();
         stopComputerUpdates();
     }
 
-    @Override
-    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) {
-        super.onCreateContextMenu(menu, v, menuInfo);
-
-        AdapterContextMenuInfo info = (AdapterContextMenuInfo) menuInfo;
-        AppObject selectedApp = (AppObject) appGridAdapter.getItem(info.position);
-
-        menu.setHeaderTitle(selectedApp.app.getAppName());
-
+    private void showAppMenu(AppObject selectedApp, View selectedView) {
+        if (appMenu != null) return;
+        ActionSheet sheet = new ActionSheet(this, selectedApp.app.getAppName());
+        appMenu = sheet;
+        suspendGridUpdates = true;
         if (selectedApp.app.getControl() != NvApp.Control.NONE) {
-            menu.add(Menu.NONE, START_OR_RESUME_ID, 1, selectedApp.app.getAppName().trim());
+            addAppAction(sheet, selectedApp, selectedView, START_OR_RESUME_ID,
+                    R.drawable.ic_play, selectedApp.app.getAppName().trim());
         } else if (lastRunningAppId != 0) {
             if (selectedApp.isRunning) {
-                menu.add(Menu.NONE, START_OR_RESUME_ID, 1, getResources().getString(R.string.applist_menu_resume));
-                menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit))
-                        .setEnabled(computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
-            }
-            else {
-                menu.add(Menu.NONE, START_WITH_QUIT, 1, getResources().getString(R.string.applist_menu_quit_and_start))
-                        .setEnabled(computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH));
-            }
-        }
-
-        // Only show the hide checkbox if this is not the currently running app or it's already hidden
-        if (!selectedApp.isRunning || selectedApp.isHidden) {
-            MenuItem hideAppItem = menu.add(Menu.NONE, HIDE_APP_ID, 3, getResources().getString(R.string.applist_menu_hide_app));
-            hideAppItem.setCheckable(true);
-            hideAppItem.setChecked(selectedApp.isHidden);
-        }
-
-        menu.add(Menu.NONE, VIEW_DETAILS_ID, 4, getResources().getString(R.string.applist_menu_details));
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Only add an option to create shortcut if box art is loaded
-            // and when we're in grid-mode (not list-mode).
-            ImageView appImageView = info.targetView.findViewById(R.id.grid_image);
-            if (appImageView != null) {
-                // We have a grid ImageView, so we must be in grid-mode
-                BitmapDrawable drawable = (BitmapDrawable)appImageView.getDrawable();
-                if (drawable != null && drawable.getBitmap() != null) {
-                    // We have a bitmap loaded too
-                    menu.add(Menu.NONE, CREATE_SHORTCUT_ID, 5, getResources().getString(R.string.applist_menu_scut));
+                addAppAction(sheet, selectedApp, selectedView, START_OR_RESUME_ID,
+                        R.drawable.ic_play, getString(R.string.applist_menu_resume));
+                if (computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+                    addAppAction(sheet, selectedApp, selectedView, QUIT_ID,
+                            R.drawable.ic_stop, getString(R.string.applist_menu_quit));
                 }
+            } else if (computer.hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+                addAppAction(sheet, selectedApp, selectedView, START_WITH_QUIT,
+                        R.drawable.ic_play, getString(R.string.applist_menu_quit_and_start));
             }
         }
+        if (!selectedApp.isRunning || selectedApp.isHidden) {
+            addAppAction(sheet, selectedApp, selectedView, HIDE_APP_ID, R.drawable.ic_library,
+                    getString(selectedApp.isHidden ? R.string.applist_menu_show_app : R.string.applist_menu_hide_app));
+        }
+        addAppAction(sheet, selectedApp, selectedView, VIEW_DETAILS_ID,
+                R.drawable.ic_help, getString(R.string.applist_menu_details));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ImageView image = selectedView.findViewById(R.id.grid_image);
+            if (image != null && image.getDrawable() instanceof BitmapDrawable &&
+                    ((BitmapDrawable) image.getDrawable()).getBitmap() != null) {
+                addAppAction(sheet, selectedApp, selectedView, CREATE_SHORTCUT_ID,
+                        R.drawable.ic_add, getString(R.string.applist_menu_scut));
+            }
+        }
+        sheet.setOnDismissListener(dialog -> {
+            appMenu = null;
+            suspendGridUpdates = false;
+        });
+        sheet.show();
     }
 
-    @Override
-    public void onContextMenuClosed(Menu menu) {
+    private void addAppAction(ActionSheet sheet, AppObject app, View view, int action, int icon, String label) {
+        sheet.addAction(icon, label).setOnClickListener(v -> {
+            sheet.dismiss();
+            onAppAction(app, view, action);
+        });
     }
 
-    @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
-        final AppObject app = (AppObject) appGridAdapter.getItem(info.position);
-        switch (item.getItemId()) {
+    private boolean onAppAction(AppObject app, View view, int action) {
+        switch (action) {
             case START_WITH_QUIT:
                 // Display a confirmation dialog first
                 UiHelper.displayQuitConfirmationDialog(this, new Runnable() {
@@ -502,7 +495,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 return true;
 
             case HIDE_APP_ID:
-                if (item.isChecked()) {
+                if (app.isHidden) {
                     // Transitioning hidden to shown
                     hiddenAppIds.remove(app.app.getAppId());
                 }
@@ -514,7 +507,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 return true;
 
             case CREATE_SHORTCUT_ID:
-                ImageView appImageView = info.targetView.findViewById(R.id.grid_image);
+                ImageView appImageView = view.findViewById(R.id.grid_image);
                 Bitmap appBits = ((BitmapDrawable)appImageView.getDrawable()).getBitmap();
                 if (!shortcutHelper.createPinnedGameShortcut(computer, app.app, appBits)) {
                     Toast.makeText(AppView.this, getResources().getString(R.string.unable_to_pin_shortcut), Toast.LENGTH_LONG).show();
@@ -522,7 +515,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 return true;
 
             default:
-                return super.onContextItemSelected(item);
+                return false;
         }
     }
 
@@ -657,6 +650,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
     @Override
     public void receiveAbsListView(AbsListView listView) {
+        int columnDp = PreferenceConfiguration.readPreferences(this).smallIconMode ? 104 : 160;
+        float fontScale = Math.max(1, getResources().getConfiguration().fontScale);
+        ((android.widget.GridView) listView).setColumnWidth(Math.round(columnDp * fontScale *
+                getResources().getDisplayMetrics().density));
         listView.setAdapter(appGridAdapter);
         listView.setOnItemClickListener(new OnItemClickListener() {
             @Override
@@ -666,13 +663,16 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
                 // Only open the context menu if something is running, otherwise start it
                 if (lastRunningAppId != 0 && app.app.getControl() == NvApp.Control.NONE) {
-                    openContextMenu(arg1);
+                    showAppMenu(app, arg1);
                 } else {
                     ServerHelper.doStart(AppView.this, app.app, computer, managerBinder);
                 }
             }
         });
-        registerForContextMenu(listView);
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            showAppMenu((AppObject) appGridAdapter.getItem(position), view);
+            return true;
+        });
         listView.requestFocus();
     }
 

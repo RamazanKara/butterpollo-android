@@ -24,6 +24,8 @@ import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
@@ -40,6 +42,7 @@ import android.widget.Toast;
 
 public class AddComputerManually extends AppCompatActivity {
     private TextView hostText;
+    private BottomSheetDialog addDialog;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private final LinkedBlockingQueue<String> computersToAdd = new LinkedBlockingQueue<>();
     private Thread addThread;
@@ -253,6 +256,10 @@ public class AddComputerManually extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (addDialog != null) {
+            addDialog.setOnDismissListener(null);
+            addDialog.dismiss();
+        }
         super.onDestroy();
 
         joinAddThread();
@@ -269,12 +276,17 @@ public class AddComputerManually extends AppCompatActivity {
 
         UiHelper.setLocale(this);
 
-        setContentView(R.layout.activity_add_computer_manually);
-        findViewById(R.id.add_pc_back).setOnClickListener(v -> finish());
+        setContentView(new android.widget.FrameLayout(this));
+        View content = getLayoutInflater().inflate(R.layout.activity_add_computer_manually, null);
+        addDialog = new BottomSheetDialog(this);
+        addDialog.setContentView(content);
+        addDialog.setOnDismissListener(dialog -> finish());
+        content.findViewById(R.id.add_pc_back).setOnClickListener(v -> finish());
 
         UiHelper.notifyNewRootView(this);
 
-        this.hostText = findViewById(R.id.hostTextView);
+        this.hostText = content.findViewById(R.id.hostTextView);
+        if (savedInstanceState != null) hostText.setText(savedInstanceState.getString("address", ""));
         hostText.setImeOptions(EditorInfo.IME_ACTION_DONE);
         hostText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
@@ -296,16 +308,26 @@ public class AddComputerManually extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.addPcButton).setOnClickListener(new View.OnClickListener() {
+        content.findViewById(R.id.addPcButton).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 handleDoneEvent();
             }
         });
 
+        addDialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        addDialog.show();
+        addDialog.getBehavior().setState(BottomSheetBehavior.STATE_EXPANDED);
+
         // Bind to the ComputerManager service
         managerServiceBound = bindService(new Intent(AddComputerManually.this,
                     ComputerManagerService.class), serviceConnection, Service.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putString("address", hostText.getText().toString());
     }
 
     // Returns true if the event should be eaten

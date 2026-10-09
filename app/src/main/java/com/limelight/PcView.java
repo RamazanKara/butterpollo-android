@@ -50,22 +50,17 @@ import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.text.InputFilter;
 import android.text.InputType;
-import android.view.ContextMenu;
-import android.view.Menu;
-import android.view.MenuItem;
+import com.limelight.ui.ActionSheet;
+import com.google.android.material.appbar.MaterialToolbar;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
-import android.widget.ImageButton;
 import android.widget.EditText;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.AdapterView.AdapterContextMenuInfo;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -73,7 +68,8 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class PcView extends AppCompatActivity implements AdapterFragmentCallbacks {
-    private RelativeLayout noPcFoundLayout;
+    private View noPcFoundLayout;
+    private ActionSheet pcMenu;
     private PcGridAdapter pcGridAdapter;
     private ShortcutHelper shortcutHelper;
     private PyroWaveBandwidthTest bandwidthTest;
@@ -150,7 +146,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private final static int BANDWIDTH_PROBE_ID = 14;
     private final static int OTP_PAIR_ID = 13;
     private final static int FRONTEND_EXPORT_ID = 15;
-    private final static int WOL_HELP_ID = 16;
 
     private final static int PICK_ROMS_REQUEST = 1;
     private final static int PICK_ESDE_REQUEST = 2;
@@ -173,37 +168,17 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         // Set the correct layout for the PC grid
         pcGridAdapter.updateLayoutWithPreferences(this, PreferenceConfiguration.readPreferences(this));
 
-        // Setup the list view
-        ImageButton settingsButton = findViewById(R.id.settingsButton);
-        ImageButton addComputerButton = findViewById(R.id.manuallyAddPc);
-        ImageButton helpButton = findViewById(R.id.helpButton);
-
-        settingsButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(PcView.this, StreamSettings.class));
-            }
-        });
-        addComputerButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(PcView.this, AddComputerManually.class);
-                startActivity(i);
-            }
-        });
-        helpButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
+        MaterialToolbar toolbar = findViewById(R.id.home_toolbar);
+        toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.settingsButton) {
+                startActivity(new Intent(this, StreamSettings.class));
+            } else if (item.getItemId() == R.id.helpButton) {
                 showPairingGuide();
             }
+            return true;
         });
-
-        // Amazon review didn't like the help button because the wiki was not entirely
-        // navigable via the Fire TV remote (though the relevant parts were). Let's hide
-        // it on Fire TV.
-        if (getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) {
-            helpButton.setVisibility(View.GONE);
-        }
+        toolbar.getMenu().findItem(R.id.helpButton).setVisible(!getPackageManager().hasSystemFeature("amazon.hardware.fire_tv"));
+        findViewById(R.id.manuallyAddPc).setOnClickListener(v -> startActivity(new Intent(this, AddComputerManually.class)));
 
         getFragmentManager().beginTransaction()
             .replace(R.id.pcFragmentContainer, new AdapterFragment())
@@ -212,12 +187,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout);
         findViewById(R.id.discovery_add).setOnClickListener(v -> startActivity(new Intent(this, AddComputerManually.class)));
         findViewById(R.id.discovery_help).setOnClickListener(v -> showPairingGuide());
-        if (pcGridAdapter.getCount() == 0) {
-            noPcFoundLayout.setVisibility(View.VISIBLE);
-        }
-        else {
-            noPcFoundLayout.setVisibility(View.INVISIBLE);
-        }
+        updateEmptyState();
         pcGridAdapter.notifyDataSetChanged();
     }
 
@@ -470,6 +440,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         super.onPause();
 
         inForeground = false;
+        if (pcMenu != null) pcMenu.dismiss();
         cancelPairing();
         if (bandwidthTest != null) {
             bandwidthTest.cancel();
@@ -485,80 +456,61 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         Dialog.closeDialogs(PcView.this);
     }
 
-    @Override
-    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) {
-        stopComputerUpdates(false);
-
-        // Call superclass
-        super.onCreateContextMenu(menu, v, menuInfo);
-                
-        AdapterContextMenuInfo info = (AdapterContextMenuInfo) menuInfo;
-        ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(info.position);
-
-        // Add a header with PC status details
-        menu.clearHeader();
-        String headerTitle = computer.details.name + " · ";
-        switch (computer.details.state)
-        {
-            case ONLINE:
-                headerTitle += getResources().getString(R.string.pcview_menu_header_online);
-                break;
-            case OFFLINE:
-                menu.setHeaderIcon(R.drawable.ic_pc_offline);
-                headerTitle += getResources().getString(R.string.pcview_menu_header_offline);
-                break;
-            case UNKNOWN:
-                headerTitle += getResources().getString(R.string.pcview_menu_header_unknown);
-                break;
-        }
-
-        menu.setHeaderTitle(headerTitle);
-
-        // Inflate the context menu
-        if (computer.details.state == ComputerDetails.State.OFFLINE ||
-            computer.details.state == ComputerDetails.State.UNKNOWN) {
-            menu.add(Menu.NONE, WOL_ID, 1, getResources().getString(R.string.pcview_menu_send_wol));
-            if (computer.details.nvidiaServer) {
-                menu.add(Menu.NONE, GAMESTREAM_EOL_ID, 2, getResources().getString(R.string.pcview_menu_eol));
-            }
-        }
-        else if (computer.details.pairState != PairState.PAIRED) {
-            menu.add(Menu.NONE, PAIR_ID, 1, getResources().getString(R.string.pcview_menu_pair_pc));
-            if (computer.details.rustHostVersion != null || computer.details.permission != -1) {
-                menu.add(Menu.NONE, OTP_PAIR_ID, 2, R.string.pair_otp_title);
-            }
-            if (computer.details.nvidiaServer) {
-                menu.add(Menu.NONE, GAMESTREAM_EOL_ID, 2, getResources().getString(R.string.pcview_menu_eol));
-            }
-        }
-        else {
-            if (computer.details.runningGameId != 0) {
-                menu.add(Menu.NONE, RESUME_ID, 1, getResources().getString(R.string.applist_menu_resume));
-                menu.add(Menu.NONE, QUIT_ID, 2, getResources().getString(R.string.applist_menu_quit));
-            }
-
-            if (computer.details.nvidiaServer) {
-                menu.add(Menu.NONE, GAMESTREAM_EOL_ID, 3, getResources().getString(R.string.pcview_menu_eol));
-            }
-
-            menu.add(Menu.NONE, FULL_APP_LIST_ID, 4, getResources().getString(R.string.pcview_menu_app_list));
-            menu.add(Menu.NONE, FRONTEND_EXPORT_ID, 6, getResources().getString(R.string.frontend_export_menu));
-        }
-
-        // Per-PC tools next, then details, and the destructive action last
-        menu.add(Menu.NONE, HOST_SETTINGS_ID, 5, getResources().getString(R.string.host_profile_menu));
-        menu.add(Menu.NONE, BANDWIDTH_PROBE_ID, 6, R.string.connection_test_title);
-        menu.add(Menu.NONE, WOL_HELP_ID, 7, R.string.wol_help_title);
-        menu.add(Menu.NONE, VIEW_DETAILS_ID, 7,  getResources().getString(R.string.pcview_menu_details));
-        menu.add(Menu.NONE, DELETE_ID, 8, getResources().getString(R.string.pcview_menu_delete_pc));
+    private void updateEmptyState() {
+        boolean empty = pcGridAdapter.getCount() == 0;
+        noPcFoundLayout.setVisibility(empty ? View.VISIBLE : View.GONE);
+        findViewById(R.id.manuallyAddPc).setVisibility(empty ? View.GONE : View.VISIBLE);
     }
 
-    @Override
-    public void onContextMenuClosed(Menu menu) {
-        // For some reason, this gets called again _after_ onPause() is called on this activity.
-        // startComputerUpdates() manages this and won't actual start polling until the activity
-        // returns to the foreground.
-        startComputerUpdates();
+    private void showComputerMenu(ComputerObject computer) {
+        if (pcMenu != null) return;
+        stopComputerUpdates(false);
+        ActionSheet sheet = new ActionSheet(this, computer.details.name);
+        pcMenu = sheet;
+        boolean online = computer.details.state == ComputerDetails.State.ONLINE;
+        boolean paired = computer.details.pairState == PairState.PAIRED;
+        if (online && paired && computer.details.runningGameId != 0) {
+            sheet.addSection(R.string.settings_section_video);
+            addPcAction(sheet, computer, RESUME_ID, R.drawable.ic_play, R.string.applist_menu_resume);
+            addPcAction(sheet, computer, QUIT_ID, R.drawable.ic_stop, R.string.applist_menu_quit);
+        }
+        sheet.addSection(R.string.pc_sheet_pairing);
+        if (online && !paired) {
+            addPcAction(sheet, computer, PAIR_ID, R.drawable.ic_lock, R.string.pcview_menu_pair_pc);
+            if (computer.details.rustHostVersion != null || computer.details.permission != -1) {
+                addPcAction(sheet, computer, OTP_PAIR_ID, R.drawable.ic_keyboard, R.string.pair_otp_title);
+            }
+        }
+        sheet.addAction(R.drawable.ic_help, getString(R.string.discovery_help)).setOnClickListener(v -> {
+            sheet.dismiss();
+            showPairingGuide();
+        });
+        sheet.addSection(R.string.pc_sheet_this_pc);
+        addPcAction(sheet, computer, HOST_SETTINGS_ID, R.drawable.ic_settings, R.string.host_profile_menu);
+        addPcAction(sheet, computer, BANDWIDTH_PROBE_ID, R.drawable.ic_network, R.string.connection_test_title);
+        addPcAction(sheet, computer, WOL_ID, R.drawable.ic_power, R.string.pcview_menu_send_wol);
+        if (online && paired) {
+            addPcAction(sheet, computer, FULL_APP_LIST_ID, R.drawable.ic_library, R.string.pcview_menu_app_list);
+            addPcAction(sheet, computer, FRONTEND_EXPORT_ID, R.drawable.ic_library, R.string.frontend_export_menu);
+        }
+        if (computer.details.nvidiaServer) {
+            addPcAction(sheet, computer, GAMESTREAM_EOL_ID, R.drawable.ic_help, R.string.pcview_menu_eol);
+        }
+        addPcAction(sheet, computer, VIEW_DETAILS_ID, R.drawable.ic_help, R.string.pcview_menu_details);
+        sheet.addDivider();
+        addPcAction(sheet, computer, DELETE_ID, R.drawable.ic_delete, R.string.pcview_menu_delete_pc);
+        sheet.setOnDismissListener(dialog -> {
+            pcMenu = null;
+            startComputerUpdates();
+        });
+        sheet.show();
+    }
+
+    private void addPcAction(ActionSheet sheet, ComputerObject computer, int action, int icon, int label) {
+        sheet.addAction(icon, getString(label)).setOnClickListener(v -> {
+            sheet.dismiss();
+            onComputerAction(computer, action);
+        });
     }
 
     private void doPair(final ComputerDetails computer) {
@@ -825,11 +777,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         startActivity(i);
     }
 
-    @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
-        final ComputerObject computer = (ComputerObject) pcGridAdapter.getItem(info.position);
-        switch (item.getItemId()) {
+    private boolean onComputerAction(ComputerObject computer, int action) {
+        switch (action) {
             case PAIR_ID:
                 doPair(computer.details);
                 return true;
@@ -843,7 +792,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 return true;
 
             case WOL_ID:
-                doWakeOnLan(computer.details);
+                new MaterialAlertDialogBuilder(this).setTitle(R.string.pcview_menu_send_wol)
+                        .setMessage(R.string.wol_help_text).setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(R.string.pcview_menu_send_wol, (dialog, which) -> doWakeOnLan(computer.details)).show();
                 return true;
 
             case DELETE_ID:
@@ -914,11 +865,6 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 bandwidthTest = new PyroWaveBandwidthTest(this, computer.details, managerBinder.getUniqueId());
                 bandwidthTest.show();
                 return true;
-            case WOL_HELP_ID:
-                new MaterialAlertDialogBuilder(this).setTitle(R.string.wol_help_title)
-                        .setMessage(R.string.wol_help_text).setPositiveButton(android.R.string.ok, null).show();
-                return true;
-
             case GAMESTREAM_EOL_ID:
                 HelpLauncher.launchGameStreamEolFaq(PcView.this);
                 return true;
@@ -928,7 +874,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 return true;
 
             default:
-                return super.onContextItemSelected(item);
+                return false;
         }
     }
     
@@ -956,7 +902,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
                 if (pcGridAdapter.getCount() == 0) {
                     // Show the "Discovery in progress" view
-                    noPcFoundLayout.setVisibility(View.VISIBLE);
+                    updateEmptyState();
                 }
 
                 break;
@@ -986,7 +932,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             pcGridAdapter.addComputer(new ComputerObject(details));
 
             // Remove the "Discovery in progress" view
-            noPcFoundLayout.setVisibility(View.INVISIBLE);
+            updateEmptyState();
         }
 
         // Notify the view that the data has changed
@@ -1009,7 +955,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 if (computer.details.state == ComputerDetails.State.UNKNOWN ||
                     computer.details.state == ComputerDetails.State.OFFLINE) {
                     // Open the context menu if a PC is offline or refreshing
-                    openContextMenu(arg1);
+                    showComputerMenu(computer);
                 } else if (computer.details.pairState != PairState.PAIRED) {
                     // Pair an unpaired machine by default
                     doPair(computer.details);
@@ -1018,7 +964,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
                 }
             }
         });
-        registerForContextMenu(listView);
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            showComputerMenu((ComputerObject) pcGridAdapter.getItem(position));
+            return true;
+        });
     }
 
     public static class ComputerObject {

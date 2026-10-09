@@ -694,6 +694,16 @@ public class NvConnection {
         return http.getClipboard();
     }
 
+    public void quitApp() throws IOException, XmlPullParserException {
+        if (isMonkey || context.streamConfig.getApp().getRole() != NvApp.Role.STREAM ||
+                !refreshHostDetails().hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
+            throw new IOException("The host denied permission to quit this app.");
+        }
+        if (!http.quitApp()) {
+            throw new IOException("The host did not quit the app.");
+        }
+    }
+
     public void disconnectRemoteSession() throws IOException, XmlPullParserException {
         if (!refreshHostDetails().hasPermission(ComputerDetails.PERMISSION_LAUNCH)) {
             throw new IOException("The host denied permission to end this remote session.");

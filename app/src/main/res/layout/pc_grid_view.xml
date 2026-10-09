@@ -1,6 +1,6 @@
 <GridView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/fragmentView" android:layout_width="match_parent" android:layout_height="match_parent"
     android:numColumns="auto_fit" android:columnWidth="296dp" android:stretchMode="columnWidth"
-    android:horizontalSpacing="8dp" android:verticalSpacing="8dp" android:padding="16dp"
+    android:horizontalSpacing="8dp" android:verticalSpacing="8dp" android:padding="16dp" android:paddingBottom="104dp"
     android:focusable="true" android:focusableInTouchMode="true" android:clipToPadding="false"
     android:drawSelectorOnTop="true" android:gravity="center" />

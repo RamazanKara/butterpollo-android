@@ -14,7 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import android.os.Handler;
 import android.os.Vibrator;
-import android.preference.CheckBoxPreference;
+import android.preference.SwitchPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceCategory;
@@ -70,11 +70,11 @@ public class StreamSettings extends AppCompatActivity {
     // Top-level screen keys and the preference categories each sub-screen shows
     static final Map<String, String[]> SECTIONS = new LinkedHashMap<>();
     static {
-        SECTIONS.put("video", new String[] {"category_basic_settings", "category_butterpollo_host", "category_codec_settings"});
-        SECTIONS.put("latency", new String[] {"category_latency_settings", "category_latency_diagnostics"});
+        SECTIONS.put("video", new String[] {"category_basic_settings"});
         SECTIONS.put("input", new String[] {"category_gamepad_settings", "category_input_settings", "category_onscreen_controls"});
-        SECTIONS.put("host", new String[] {"category_host_settings", "category_audio_settings"});
-        SECTIONS.put("app", new String[] {"category_ui_settings", "category_advanced_settings", "category_about"});
+        SECTIONS.put("host", new String[] {"category_audio_settings"});
+        SECTIONS.put("app", new String[] {"category_ui_settings"});
+        SECTIONS.put("advanced", new String[] {"category_advanced_settings"});
     }
     // Kept by a reset: the language is applied by the OS, the others are actions
     private static final List<String> RESET_EXCLUDED_KEYS = Arrays.asList(
@@ -109,7 +109,7 @@ public class StreamSettings extends AppCompatActivity {
     static int sectionTitle(String section) {
         switch (section) {
             case "video": return R.string.settings_section_video;
-            case "latency": return R.string.settings_section_latency;
+            case "advanced": return R.string.settings_section_advanced;
             case "input": return R.string.settings_section_input;
             case "host": return R.string.settings_section_host;
             default: return R.string.settings_section_app;
@@ -351,6 +351,7 @@ public class StreamSettings extends AppCompatActivity {
     private static void stylePreferences(PreferenceGroup group) {
         for (int i = 0; i < group.getPreferenceCount(); i++) {
             Preference preference = group.getPreference(i);
+            if (preference instanceof PresetPreference) continue;
             preference.setLayoutResource(preference instanceof PreferenceCategory ?
                     R.layout.settings_category : R.layout.settings_preference);
             if (preference instanceof PreferenceGroup) {
@@ -369,6 +370,7 @@ public class StreamSettings extends AppCompatActivity {
     }
 
     public static class RootFragment extends PreferenceFragment {
+        private final SharedPreferences.OnSharedPreferenceChangeListener summaryUpdater = (prefs, key) -> updateSummaries();
         private static CharSequence entryFor(Context context, int names, int values, String value) {
             String[] valueArray = context.getResources().getStringArray(values);
             for (int i = 0; i < valueArray.length; i++) {
@@ -387,18 +389,16 @@ public class StreamSettings extends AppCompatActivity {
             String bitrate = config.bitrate % 1000 == 0 ? Integer.toString(config.bitrate / 1000) :
                     String.format(Locale.getDefault(), "%.1f", config.bitrate / 1000f);
             findPreference("video").setSummary(getString(R.string.settings_section_video_summary,
-                    config.width + "×" + config.height,
+                    config.width * 9 == config.height * 16 ? config.height + "p" : config.width + "×" + config.height,
                     config.fps + " " + getString(R.string.fps_suffix_fps),
                     bitrate + " " + getString(R.string.suffix_seekbar_bitrate_mbps),
                     entryFor(context, R.array.video_format_names, R.array.video_format_values,
                             prefs.getString(PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING,
                                     PreferenceConfiguration.DEFAULT_VIDEO_FORMAT))));
-            findPreference("latency").setSummary(getString(R.string.settings_section_latency_summary,
-                    entryFor(context, R.array.video_frame_pacing_names, R.array.video_frame_pacing_values,
-                            prefs.getString(PreferenceConfiguration.FRAME_PACING_PREF_STRING,
-                                    PreferenceConfiguration.DEFAULT_FRAME_PACING)),
-                    getString(config.enablePerfOverlay ? R.string.stream_enabled : R.string.stream_disabled)
-                            .toLowerCase(Locale.getDefault())));
+            findPreference("host").setSummary(getString(R.string.settings_overlay_audio_summary,
+                    getString(config.enablePerfOverlay ? R.string.stream_enabled : R.string.stream_disabled),
+                    entryFor(context, R.array.audio_config_names, R.array.audio_config_values,
+                            prefs.getString("list_audio_config", "2"))));
             findPreference("app").setSummary(getString(R.string.settings_section_app_summary, BuildConfig.VERSION_NAME));
         }
 
@@ -413,47 +413,7 @@ public class StreamSettings extends AppCompatActivity {
                     return true;
                 });
             }
-            findPreference("help").setOnPreferenceClickListener(preference -> {
-                HelpLauncher.launchTroubleshooting(getActivity());
-                return true;
-            });
-            findPreference("report_problem").setOnPreferenceClickListener(preference -> {
-                com.limelight.utils.ProblemReport.show(getActivity());
-                return true;
-            });
-            findPreference("wol_help").setOnPreferenceClickListener(preference -> {
-                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.wol_help_title)
-                        .setMessage(R.string.wol_help_text).setPositiveButton(android.R.string.ok, null).show();
-                return true;
-            });
-            findPreference("stream_presets").setOnPreferenceClickListener(preference -> {
-                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_presets)
-                        .setItems(R.array.stream_preset_descriptions, (dialog, which) -> {
-                            StreamPreset.values()[which].apply(PreferenceManager.getDefaultSharedPreferences(getActivity()),
-                                    com.limelight.binding.video.DisplayFrameRatePolicy.maxRefreshRate(
-                                            getActivity().getWindowManager().getDefaultDisplay()));
-                            updateSummaries();
-                            Toast.makeText(getActivity(), R.string.stream_preset_applied, Toast.LENGTH_LONG).show();
-                        })
-                        .setNeutralButton(R.string.help, (dialog, which) ->
-                                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_presets)
-                                        .setMessage(R.string.stream_presets_help).setPositiveButton(android.R.string.ok, null).show())
-                        .setNegativeButton(android.R.string.cancel, null).show();
-                return true;
-            });
-            findPreference("reset_all").setOnPreferenceClickListener(preference -> {
-                new MaterialAlertDialogBuilder(getActivity())
-                        .setTitle(R.string.dialog_reset_settings_title)
-                        .setMessage(R.string.dialog_reset_settings_text)
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .setPositiveButton(R.string.dialog_reset_settings_confirm, (dialog, which) -> {
-                            resetAllSettings(getActivity());
-                            updateSummaries();
-                            Toast.makeText(getActivity(), R.string.toast_reset_settings, Toast.LENGTH_SHORT).show();
-                        })
-                        .show();
-                return true;
-            });
+
         }
 
         @Override
@@ -466,7 +426,14 @@ public class StreamSettings extends AppCompatActivity {
         @Override
         public void onResume() {
             super.onResume();
+            getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(summaryUpdater);
             updateSummaries();
+        }
+
+        @Override
+        public void onPause() {
+            getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(summaryUpdater);
+            super.onPause();
         }
     }
 
@@ -495,6 +462,19 @@ public class StreamSettings extends AppCompatActivity {
             String query = ((StreamSettings) getActivity()).searchQuery;
             String section = getArguments() == null ? null : getArguments().getString(ARG_SECTION);
             String[] categories = section == null ? null : SECTIONS.get(section);
+            if (!query.isEmpty() && SettingsSearch.matches(query, getString(R.string.stream_presets),
+                    getString(R.string.stream_presets_help), String.join(" ", getResources().getStringArray(R.array.stream_preset_names)))) {
+                Preference presets = new Preference(getActivity());
+                presets.setTitle(R.string.stream_presets);
+                presets.setOnPreferenceClickListener(pref -> {
+                    StreamSettings activity = (StreamSettings) getActivity();
+                    activity.section = null;
+                    activity.searchView.setQuery("", false);
+                    activity.searchView.clearFocus();
+                    return true;
+                });
+                screen.addPreference(presets);
+            }
             for (Map.Entry<PreferenceCategory, List<Preference>> entry : searchCategories.entrySet()) {
                 PreferenceCategory category = entry.getKey();
                 if (query.isEmpty()) {
@@ -505,7 +485,8 @@ public class StreamSettings extends AppCompatActivity {
                 results.setTitle(category.getTitle());
                 screen.addPreference(results);
                 for (Preference pref : entry.getValue()) {
-                    if (SettingsSearch.matches(query, pref.getTitle(), pref.getSummary(), category.getTitle())) {
+                    if (SettingsSearch.matches(query, pref.getTitle(), pref.getSummary(),
+                            category.getTitle() + " " + java.util.Objects.toString(descriptions.get(pref.getKey()), ""))) {
                         // Search rows navigate to the original setting so dependency and dialog behavior stay intact.
                         Preference result = new Preference(getActivity());
                         result.setTitle(pref.getTitle());
@@ -545,7 +526,6 @@ public class StreamSettings extends AppCompatActivity {
         private final SharedPreferences.OnSharedPreferenceChangeListener summaryUpdater =
                 (prefs, key) -> updateValueSummaries(getPreferenceScreen());
 
-        // Show the current value of list and slider settings above their description.
         private void updateValueSummaries(PreferenceGroup group) {
             for (int i = 0; i < group.getPreferenceCount(); i++) {
                 Preference pref = group.getPreference(i);
@@ -553,33 +533,31 @@ public class StreamSettings extends AppCompatActivity {
                     updateValueSummaries((PreferenceGroup) pref);
                     continue;
                 }
-
-                String key = pref.getKey();
+                if (!descriptions.containsKey(pref.getKey())) {
+                    descriptions.put(pref.getKey(), pref.getSummary());
+                }
                 CharSequence value;
                 if (pref instanceof ListPreference) {
                     value = ((ListPreference) pref).getEntry();
-                }
-                else if (pref instanceof SeekBarPreference) {
+                    if (pref instanceof LanguagePreference && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        android.os.LocaleList locales = getActivity().getSystemService(android.app.LocaleManager.class).getApplicationLocales();
+                        if (!locales.isEmpty()) value = locales.get(0).getDisplayName();
+                    }
+                } else if (pref instanceof SeekBarPreference) {
                     value = ((SeekBarPreference) pref).getValueText();
-                }
-                else {
+                } else if (pref instanceof SwitchPreference) {
+                    value = getString(((SwitchPreference) pref).isChecked() ? R.string.stream_enabled : R.string.stream_disabled);
+                } else if ("checkbox_touchscreen_trackpad".equals(pref.getKey())) {
+                    SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+                    int mode = prefs.getBoolean("checkbox_touchscreen_trackpad", true) ? 0 :
+                            prefs.getBoolean("checkbox_native_touch", false) ? 2 : 1;
+                    value = getResources().getStringArray(R.array.stream_touch_modes)[mode];
+                } else {
                     continue;
                 }
-                if (key == null || value == null) {
-                    continue;
+                if (value != null) {
+                    pref.setSummary(pref instanceof ListPreference ? value.toString().replace("%", "%%") : value);
                 }
-
-                if (!descriptions.containsKey(key)) {
-                    descriptions.put(key, pref.getSummary());
-                }
-                CharSequence description = descriptions.get(key);
-                String summary = value.toString();
-                if (description != null) {
-                    summary += "\n" + description;
-                }
-
-                // ListPreference formats its summary with String.format()
-                pref.setSummary(pref instanceof ListPreference ? summary.replace("%", "%%") : summary);
             }
         }
 
@@ -755,12 +733,10 @@ public class StreamSettings extends AppCompatActivity {
         }
 
         private void updateCodecSummary(ListPreference codec, String value, boolean hdr) {
-            // updateValueSummaries() rebuilds this summary as "<value>\n<description>" on every change,
-            // so the readiness line has to live in the cached description, not in the summary itself.
-            descriptions.put("video_format", "forcepyrowave".equals(value) ?
-                    getString(PyroWaveDecoderRenderer.getReadinessSummary(hdr)) :
-                    getString(R.string.summary_video_format));
-            updateValueSummaries(getPreferenceScreen());
+            CharSequence help = getString("forcepyrowave".equals(value) ?
+                    PyroWaveDecoderRenderer.getReadinessSummary(hdr) : R.string.summary_video_format);
+            descriptions.put("video_format", help);
+            codec.setDialogMessage(help);
         }
 
         @Override
@@ -786,7 +762,7 @@ public class StreamSettings extends AppCompatActivity {
                 return true;
             });
             ListPreference codec = (ListPreference) findPreference("video_format");
-            CheckBoxPreference hdr = (CheckBoxPreference) findPreference("checkbox_enable_hdr");
+            SwitchPreference hdr = (SwitchPreference) findPreference("checkbox_enable_hdr");
             Preference texture = findPreference("checkbox_texture_view");
             texture.setEnabled(!hdr.isChecked() && !"forcepyrowave".equals(codec.getValue()));
             codec.setOnPreferenceChangeListener((preference, value) -> {
@@ -799,7 +775,51 @@ public class StreamSettings extends AppCompatActivity {
                 updateCodecSummary(codec, codec.getValue(), (Boolean) value);
                 return true;
             });
-            findPreference("about_app").setSummary(getString(R.string.summary_about, BuildConfig.VERSION_NAME));
+            findPreference("about_app").setSummary(getString(R.string.settings_version, BuildConfig.VERSION_NAME));
+            findPreference("about_app").setOnPreferenceClickListener(preference -> {
+                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.title_about)
+                        .setMessage(getString(R.string.summary_about, BuildConfig.VERSION_NAME))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .setNeutralButton(R.string.settings_source, (dialog, which) ->
+                                HelpLauncher.launchUrl(getActivity(), "https://github.com/RamazanKara/butterpollo-android"))
+                        .show();
+                return true;
+            });
+            findPreference("help").setOnPreferenceClickListener(preference -> {
+                HelpLauncher.launchTroubleshooting(getActivity());
+                return true;
+            });
+            findPreference("report_problem").setOnPreferenceClickListener(preference -> {
+                com.limelight.utils.ProblemReport.show(getActivity());
+                return true;
+            });
+            findPreference("reset_all").setOnPreferenceClickListener(preference -> {
+                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.dialog_reset_settings_title)
+                        .setMessage(R.string.dialog_reset_settings_text)
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(R.string.dialog_reset_settings_confirm, (dialog, which) -> {
+                            resetAllSettings(getActivity());
+                            ((StreamSettings) getActivity()).reloadSettings();
+                            Toast.makeText(getActivity(), R.string.toast_reset_settings, Toast.LENGTH_SHORT).show();
+                        }).show();
+                return true;
+            });
+            findPreference("checkbox_touchscreen_trackpad").setOnPreferenceClickListener(preference -> {
+                SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+                int selected = prefs.getBoolean("checkbox_touchscreen_trackpad", true) ? 0 :
+                        prefs.getBoolean("checkbox_native_touch", false) ? 2 : 1;
+                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_touch_mode)
+                        .setSingleChoiceItems(R.array.stream_touch_modes, selected, (dialog, which) -> {
+                            prefs.edit().putBoolean("checkbox_touchscreen_trackpad", which == 0)
+                                    .putBoolean("checkbox_native_touch", which == 2).apply();
+                            dialog.dismiss();
+                        }).setNeutralButton(R.string.help, (dialog, which) ->
+                                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_touch_mode)
+                                        .setMessage(R.string.stream_native_touch_help)
+                                        .setPositiveButton(android.R.string.ok, null).show())
+                        .setNegativeButton(android.R.string.cancel, null).show();
+                return true;
+            });
             findPreference("controller_button_mapping").setOnPreferenceClickListener(preference -> {
                 startActivity(new Intent(getActivity(), ControllerMappingActivity.class));
                 return true;
@@ -844,7 +864,7 @@ public class StreamSettings extends AppCompatActivity {
                 category.removePreference(findPreference("checkbox_gamepad_motion_fallback"));
             }
 
-            CheckBoxPreference dualSense = (CheckBoxPreference) findPreference("checkbox_usb_dualsense");
+            SwitchPreference dualSense = (SwitchPreference) findPreference("checkbox_usb_dualsense");
             dualSense.setOnPreferenceChangeListener((preference, value) -> {
                 if (!Boolean.TRUE.equals(value)) {
                     return true;
@@ -861,7 +881,7 @@ public class StreamSettings extends AppCompatActivity {
             // Hide USB driver options on devices without USB host support
             if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {
                 PreferenceCategory category =
-                        (PreferenceCategory) findPreference("category_gamepad_settings");
+                        (PreferenceCategory) findPreference("category_advanced_settings");
                 category.removePreference(findPreference("checkbox_usb_bind_all"));
                 category.removePreference(findPreference("checkbox_usb_driver"));
                 category.removePreference(dualSense);
@@ -1126,7 +1146,7 @@ public class StreamSettings extends AppCompatActivity {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 LimeLog.info("Excluding HDR toggle based on OS");
                 PreferenceCategory category =
-                        (PreferenceCategory) findPreference("category_codec_settings");
+                        (PreferenceCategory) findPreference("category_basic_settings");
                 category.removePreference(findPreference("checkbox_enable_hdr"));
             }
             else {
@@ -1147,14 +1167,14 @@ public class StreamSettings extends AppCompatActivity {
                 if (!foundHdr10) {
                     LimeLog.info("Excluding HDR toggle based on display capabilities");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_codec_settings");
+                            (PreferenceCategory) findPreference("category_basic_settings");
                     category.removePreference(findPreference("checkbox_enable_hdr"));
                 }
                 else if (PreferenceConfiguration.isShieldAtvFirmwareWithBrokenHdr()) {
                     LimeLog.info("Disabling HDR toggle on old broken SHIELD TV firmware");
                     PreferenceCategory category =
-                            (PreferenceCategory) findPreference("category_codec_settings");
-                    CheckBoxPreference hdrPref = (CheckBoxPreference) category.findPreference("checkbox_enable_hdr");
+                            (PreferenceCategory) findPreference("category_basic_settings");
+                    SwitchPreference hdrPref = (SwitchPreference) category.findPreference("checkbox_enable_hdr");
                     hdrPref.setEnabled(false);
                     hdrPref.setChecked(false);
                     hdrPref.setSummary("Update the firmware on your NVIDIA SHIELD Android TV to enable HDR");
@@ -1218,6 +1238,18 @@ public class StreamSettings extends AppCompatActivity {
                 }
             });
 
+            for (int i = 0; i < screen.getPreferenceCount(); i++) {
+                PreferenceGroup group = (PreferenceGroup) screen.getPreference(i);
+                for (int j = 0; j < group.getPreferenceCount(); j++) {
+                    Preference pref = group.getPreference(j);
+                    descriptions.put(pref.getKey(), pref instanceof MaterialSwitchPreference ?
+                            ((MaterialSwitchPreference) pref).getExplanation() : pref.getSummary());
+                }
+            }
+            findPreference("controller_button_mapping").setSummary(null);
+            Preference resetOsc = findPreference("reset_osc");
+            if (resetOsc != null) resetOsc.setSummary(null);
+            findPreference("export_latency_csv").setSummary(R.string.settings_csv_summary);
             updateCodecSummary(codec, codec.getValue(), hdr.isChecked());
             stylePreferences(screen);
             updateValueSummaries(screen);

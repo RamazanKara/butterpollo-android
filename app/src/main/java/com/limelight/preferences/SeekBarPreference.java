@@ -1,6 +1,7 @@
 package com.limelight.preferences;
 
-import android.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.button.MaterialButton;
 import android.content.Context;
 import android.os.Bundle;
 import android.preference.DialogPreference;
@@ -15,6 +16,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.limelight.R;
+import com.limelight.utils.UiHelper;
 
 import java.util.Locale;
 
@@ -52,7 +54,7 @@ public class SeekBarPreference extends DialogPreference
         // Read the message from XML
         int dialogMessageId = attrs.getAttributeResourceValue(ANDROID_SCHEMA_URL, "dialogMessage", 0);
         if (dialogMessageId == 0) {
-            dialogMessage = attrs.getAttributeValue(ANDROID_SCHEMA_URL, "dialogMessage");
+            dialogMessage = getSummary() == null ? null : getSummary().toString();
         }
         else {
             dialogMessage = context.getString(dialogMessageId);
@@ -141,7 +143,7 @@ public class SeekBarPreference extends DialogPreference
     }
 
     private Button smallButton(String label) {
-        Button button = new Button(context, null, android.R.attr.borderlessButtonStyle);
+        Button button = new MaterialButton(context, null, androidx.appcompat.R.attr.borderlessButtonStyle);
         button.setText(label);
         button.setAllCaps(false);
         button.setMinWidth(dp(48));
@@ -287,17 +289,15 @@ public class SeekBarPreference extends DialogPreference
 
     @Override
     public void showDialog(Bundle state) {
-        super.showDialog(state);
-
-        Button positiveButton = ((AlertDialog) getDialog()).getButton(AlertDialog.BUTTON_POSITIVE);
-        positiveButton.setOnClickListener(view -> {
-            if (shouldPersist()) {
-                currentValue = dialogValue;
-                persistInt(dialogValue);
-                callChangeListener(dialogValue);
-            }
-
-            getDialog().dismiss();
-        });
+        UiHelper.showDialog(context, new MaterialAlertDialogBuilder(context)
+                .setTitle(getTitle()).setView(onCreateDialogView())
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    if (callChangeListener(dialogValue)) {
+                        currentValue = dialogValue;
+                        persistInt(dialogValue);
+                        notifyChanged();
+                    }
+                }).create());
     }
 }

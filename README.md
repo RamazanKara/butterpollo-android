@@ -3,28 +3,34 @@
 Butterpollo Android is a latency-focused client for [Butterpollo](https://github.com/RamazanKara/Butterpollo),
 based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibility.
 
-- Per-PC custom resolution, fractional refresh, bitrate, render scale, virtual-display, HDR,
-  colour-range and codec profiles. Long-press a PC and select **Streaming settings for this PC**.
+- Settings grouped into **Stream**, **Controls**, **Overlay & audio** and **App**, with expert
+  options in **Advanced**. Search includes every group; preset chips show the matching preset or Custom.
+- Material 3 PC cards with status chips, an **Add PC** button and grouped action sheets.
+- Full-screen per-PC resolution, fractional refresh, bitrate, VRR, render scale, virtual-display,
+  HDR, colour-range and codec profiles. Long-press a PC → **This PC → Streaming settings for this PC**;
+  turn off **Use global settings** to edit, then **Save**.
 - Trackpad, direct mouse and native multi-touch modes, with trackpad and mouse speed controls
-  (25–400%, default 100%) under **Settings → Input**, and a live on-screen gamepad layout editor.
+  (25–400%, default 100%) under **Settings → Controls → Touch & mouse**, and a live on-screen gamepad layout editor.
 - Multiple USB/Bluetooth controllers with device mappings, per-controller button remapping
-  (**Settings → Controller buttons**), feedback and motion where supported;
+  (**Settings → Controls → Controller buttons**), feedback and motion where supported;
   hardware keyboard/mouse input, Wake-on-LAN, pinned app shortcuts and picture-in-picture.
 - Launch games from ES-DE, Daijisho or Pegasus: long-press a PC and select **Add games to ES-DE**.
   Game files use the Artemis `.art` format; see [frontends](docs/FRONTENDS.md).
-- An instant stream menu for input modes, keyboard, overlay, disconnect and reconnect.
+- A stream bottom sheet for **Keyboard**, **Input mode**, **Overlay**, **Bitrate**, **Clipboard**,
+  **Host commands**, **Disconnect** and **Quit app**, according to host permissions.
+  Reconnect and host status are under **Host commands**.
   **Ctrl+Alt+Shift+S** toggles the performance overlay; **Ctrl+Alt+Shift+M** opens the menu.
 - **Compact** is the default overlay: one corner line with shown FPS, total latency (network RTT +
   completed decode) and frame loss, including PyroWave. Missing measurements are hidden. The health
   dot is green below 30 ms and 1% loss, amber from either threshold or with incomplete measurements,
-  and red from 60 ms or 5% loss. Long-press the overlay or use the stream menu to switch to
+  and red from 60 ms or 5% loss. Long-press the overlay or use **stream menu → Overlay** to switch to
   **Advanced**, grouped into Video, Network, Decode and Host; scroll for details on small screens.
   **Copy stats** always copies all Advanced measurements. Both modes hide in PiP. Legacy Expanded
   values reset to Compact once because Android also saved that value for untouched defaults;
   newly selected Advanced preferences persist.
 - Opt-in automatic bitrate for Butterpollo H.264/HEVC/AV1 streams, saved per PC, with loss-driven
   reductions, gradual recovery and host-cap handling. Manual bitrate selection disables it.
-- Per-frame latency overlay/CSV and configurable Android low-latency controls.
+- Per-frame latency overlay/CSV and Android low-latency controls under **Settings → Advanced**.
 - Native-resolution, high-refresh virtual-display requests with host render scale.
 - HEVC/AV1 HDR10 with display metadata; capability-gated YUV 4:4:4 with 4:2:0 fallback.
 - Experimental PyroWave is an explicit codec choice on compatible Vulkan devices; Auto keeps H.264/HEVC/AV1.
@@ -61,12 +67,12 @@ for pairing, firewall ports, black screens, stutter, latency, HDR and PyroWave r
 2. Open the APK on your Android device and allow installation from your file manager when prompted,
    or run `adb install -r app-nonRoot-debug.apk` with USB debugging enabled.
 3. Start [Butterpollo](https://github.com/RamazanKara/Butterpollo) on your PC. Select the discovered
-   host (or use **+** to enter its address), then enter the displayed PIN in **Devices** in the host
+   host (or use **Add PC** to enter its address), then enter the displayed PIN in **Devices** in the host
    web console. Grant this device the desired list, launch and input permissions there.
 4. Launch an app. Android **Back**, or **Ctrl+Alt+Shift+M** on a keyboard, opens the stream menu.
    Clipboard transfer is plain text, explicitly initiated, and requires an active session plus the
    corresponding host permission. Server commands are the host's configured commands; sending one
-   does not confirm its execution. **Pause stream / disconnect** leaves the host application running;
+   does not confirm its execution. **Disconnect** leaves the host application running;
    select the same app to resume. It does not suspend the game process.
 
 Local release builds produce an unsigned APK. **Unsigned APKs cannot be installed directly.**
@@ -106,16 +112,17 @@ synthetic; the parity document lists required real-device checks.
 
 After building debug, run `python scripts/emulator-smoke.py` with Python 3, the SDK above and the
 `sunset` Android 35 AVD installed. It refuses to start alongside another emulator, uses a headless,
-disposable AVD session, installs the APK, manually adds a loopback server-info fixture, opens settings
-and checks both production overlay formats in a debug-only screen at 393 dp, including rotation
-and long-press switching. The preview uses clearly labeled synthetic measurements.
-Screenshots go to `docs/screenshots/` (half size, palette PNG when Pillow is installed); UI dumps and logcat go to `app/build/emulator-smoke/`.
-The emulator is stopped in a `finally` block. The fixture does not pair or stream.
+disposable AVD session, installs the APK, manually adds a loopback server-info fixture, opens settings, checks Advanced search and per-PC global inheritance, and captures the UI at
+393 dp and 412 dp with default fonts, plus 393 dp at font scale 1.3. It also checks both production
+overlay formats in a debug-only screen, including rotation and long-press switching. The preview uses clearly labeled synthetic measurements.
+Screenshots go to `docs/screenshots/ui-v2/` (native dimensions, palette PNG when Pillow is installed); UI dumps and logcat go to `app/build/emulator-smoke/`.
+The emulator is stopped in a `finally` block. The fixture holds the pairing PIN prompt open but does not complete pairing or stream.
 The debug overlay activity is absent from release builds. Overlay captures are `overlay-compact.png`
 and `overlay-advanced.png`, with `-landscape` variants. Send the two portrait captures to the Opus
 xhigh screenshot judge before test.5. This runner did not run an emulator or capture these images;
-the caller must run the smoke pass and check live-host values, mode persistence, Copy stats, the
-keyboard shortcut, German labels and PiP on a phone.
+the caller must run the smoke pass, add live **stream menu** captures for the same three viewport/font
+sets under `docs/screenshots/ui-v2/`, and check host permission filtering, Quit app confirmations,
+mode persistence, Copy stats, the keyboard shortcut, German labels and PiP on a phone.
 
 The smoke test also walks the pairing guide, the one-time PIN and host details dialogs, per-PC profile
 input, saving, reopening and resetting, the settings screens, the bitrate dialog and Reset all settings.

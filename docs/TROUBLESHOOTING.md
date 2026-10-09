@@ -11,7 +11,7 @@ Short fixes for the common problems. Host-side details live in the
 
 1. Start Butterpollo on the PC. The phone and the PC must be on the same local network; guest Wi-Fi
    and access-point isolation stop them from seeing each other.
-2. Wait for the PC to appear in the app. If it does not, tap **+** and enter its local IP address
+2. Wait for the PC to appear in the app. If it does not, tap **Add PC** and enter its local IP address
    (for example `192.168.1.20`). On Windows, `ipconfig` shows it as the IPv4 address.
 3. Tap the PC. The app shows a four-digit PIN. On the PC, open the console at
    **https://localhost:47990**, go to **Devices**, enter the PIN for the waiting request and select **Pair**.
@@ -19,7 +19,7 @@ Short fixes for the common problems. Host-side details live in the
 
 **One-time PIN.** If the host has already created a one-time PIN and passphrase for this device
 (Apollo shows this on its PIN page; Butterpollo creates one through `POST /api/otp`), long-press the
-PC and choose **Pair with one-time PIN**. It expires three minutes after it was created.
+PC and choose **Pairing → Pair with one-time PIN**. It expires three minutes after it was created.
 
 If pairing works but apps do not appear or do not start, open **Devices → Edit** on the host and allow
 **List apps**, **View streams** and **Launch apps** for this device. Missing input permissions give
@@ -45,37 +45,37 @@ Streaming over the Internet needs those ports forwarded or a VPN; Butterpollo is
 
 - Check the host first: **Overview → Host readiness** must show a working encoder and screen capture.
   A locked PC, a sleeping monitor or a disconnected virtual display gives a black picture.
-- In the app, set **Video → Video codec** to **Automatic** and turn off HDR, then try again at
+- In the app, set **Settings → Stream → Video codec** to **Automatic** and turn off HDR, then try again at
   1280×720, 60 FPS.
-- If the picture is black, flickers or sits in the wrong place, turn on **Video → Compatibility video view**.
+- If the picture is black, flickers or sits in the wrong place, turn on **Settings → Advanced → Compatibility video view**.
   It does not apply to HDR or PyroWave.
 - If the stream ends with a decoder error, choose another codec. After three decoder crashes in a row
   the app resets the streaming settings itself.
 
 ## Stutter or dropped frames
 
-- Turn on the performance overlay (stream menu → **Show performance overlay**, or
+- Turn on the performance overlay (**stream menu → Overlay → Show performance overlay**, or
   **Ctrl+Alt+Shift+S**). Network loss points at Wi-Fi or bitrate; high decode time points at the
   phone's decoder.
 - Lower the bitrate first. Most LAN streams look good at 20–80 Mbps; on Wi-Fi start at 20–40 Mbps.
 - Use 5 GHz or 6 GHz Wi-Fi close to the access point, or a wired USB Ethernet adapter.
-- Turn on **automatic bitrate** in the stream menu for Butterpollo hosts. It lowers the bitrate when
+- Turn on **automatic bitrate** under **stream menu → Bitrate** for Butterpollo hosts. It lowers the bitrate when
   packets are lost and raises it again slowly.
-- Match the stream frame rate to the phone's screen (60, 90, 120 Hz). **Per-PC settings** accept
+- Match the stream frame rate to the phone's screen (60, 90, 120 Hz). **This PC → Streaming settings for this PC** accepts
   fractional rates such as 59.94 for Butterpollo hosts.
 
 ## Lower latency
 
-- Keep **Latency → Frame pacing** on **Prefer lowest latency** and leave **Android low-latency mode** and
+- Keep **Settings → Advanced → Frame pacing** on **Prefer lowest latency** and leave **Android low-latency mode** and
   **Chipset low-latency mode** on.
 - Use a frame rate your screen can show; higher stream rates lower latency only when the display keeps up.
 - A wired or uncongested 5/6 GHz connection matters more than any setting.
 - Compare client latency with the host processing time on the overlay. Export the per-frame CSV from
-  **Latency → Export latency CSV** after a session for a closer look.
+  **Settings → Advanced → Export latency CSV** after a session for a closer look.
 
 ## Why is decode time high?
 
-Choose **Expanded overlay** in the stream menu and use **Copy stats line**. **Decode time** now
+Choose **stream menu → Overlay → Advanced** and use **Copy stats**. **Decode time** now
 measures `queueInputBuffer` to observed decoder output, excluding the native queue and display wait.
 Every observed output counts, including frames dropped before presentation. The percentile lines
 use their own valid samples from the last 600 frames; missing render callbacks show no data.
@@ -104,13 +104,15 @@ to SDR.
 **PyroWave** is experimental. It needs a Butterpollo host, a phone with a capable Vulkan GPU, and a
 fast wired network: about **280 Mbps at 720p/60** and **400 Mbps at 1080p/60**. 4K at 60 FPS needs
 about 1600 Mbps, which this client cannot reach yet. Long-press a paired PC and choose
-**Test PyroWave bandwidth** to measure the link before switching. On slower networks use HEVC or AV1.
+**This PC → Test your connection** to measure the link before switching. On slower networks use HEVC or AV1.
 
 ## What to include in a report
 
-Long-press the PC, choose **View details** and tap **Copy debug info**. Paste that into the report
+Long-press the PC, choose **This PC → View details** and tap **Copy debug info**. Paste that into the report
 together with the phone model, Android version, the codec/resolution/frame rate you used, what you
 saw, and the time it happened. Add the host log from the console (**Troubleshooting → Logs**).
+
+You can also use **Settings → App → Report a problem** to share a redacted report.
 
 Report Android issues at
 [github.com/RamazanKara/butterpollo-android/issues](https://github.com/RamazanKara/butterpollo-android/issues).

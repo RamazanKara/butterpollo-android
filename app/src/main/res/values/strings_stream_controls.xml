@@ -3,7 +3,7 @@
     <string name="stream_overlay_show">Show performance overlay</string>
     <string name="stream_overlay_hide">Hide performance overlay</string>
     <string name="stream_touch_mode">Touch mode</string>
-    <string name="stream_keyboard">Show or hide keyboard</string>
+    <string name="stream_keyboard">Keyboard</string>
     <string name="stream_controls_show">Show on-screen controls</string>
     <string name="stream_controls_hide">Hide on-screen controls</string>
     <string name="stream_controls_layout">Edit controller layout</string>
@@ -17,7 +17,7 @@
     <string-array name="stream_touch_modes">
         <item>Trackpad</item>
         <item>Direct mouse</item>
-        <item>Native touch (compatible hosts)</item>
+        <item>Multi-touch</item>
     </string-array>
     <string-array name="stream_control_layout_actions">
         <item>Move controls</item>

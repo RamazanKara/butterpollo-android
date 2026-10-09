@@ -1,38 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <PreferenceCategory android:title="@string/stream_presets">
-        <Preference android:key="stream_presets" android:title="@string/stream_presets"
-            android:summary="@string/stream_presets_summary" />
-    </PreferenceCategory>
-    <Preference
-        android:key="video"
-        android:title="@string/settings_section_video" />
-    <Preference
-        android:key="latency"
-        android:title="@string/settings_section_latency" />
-    <Preference
-        android:key="input"
-        android:title="@string/settings_section_input"
+    <com.limelight.preferences.PresetPreference android:key="stream_presets" android:title="@string/stream_presets" />
+    <Preference android:key="video" android:title="@string/settings_section_video" />
+    <Preference android:key="input" android:title="@string/settings_section_input"
         android:summary="@string/settings_section_input_summary" />
-    <Preference
-        android:key="host"
-        android:title="@string/settings_section_host"
-        android:summary="@string/settings_section_host_summary" />
-    <Preference
-        android:key="app"
-        android:title="@string/settings_section_app" />
-    <PreferenceCategory android:title="@string/settings_category_support">
-        <Preference android:key="report_problem" android:title="@string/report_problem"
-            android:summary="@string/report_problem_summary" />
-        <Preference android:key="wol_help" android:title="@string/wol_help_title"
-            android:summary="@string/summary_wol_help" />
-        <Preference
-            android:key="help"
-            android:title="@string/title_troubleshooting"
-            android:summary="@string/summary_troubleshooting" />
-        <Preference
-            android:key="reset_all"
-            android:title="@string/title_reset_settings"
-            android:summary="@string/summary_reset_settings" />
-    </PreferenceCategory>
+    <Preference android:key="host" android:title="@string/settings_section_host" />
+    <Preference android:key="app" android:title="@string/settings_section_app" />
+    <Preference android:key="advanced" android:title="@string/settings_section_advanced"
+        android:summary="@string/settings_advanced_summary" />
 </PreferenceScreen>

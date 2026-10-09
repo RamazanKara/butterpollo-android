@@ -6,6 +6,24 @@ import static org.junit.Assert.*;
 
 public class HostStreamProfileTest {
     @Test
+    public void oldProfilesInheritVrrAndNewProfilesKeepTheirOverride() {
+        String legacy = "1920,1080,5994,45500,100,AUTO,false,false,false,false";
+        HostStreamProfile profile = HostStreamProfile.deserialize(legacy);
+        assertNull(profile.vrr);
+        assertEquals(legacy, profile.serialize());
+        PreferenceConfiguration config = new PreferenceConfiguration();
+        config.vrr = true;
+        profile.applyTo(config);
+        assertTrue(config.vrr);
+        HostStreamProfile.deserialize(legacy + ",false").applyTo(config);
+        assertFalse(config.vrr);
+        HostStreamProfile enabled = HostStreamProfile.deserialize(legacy + ",true");
+        enabled.applyTo(config);
+        assertTrue(config.vrr);
+        assertEquals(legacy + ",true", enabled.serialize());
+    }
+
+    @Test
     public void fractionalRefreshIsExactAndAcceptsLocalizedDecimalSeparator() {
         assertEquals(5994, HostStreamProfile.parseRefreshRate("59.94"));
         assertEquals(11988, HostStreamProfile.parseRefreshRate("119,88"));

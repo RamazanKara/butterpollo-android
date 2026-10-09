@@ -25,6 +25,20 @@ public enum StreamPreset {
         return this == BATTERY_SAVER ? 30 : DisplayFrameRatePolicy.streamFrameRate(panelMaxHz);
     }
 
+    boolean matches(SharedPreferences preferences, float panelMaxHz) {
+        return (codec == null || codec.equals(preferences.getString("video_format", "auto"))) &&
+                preferences.getInt("seekbar_bitrate_kbps", PreferenceConfiguration.getDefaultBitrate(
+                        preferences.getString("list_resolution", "1280x720"),
+                        preferences.getString("list_fps", "60"))) == bitrate &&
+                Integer.toString(fps(panelMaxHz)).equals(preferences.getString("list_fps", "60")) &&
+                preferences.getBoolean("checkbox_vrr", false) == vrr &&
+                pacing.equals(preferences.getString("frame_pacing", "latency")) &&
+                !preferences.getBoolean("checkbox_drop_late_frames", false) &&
+                preferences.getBoolean("checkbox_reduce_refresh_rate", false) == (this == BATTERY_SAVER) &&
+                preferences.getBoolean("checkbox_codec_performance", true) == (this != BATTERY_SAVER) &&
+                !preferences.getBoolean("checkbox_phone_performance_hints", false);
+    }
+
     void apply(SharedPreferences preferences, float panelMaxHz) {
         SharedPreferences.Editor editor = preferences.edit();
         if (codec != null) {
