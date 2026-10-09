@@ -45,6 +45,8 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.app.PictureInPictureParams;
 import android.app.PendingIntent;
@@ -94,6 +96,7 @@ import android.view.View.OnGenericMotionListener;
 import android.view.View.OnSystemUiVisibilityChangeListener;
 import android.view.View.OnTouchListener;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -158,6 +161,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private Thread connectionStopThread;
     private int suppressPipRefCount = 0;
     private AlertDialog streamMenu;
+    private Runnable streamMenuAction;
     private androidx.appcompat.app.AlertDialog launchConfirmationDialog;
     private LaunchConfirmation pendingConfirmation;
     private String connectionErrorMessage;
@@ -166,6 +170,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private int foregroundGeneration;
     private boolean restoreInputAfterMenu;
     private boolean restoreInputOnResume;
+    private final WindowFocusActionQueue windowFocusActions = new WindowFocusActionQueue();
+    private final Runnable runWindowFocusActions = () -> {
+        if (!foreground || !connected || isFinishing()) {
+            windowFocusActions.clear();
+        } else if (streamMenu == null) {
+            windowFocusActions.runPending(hasWindowFocus(), SystemClock.uptimeMillis());
+        }
+    };
     private int currentBitrate;
     private AdaptiveBitrateController adaptiveBitrate;
     private PyroWaveBitrateController pyroWaveBitrate;
@@ -904,6 +916,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         if (inputCaptureProvider != null) {
             inputCaptureProvider.onWindowFocusChanged(hasFocus);
         }
+        if (hasFocus) {
+            // Let Android finish restoring IME focus before running a menu action.
+            getWindow().getDecorView().post(runWindowFocusActions);
+        }
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
@@ -1275,6 +1291,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     protected void onPause() {
         foreground = false;
         foregroundGeneration++;
+        streamMenuAction = null;
+        windowFocusActions.clear();
+        getWindow().getDecorView().removeCallbacks(runWindowFocusActions);
         if (pendingConfirmation != null) {
             pendingConfirmation.cancel();
             launchConfirmationFinished();
@@ -1392,12 +1411,22 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
             suppressPipRefCount--;
             updatePipAutoEnter();
-            getWindow().getDecorView().post(() -> {
-                if (foreground && connected && !isFinishing() && streamMenu == null) {
+            Runnable action = streamMenuAction;
+            streamMenuAction = null;
+            if (foreground && connected && !isFinishing()) {
+                windowFocusActions.add(() -> {
                     setInputGrabState(restoreInputAfterMenu);
                     hideSystemUi(1000);
+                    if (action != null) {
+                        action.run();
+                    }
+                }, SystemClock.uptimeMillis());
+                View decorView = getWindow().getDecorView();
+                decorView.postDelayed(runWindowFocusActions, WindowFocusActionQueue.TIMEOUT_MS);
+                if (hasWindowFocus()) {
+                    decorView.post(runWindowFocusActions);
                 }
-            });
+            }
         });
         dialog.show();
     }
@@ -1486,8 +1515,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 .setTitle(app.getRole() == NvApp.Role.REMOTE_MONITOR ? R.string.stream_monitor_title :
                         app.getRole() == NvApp.Role.INPUT_ONLY ? R.string.stream_input_title : R.string.stream_menu)
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    streamMenuAction = actions.get(which);
                     dialog.dismiss();
-                    actions.get(which).run();
                 }).create());
     }
 
@@ -2259,12 +2288,21 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         //
         // For other cases of ACTION_MULTIPLE, we will not report those as handled so hopefully
         // they will be passed to us again as regular singular key events.
-        if (!grabbedInput || event.getKeyCode() != KeyEvent.KEYCODE_UNKNOWN || event.getCharacters() == null) {
+        if (event.getKeyCode() != KeyEvent.KEYCODE_UNKNOWN) {
             return false;
         }
 
-        conn.sendUtf8Text(event.getCharacters());
-        return true;
+        return handleTextInput(event.getCharacters());
+    }
+
+    @Override
+    public boolean handleTextInput(CharSequence text) {
+        if (!grabbedInput || conn == null || !conn.canSendInput()) {
+            return false;
+        }
+        return KeyboardTranslator.sendTextInput(text, conn::sendUtf8Text,
+                (key, direction) -> sendKeyboardInput(key, direction, (byte) 0,
+                        MoonBridge.SS_KBE_FLAG_NON_NORMALIZED));
     }
 
     private TouchContext getTouchContext(int actionIndex)
@@ -2279,12 +2317,36 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     public void toggleKeyboard() {
-        if (conn == null || !conn.canSendInput()) {
+        if (!foreground || !connected || isFinishing() || streamMenu != null || !conn.canSendInput()) {
             return;
         }
         LimeLog.info("Toggling keyboard overlay");
-        InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputManager.toggleSoftInput(0, 0);
+        boolean visible;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsets insets = streamView.getRootWindowInsets();
+            visible = insets != null && insets.isVisible(WindowInsets.Type.ime());
+        } else {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(streamView);
+            visible = insets != null && insets.isVisible(WindowInsetsCompat.Type.ime());
+        }
+        if (!visible) {
+            setInputGrabState(true);
+        }
+        streamView.requestFocus();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (visible) {
+                getWindow().getInsetsController().hide(WindowInsets.Type.ime());
+            } else {
+                getWindow().getInsetsController().show(WindowInsets.Type.ime());
+            }
+        } else {
+            InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (visible) {
+                inputManager.hideSoftInputFromWindow(streamView.getWindowToken(), 0);
+            } else {
+                inputManager.showSoftInput(streamView, 0);
+            }
+        }
     }
 
     private byte getLiTouchTypeFromEvent(MotionEvent event) {
@@ -3018,6 +3080,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void stopConnection() {
+        streamMenuAction = null;
+        windowFocusActions.clear();
+        getWindow().getDecorView().removeCallbacks(runWindowFocusActions);
         bitrateHandler.removeCallbacks(updateBitrate);
         adaptiveBitrate = null;
         pyroWaveBitrate = null;

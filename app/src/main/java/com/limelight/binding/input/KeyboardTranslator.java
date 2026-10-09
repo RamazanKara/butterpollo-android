@@ -8,7 +8,11 @@ import android.util.SparseArray;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 
+import com.limelight.nvstream.input.KeyboardPacket;
+
 import java.util.Arrays;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Class to translate a Android key code into the codes GFE is expecting
@@ -153,6 +157,39 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
             return null;
         }
         return new String(Character.toChars(codePoint));
+    }
+
+    public static boolean sendTextInput(CharSequence text, Consumer<String> sendText,
+                                        BiConsumer<Short, Byte> sendKey) {
+        if (text == null) {
+            return false;
+        }
+        int start = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char character = text.charAt(i);
+            int keyCode;
+            if (character == '\b') {
+                keyCode = KeyEvent.KEYCODE_DEL;
+            } else if (character == '\n' || character == '\r') {
+                keyCode = KeyEvent.KEYCODE_ENTER;
+            } else {
+                continue;
+            }
+            if (i > start) {
+                sendText.accept(text.subSequence(start, i).toString());
+            }
+            short translated = translateKeyCode(keyCode);
+            sendKey.accept(translated, KeyboardPacket.KEY_DOWN);
+            sendKey.accept(translated, KeyboardPacket.KEY_UP);
+            if (character == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                i++;
+            }
+            start = i + 1;
+        }
+        if (start < text.length()) {
+            sendText.accept(text.subSequence(start, text.length()).toString());
+        }
+        return true;
     }
 
     @SuppressLint("InlinedApi")
