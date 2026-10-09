@@ -465,6 +465,9 @@ def main():
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
                 "Phone performance hints could not be disabled")
+            screenshot("13-advanced-settings")
+            tap("Navigate up")
+            tap("Overlay & audio")
             overlay = "Show performance overlay"
             tap(overlay, scroll=True)
             screenshot("13-latency-settings")
@@ -529,6 +532,9 @@ def main():
                 screenshot(shot)
                 tap("android:id/button1")
                 find(HOST_NAME)
+            for width, font in ((393, 1.0), (412, 1.0), (393, 1.3)):
+                capture_ui_set(width, font)
+            adb("shell", "settings", "put", "system", "font_scale", "1.0")
             if DEBUGGABLE:
                 # 786 px at 320 dpi gives a 393 dp phone viewport.
                 adb("shell", "wm", "size", "786x1704")

@@ -539,7 +539,7 @@ public class ComputerManagerService extends Service {
         return true;
     }
 
-    private synchronized void releaseLocalDatabaseReference() {
+    private void releaseLocalDatabaseReference() {
         if (dbRefCount.decrementAndGet() == 0) {
             dbManager.close();
         }

@@ -64,7 +64,8 @@ public class CacheHelper {
     }
 
     public static String readInputStreamToString(InputStream in) throws IOException {
-        try (Reader r = new InputStreamReader(in, "UTF-8")) {
+        Reader r = new InputStreamReader(in, "UTF-8");
+        try {
             StringBuilder sb = new StringBuilder();
             char[] buf = new char[256];
             int bytesRead;
@@ -72,6 +73,10 @@ public class CacheHelper {
                 sb.append(buf, 0, bytesRead);
             }
             return sb.toString();
+        } finally {
+            try {
+                in.close();
+            } catch (IOException ignored) {}
         }
     }
 

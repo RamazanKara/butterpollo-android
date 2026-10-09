@@ -14,6 +14,21 @@ import static org.junit.Assert.*;
 
 public class FrameLatencyStatsTest {
     @Test
+    public void supportedThousandFpsStreamKeepsFramesUntilTheCallbackTimeout() {
+        FrameLatencyStats stats = new FrameLatencyStats(true);
+        for (int i = 1; i <= 8000; i++) {
+            long now = 1000000000L + i * 1000000L;
+            stats.onFrameReceived(now);
+            stats.onDecoderInput(i, i, now, now, now, (char) 0);
+            stats.onDecoderOutput(0, i, now);
+            stats.onOutputReleased(0, now, true, true);
+            if (i % 1000 == 0) stats.expire(now);
+        }
+        stats.expire(14000000000L);
+        assertEquals(8000, stats.getPresentDrops());
+    }
+
+    @Test
     public void maximumStreamRateRetainsFramesUntilCallbackTimeout() {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (int i = 0; i < 5000; i++) {

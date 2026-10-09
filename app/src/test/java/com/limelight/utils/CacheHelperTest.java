@@ -45,4 +45,12 @@ public class CacheHelperTest {
         assertArrayEquals(text.getBytes(StandardCharsets.UTF_8), output.toByteArray());
         assertEquals(text, CacheHelper.readInputStreamToString(new ByteArrayInputStream(output.toByteArray())));
     }
+
+    @Test
+    public void closeFailureDoesNotDiscardCachedText() throws Exception {
+        InputStream input = new ByteArrayInputStream("cached".getBytes(StandardCharsets.UTF_8)) {
+            @Override public void close() throws IOException { throw new IOException("Close failed"); }
+        };
+        assertEquals("cached", CacheHelper.readInputStreamToString(input));
+    }
 }

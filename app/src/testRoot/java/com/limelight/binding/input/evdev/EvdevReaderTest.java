@@ -3,12 +3,21 @@ package com.limelight.binding.input.evdev;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.junit.Assert.*;
 
 public class EvdevReaderTest {
+    @Test
+    public void truncatedFramesFailWithoutReturningPartialEvents() {
+        ByteBuffer packet = ByteBuffer.allocate(4 + 23).order(ByteOrder.nativeOrder());
+        packet.putInt(24);
+        assertThrows(IOException.class,
+                () -> EvdevReader.read(new ByteArrayInputStream(packet.array())));
+    }
+
     @Test
     public void rejectsLengthsOtherThanNativeEventLayoutsBeforeReadingThePayload() throws Exception {
         for (int length : new int[] {-1, 0, 15, 17, 23, 25, 1024}) {

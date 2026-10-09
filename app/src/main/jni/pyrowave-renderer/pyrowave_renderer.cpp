@@ -395,7 +395,7 @@ namespace {
 
         int submit(const uint8_t *data, size_t length, int64_t ptsUs) {
             completedDecodeNs = 0;
-            framePresented = false;
+            lastReleaseNs = 0;
             lastGpuDecodeUs = 0;
             if (failed) return SUBMIT_ERROR;
             pyrowave_decoder_clear(decoder);
@@ -1294,10 +1294,11 @@ namespace {
             }
             timespec released;
             clock_gettime(CLOCK_MONOTONIC, &released);
-            lastReleaseNs = uint64_t(released.tv_sec) * 1000000000ULL + uint64_t(released.tv_nsec);
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
-            framePresented = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
-            if (displayTimingSupported && framePresented) {
+            if (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR) {
+                lastReleaseNs = uint64_t(released.tv_sec) * 1000000000ULL + released.tv_nsec;
+            }
+            if (displayTimingSupported && (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR)) {
                 if (pendingPresents.size() == 8192) pendingPresents.pop_front();
                 pendingPresents.emplace_back(presentTime.presentID, ptsUs);
             }
@@ -1451,7 +1452,6 @@ namespace {
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
         uint64_t lastReleaseNs = 0;
-        bool framePresented = false;
         bool displayTimingSupported = false;
         std::vector<jlong> renderedFrames;
 
@@ -1697,11 +1697,6 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEn
 JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastReleaseTimeNs(JNIEnv *, jclass, jlong handle) {
     return jlong(reinterpret_cast<Renderer *>(handle)->lastReleaseNs);
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeWasFramePresented(JNIEnv *, jclass, jlong handle) {
-    return reinterpret_cast<Renderer *>(handle)->framePresented ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL

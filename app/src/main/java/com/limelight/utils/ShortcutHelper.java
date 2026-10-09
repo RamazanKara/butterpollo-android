@@ -45,7 +45,7 @@ public class ShortcutHelper {
                 }
             }
             sm.removeDynamicShortcuts(Collections.singletonList(maxRankShortcut.getId()));
-            dynamicShortcuts = sm.getDynamicShortcuts();
+            dynamicShortcuts.remove(maxRankShortcut);
         }
     }
 
