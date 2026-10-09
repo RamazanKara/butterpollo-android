@@ -61,10 +61,10 @@ public class LatencyOverlaySmokeActivity extends Activity {
                 getString(R.string.perf_overlay_netlatency, 8, 1) + '\n' +
                 getString(R.string.stream_auto_bitrate_status, 15.0);
         String decode = getString(R.string.perf_overlay_decoder, "c2.qti.av1.decoder (video/av01)") + '\n' +
-                getString(R.string.perf_overlay_low_latency, true) + '\n' +
+                getString(R.string.perf_overlay_low_latency, getString(R.string.yes)) + '\n' +
                 getString(R.string.perf_overlay_low_latency_keys, "low-latency=1") + '\n' +
                 getString(R.string.perf_overlay_low_latency_unconfirmed, "none") + '\n' +
-                getString(R.string.perf_overlay_phone_hints, false) + '\n' +
+                getString(R.string.perf_overlay_phone_hints, getString(R.string.stream_disabled)) + '\n' +
                 getString(R.string.perf_overlay_dectime, 4.6f) + '\n' +
                 MediaCodecDecoderRenderer.formatLatencyOverlay(this, new double[][] {
                         {600, 0.4, 0.8, 1.2}, {600, 4.6, 5.8, 6.4}, {600, 1.2, 1.8, 2.5},

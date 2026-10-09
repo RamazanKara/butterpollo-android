@@ -98,8 +98,7 @@ public final class PyroWaveBandwidthTest {
             com.limelight.LimeLog.info("Connection test finished");
             final String message = activity.getString(R.string.connection_test_stats,
                     measurement(stats.latencyMs()), measurement(stats.jitterMs()), measurement(stats.lossPercent()))
-                    + "\n\n" + bandwidth + "\n\n" + activity.getString(R.string.connection_test_limits)
-                    + "\n\n" + activity.getString(R.string.connection_test_fix);
+                    + " · " + bandwidth;
             activity.runOnUiThread(() -> {
                 if (cancelled || activity.isFinishing() || activity.isDestroyed()) {
                     return;

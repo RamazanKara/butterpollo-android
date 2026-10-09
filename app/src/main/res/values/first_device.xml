@@ -1,63 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="report_problem">Report a problem</string>
-    <string name="report_problem_summary">Share redacted recent events and the last crash record.</string>
-    <string name="report_problem_details">Share recent events and the last crash record, if available, including the app version, Android API level and device model. Addresses, user-assigned device and host names, PINs, credentials and exception messages are omitted. Add what happened when sharing. Nothing is sent until you choose an app.</string>
+    <string name="report_problem_summary">Share a report with personal details removed.</string>
+    <string name="report_problem_details">Share a report with personal details removed.\nYou choose where to send it.</string>
     <string name="report_problem_share">Share problem report</string>
-    <string name="report_problem_failed">Could not share the report. Check free storage and install an app that can share text files, then try again.</string>
+    <string name="report_problem_failed">Could not share the report.\nCheck storage and install a file-sharing app.</string>
     <string name="crash_report_title">Rubylight closed unexpectedly</string>
-    <string name="crash_report_details">You can share a report with technical crash details to help diagnose the problem. Nothing is sent automatically.</string>
+    <string name="crash_report_details">Share crash details to help find the cause?\nNothing is sent automatically.</string>
     <string name="crash_report_share">Share report</string>
     <string name="crash_report_not_now">Not now</string>
-    <string name="stream_restore_help">The previous stream was interrupted. Open your PC and resume the game to reconnect.</string>
+    <string name="stream_restore_help">Stream interrupted.\nOpen your PC’s app list to resume.</string>
     <string name="stream_presets">Presets</string>
-    <string name="stream_presets_summary">Apply Balanced, Low latency, Best quality or Battery saver settings.</string>
-    <string name="stream_presets_help">Sets bitrate, frame rate, variable refresh and frame pacing together. Battery saver uses Bilinear upscaling, Low latency uses SGSR 1, Best quality uses FSR 1.0, and Balanced keeps it Off. Low latency keeps your codec; Auto prefers low-latency AV1, then HEVC, then H.264. Except Battery saver, presets use the screen’s maximum refresh rate (up to 1000 FPS). Per-PC video profiles override global video values; VRR always requests the screen’s maximum rate. Resolution and HDR stay as you set them.</string>
-    <string name="stream_preset_applied">Preset applied. Per-PC video profiles still take priority.</string>
+    <string name="stream_presets_summary">Choose settings for speed, quality or battery life.</string>
+    <string name="stream_presets_help">Sets video and upscaling together.\nPC profiles still take priority.</string>
+    <string name="stream_preset_applied">Preset applied; PC profiles take priority.</string>
     <string-array name="stream_preset_descriptions">
-        <item>Balanced · Auto codec, 15 Mbps, screen maximum FPS, VRR off, balanced pacing</item>
-        <item>Low latency · Keep current codec, 15 Mbps, screen maximum FPS, VRR on, lowest-delay pacing</item>
-        <item>Best quality · Auto codec, 40 Mbps, screen maximum FPS, VRR off, balanced pacing</item>
-        <item>Battery saver · Auto codec, 8 Mbps, 30 FPS, VRR off, frame-rate cap</item>
+        <item>Balanced · 15 Mbps, screen FPS, upscaling off</item>
+        <item>Low latency · 15 Mbps, VRR, SGSR 1</item>
+        <item>Best quality · 40 Mbps, screen FPS, FSR 1.0</item>
+        <item>Battery saver · 8 Mbps, 30 FPS, Bilinear</item>
     </string-array>
     <string name="summary_stretch_video">Fill the screen; the image may look wider or taller.</string>
-    <string name="summary_frame_pacing">Choose how frames balance response time and smooth motion; VRR overrides this.</string>
+    <string name="summary_frame_pacing">Balance response time and smoothness when VRR is off.</string>
     <string name="summary_language">Choose the language used by the app.</string>
     <string name="overlay_mode">Performance overlay mode</string>
-    <string name="overlay_mode_help">Compact shows shown FPS, total latency (network + decode) and frame loss. Advanced shows all measurements. Long-press the overlay to switch.</string>
+    <string name="overlay_mode_help">Choose a compact or detailed view.\nHold the overlay to switch.</string>
     <string name="overlay_compact">Compact</string>
     <string name="overlay_advanced">Advanced</string>
     <string name="overlay_copy">Copy stats</string>
     <string name="overlay_copied">Stats copied</string>
-    <string name="overlay_empty">Turn on the performance overlay and wait for a video frame to copy stats.</string>
+    <string name="overlay_empty">Enable the overlay and wait for video.</string>
     <string name="overlay_compact_loss">%1$.1f%% loss</string>
     <string name="overlay_video">Video</string>
     <string name="overlay_network">Network</string>
     <string name="overlay_decode">Decode</string>
     <string name="overlay_host">Host</string>
     <string name="perf_overlay_releasedfps">Released to display: %1$.2f FPS</string>
-    <string name="perf_overlay_shownfps">Shown (render callbacks): %1$s</string>
-    <string name="perf_overlay_presentdrops">Present drops (estimated, unobserved for 5 s): %1$d</string>
-    <string name="perf_overlay_low_latency">FEATURE_LowLatency: %1$b</string>
-    <string name="perf_overlay_low_latency_keys">Low-latency keys accepted (input format): %1$s</string>
-    <string name="perf_overlay_low_latency_unconfirmed">Low-latency keys unconfirmed: %1$s</string>
-    <string name="perf_overlay_phone_hints">Phone performance hints (ADPF): %1$b</string>
+    <string name="perf_overlay_shownfps">Displayed: %1$s</string>
+    <string name="perf_overlay_presentdrops">Estimated display drops: %1$d</string>
+    <string name="perf_overlay_low_latency">Low latency supported: %1$s</string>
+    <string name="perf_overlay_low_latency_keys">Decoder settings accepted: %1$s</string>
+    <string name="perf_overlay_low_latency_unconfirmed">Decoder settings unconfirmed: %1$s</string>
+    <string name="perf_overlay_phone_hints">Phone performance hints: %1$s</string>
     <string-array name="overlay_mode_names"><item>@string/overlay_compact</item><item>@string/overlay_advanced</item></string-array>
     <string-array name="overlay_mode_values" translatable="false"><item>compact</item><item>advanced</item></string-array>
-    <string name="connection_test_title">Test your connection</string>
-    <string name="connection_test_intro">Measures 10 host requests for latency, jitter and failed requests. On supported paired hosts, also downloads 32 MiB to measure bandwidth. This can use mobile data and briefly slow other traffic. Settings stay unchanged.</string>
-    <string name="connection_test_running">Testing the connection… Leave this screen or tap Cancel to stop.</string>
-    <string name="connection_test_stats">Latency: %1$s ms\nJitter: %2$s ms\nProbe loss: %3$s%%</string>
-    <string name="connection_test_unavailable">unavailable</string>
-    <string name="connection_test_limits">Latency is the average host-request round trip. Jitter is the average change between consecutive successful requests. Probe loss counts failed HTTP requests, not lost UDP packets. During a stream, the performance overlay shows transport delay and lost video frames.</string>
-    <string name="connection_test_no_bandwidth">Bandwidth: unavailable. Pair with a host that supports the bandwidth test to measure throughput.</string>
-    <string name="connection_test_failed">Bandwidth test could not finish. Check that the PC is awake, the host is running and both devices can reach each other, then try again.</string>
-    <string name="connection_test_fix">For lower delay or fewer failures, use the same Wi-Fi network, move closer to the router, connect the PC by Ethernet and pause other downloads.</string>
-    <string name="pair_connection_fix">Could not reach the pairing service. Keep the PC awake, open the host app and connect both devices to the same network. Allow the host through the PC firewall, then try again.</string>
+    <string name="connection_test_title">Connection test</string>
+    <string name="connection_test_intro">Test speed and delay to your PC.\nUses up to 32 MiB, including mobile data.</string>
+    <string name="connection_test_running">Testing… Tap Cancel to stop.</string>
+    <string name="connection_test_stats">Ping %1$s · Jitter %2$s ms\nFailed %3$s%%</string>
+    <string name="connection_test_unavailable">–</string>
+    <string name="connection_test_limits">These results measure test requests, not a live stream.</string>
+    <string name="connection_test_no_bandwidth">Speed unavailable</string>
+    <string name="connection_test_failed">Speed test failed</string>
+    <string name="connection_test_fix">Move closer to the router and pause downloads.</string>
+    <string name="pair_connection_fix">Use the same network and start the host.\nCheck its firewall, then retry.</string>
     <string name="pair_try_again">Try again</string>
     <string name="discovery_add">Add a PC manually</string>
     <string name="discovery_help">Pairing help</string>
     <string name="wol_help_title">Set up Wake-on-LAN</string>
     <string name="summary_wol_help">Learn how to wake a sleeping PC from the app.</string>
-    <string name="wol_help_text">1. Connect and pair while the PC is awake so its network address can be saved.\n\n2. Enable Wake-on-LAN in the PC firmware and network adapter settings (often called Wake on Magic Packet).\n\n3. Keep the PC connected by Ethernet and try waking it from sleep on the same home network. Wi-Fi, shutdown and waking across routers depend on the PC and network.\n\n4. Long-press an offline PC and choose Wake PC. If it stays asleep, check adapter power settings; the app cannot confirm delivery of a wake packet.</string>
+    <string name="wol_help_text">1. Pair while the PC is awake.\n2. Enable Wake-on-LAN on the PC.\n3. Use LAN, then choose Wake PC.</string>
 </resources>

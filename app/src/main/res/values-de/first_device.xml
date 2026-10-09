@@ -1,15 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="report_problem">Problem melden</string>
+    <string name="report_problem_summary">Teile einen Bericht ohne persönliche Angaben.</string>
+    <string name="report_problem_details">Teile einen Bericht ohne persönliche Angaben.\nDu wählst, wohin du ihn sendest.</string>
+    <string name="report_problem_share">Problembericht teilen</string>
+    <string name="report_problem_failed">Bericht konnte nicht geteilt werden.\nPrüfe Speicherplatz und eine App zum Teilen.</string>
+    <string name="crash_report_title">Rubylight wurde beendet</string>
+    <string name="crash_report_details">Absturzbericht zur Fehlersuche teilen?\nEs wird nichts automatisch gesendet.</string>
+    <string name="crash_report_share">Bericht teilen</string>
+    <string name="crash_report_not_now">Jetzt nicht</string>
+    <string name="stream_restore_help">Stream unterbrochen.\nÖffne die App-Liste deines PCs zum Fortsetzen.</string>
+    <string name="stream_presets">Vorgaben</string>
+    <string name="stream_presets_summary">Wähle Tempo, Bildqualität oder längere Akkulaufzeit.</string>
+    <string name="stream_presets_help">Stellt Video und Hochskalierung ein.\nPC-Profile haben weiterhin Vorrang.</string>
+    <string name="stream_preset_applied">Vorgabe angewendet; PC-Profile haben Vorrang.</string>
+    <string-array name="stream_preset_descriptions">
+        <item>Ausgewogen · 15 Mbit/s, Display-FPS, Hochskalierung aus</item>
+        <item>Niedrige Latenz · 15 Mbit/s, VRR, SGSR 1</item>
+        <item>Beste Qualität · 40 Mbit/s, Display-FPS, FSR 1.0</item>
+        <item>Akku sparen · 8 Mbit/s, 30 FPS, Bilinear</item>
+    </string-array>
+    <string name="summary_stretch_video">Fülle das Display mit einem eventuell verzerrten Bild.</string>
+    <string name="summary_frame_pacing">Wäge ohne VRR zwischen Latenz und flüssigem Bild ab.</string>
+    <string name="summary_language">Wähle die Sprache der App.</string>
     <string name="overlay_mode">Leistungsanzeige</string>
-    <string name="overlay_mode_help">Kompakt zeigt dargestellte FPS, Gesamtlatenz (Netzwerk + Dekodierung) und Bildverlust. Erweitert zeigt alle Messwerte. Zum Wechseln die Anzeige lange drücken.</string>
+    <string name="overlay_mode_help">Kompakt oder ausführlich anzeigen.\nZum Wechseln die Anzeige halten.</string>
     <string name="overlay_compact">Kompakt</string>
-    <string name="overlay_advanced">Erweitert</string>
-    <string name="overlay_copy">Statistik kopieren</string>
-    <string name="overlay_copied">Statistik kopiert</string>
-    <string name="overlay_empty">Die Leistungsanzeige einschalten und auf ein Videobild warten, um die Statistik zu kopieren.</string>
+    <string name="overlay_advanced">Ausführlich</string>
+    <string name="overlay_copy">Werte kopieren</string>
+    <string name="overlay_copied">Werte kopiert</string>
+    <string name="overlay_empty">Aktiviere die Leistungsanzeige und warte auf Video.</string>
     <string name="overlay_compact_loss">%1$.1f%% Verlust</string>
     <string name="overlay_video">Video</string>
     <string name="overlay_network">Netzwerk</string>
-    <string name="overlay_decode">Dekodierung</string>
+    <string name="overlay_decode">Decoder</string>
     <string name="overlay_host">Host</string>
+    <string name="perf_overlay_releasedfps">An Display gesendet: %1$.2f FPS</string>
+    <string name="perf_overlay_shownfps">Angezeigt: %1$s</string>
+    <string name="perf_overlay_presentdrops">Geschätzte Anzeigeverluste: %1$d</string>
+    <string name="perf_overlay_low_latency">Niedrige Latenz unterstützt: %1$s</string>
+    <string name="perf_overlay_low_latency_keys">Decoder-Optionen bestätigt: %1$s</string>
+    <string name="perf_overlay_low_latency_unconfirmed">Decoder-Optionen unbestätigt: %1$s</string>
+    <string name="perf_overlay_phone_hints">Android-Leistungssteuerung: %1$s</string>
+    <string-array name="overlay_mode_names">
+        <item>@string/overlay_compact</item>
+        <item>@string/overlay_advanced</item>
+    </string-array>
+    <string name="connection_test_title">Verbindungstest</string>
+    <string name="connection_test_intro">Teste Tempo und Latenz zum PC.\nVerbraucht bis zu 32 MiB, auch im Mobilfunk.</string>
+    <string name="connection_test_running">Test läuft… Abbrechen beendet den Test.</string>
+    <string name="connection_test_stats">Ping %1$s · Jitter %2$s ms\nFehler %3$s%%</string>
+    <string name="connection_test_unavailable">–</string>
+    <string name="connection_test_limits">Der Test misst Anfragen, keinen laufenden Stream.</string>
+    <string name="connection_test_no_bandwidth">Tempo nicht verfügbar</string>
+    <string name="connection_test_failed">Tempotest fehlgeschlagen</string>
+    <string name="connection_test_fix">Geh näher an den Router und pausiere Downloads.</string>
+    <string name="pair_connection_fix">Starte den Host im selben Netz.\nPrüfe die Firewall und versuch es erneut.</string>
+    <string name="pair_try_again">Erneut versuchen</string>
+    <string name="discovery_add">PC manuell hinzufügen</string>
+    <string name="discovery_help">Hilfe beim Koppeln</string>
+    <string name="wol_help_title">Wake-on-LAN einrichten</string>
+    <string name="summary_wol_help">Wecke deinen PC mit der App aus dem Ruhezustand.</string>
+    <string name="wol_help_text">1. Kopple den eingeschalteten PC.\n2. Aktiviere Wake-on-LAN am PC.\n3. Mit LAN: „PC aufwecken“.</string>
 </resources>

@@ -2,9 +2,9 @@
 <resources>
     <string name="frontend_export_menu">Add games to ES-DE</string>
     <string name="frontend_export_roms_title">Pick your ROMs folder</string>
-    <string name="frontend_export_roms_message">Rubylight puts one file per game in a butterpollo folder there. ES-DE, Daijisho and Pegasus start the stream from that file.</string>
+    <string name="frontend_export_roms_message">Add game shortcuts to this folder for ES-DE or another frontend.</string>
     <string name="frontend_export_esde_title">Pick your ES-DE folder</string>
-    <string name="frontend_export_esde_message">This adds the Butterpollo system and the game covers to ES-DE. Skip it if you use another frontend.</string>
+    <string name="frontend_export_esde_message">Add Rubylight and game covers to ES-DE?\nSkip for other frontends.</string>
     <string name="frontend_export_pick">Pick folder</string>
     <string name="frontend_export_skip">Skip</string>
     <string name="frontend_export_no_apps">Open this PC\'s games once, then try again.</string>
@@ -14,6 +14,6 @@
         <item quantity="one">%1$d game added. Restart ES-DE to see it.</item>
         <item quantity="other">%1$d games added. Restart ES-DE to see them.</item>
     </plurals>
-    <string name="frontend_export_failed">Couldn\'t add the games. Pick a folder on your device or SD card.</string>
-    <string name="scut_invalid_entry">This game file can\'t be opened. Add the games again from Rubylight.</string>
+    <string name="frontend_export_failed">Could not add games.\nChoose a local or SD card folder.</string>
+    <string name="scut_invalid_entry">Game file unavailable.\nAdd the games again in Rubylight.</string>
 </resources>

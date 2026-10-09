@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="pair_otp_title">Pair with one-time PIN</string>
-    <string name="pair_otp_help">Enter the four-digit PIN and passphrase from your host. The PIN expires after three minutes.</string>
+    <string name="pair_otp_help">Enter the host’s PIN and passphrase.\nThe PIN expires after three minutes.</string>
     <string name="pair_otp_pin">One-time PIN</string>
     <string name="pair_otp_passphrase">Passphrase</string>
     <string name="pair_otp_invalid_pin">Enter the four-digit PIN from the host.</string>
-    <string name="pair_otp_invalid_passphrase">Enter the passphrase you chose on the host (at least four characters).</string>
+    <string name="pair_otp_invalid_passphrase">Enter the host passphrase (at least four characters).</string>
     <string name="guide_title">Connect to your PC</string>
-    <string name="guide_text">1. Start Rubylight on your PC. Connect both devices to the same network.\n\n2. Tap your PC, or tap Add PC to add its IP address.\n\n3. Enter this app’s pairing PIN under Devices in the host’s web console.\n\nLong-press a PC for settings, details or one-time PIN pairing.</string>
+    <string name="guide_text">1. Start Rubylight on the PC.\n2. Same network: select your PC.\n3. Enter the PIN in its web console.</string>
     <string name="guide_done">Got it</string>
-    <string name="guide_troubleshooting">Troubleshooting</string>
+    <string name="guide_troubleshooting">Help</string>
 </resources>

@@ -45,7 +45,7 @@ public class ResourceConfigurationTest {
     }
 
     @Test
-    public void translatedLanguagesAreOfferedByBothLanguagePickers() throws Exception {
+    public void onlyShippedLanguagesAreOfferedByBothLanguagePickers() throws Exception {
         Set<String> platformLanguages = new HashSet<>();
         NodeList locales = read("res/xml/locales_config.xml").getElementsByTagName("locale");
         for (int i = 0; i < locales.getLength(); i++) {
@@ -69,20 +69,7 @@ public class ResourceConfigurationTest {
         assertTrue(legacyLanguages.remove("default"));
         assertEquals(platformLanguages, legacyLanguages);
 
-        File[] directories = new File("src/main/res").listFiles(File::isDirectory);
-        assertNotNull(directories);
-        for (File directory : directories) {
-            if (!directory.getName().matches("values-[a-z]{2,3}(-r[A-Z]{2})?")) {
-                continue;
-            }
-            File strings = new File(directory, "strings.xml");
-            if (strings.isFile() && read("res/" + directory.getName() + "/strings.xml")
-                    .getElementsByTagName("string").getLength() > 0) {
-                String language = directory.getName().substring("values-".length()).replace("-r", "-");
-                assertTrue("Translated language is not selectable: " + language,
-                        platformLanguages.contains(language));
-            }
-        }
+        assertEquals(Set.of("en", "de"), platformLanguages);
     }
 
     @Test

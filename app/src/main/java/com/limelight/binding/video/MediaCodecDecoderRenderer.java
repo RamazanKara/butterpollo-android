@@ -883,19 +883,20 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private void updateDecoderDiagnostics() {
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
-                    "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")") +
-                    "\nFEATURE_LowLatency / MediaCodec keys: not applicable";
+                    "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")");
         } else {
             String mimeType = configuredFormat.getString(MediaFormat.KEY_MIME);
             String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat);
             decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
                     videoDecoder.getName() + " (" + mimeType + ")") + '\n' +
                     context.getString(R.string.perf_overlay_low_latency,
-                            MediaCodecHelper.decoderSupportsAndroidRLowLatency(videoDecoder.getCodecInfo(), mimeType)) + '\n' +
+                            context.getString(MediaCodecHelper.decoderSupportsAndroidRLowLatency(videoDecoder.getCodecInfo(), mimeType)
+                                    ? R.string.yes : R.string.no)) + '\n' +
                     context.getString(R.string.perf_overlay_low_latency_keys, options[0]) + '\n' +
                     context.getString(R.string.perf_overlay_low_latency_unconfirmed, options[1]);
         }
-        decoderDiagnostics += '\n' + context.getString(R.string.perf_overlay_phone_hints, prefs.phonePerformanceHints);
+        decoderDiagnostics += '\n' + context.getString(R.string.perf_overlay_phone_hints,
+                context.getString(prefs.phonePerformanceHints ? R.string.stream_enabled : R.string.stream_disabled));
         LimeLog.info(decoderDiagnostics);
         ProblemReport.setDecoderDiagnostics(initialWidth + "x" + initialHeight + " @ " + refreshRate + " FPS\n" +
                 decoderDiagnostics);

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="stream_auto_bitrate_enable">Enable automatic bitrate</string>
-    <string name="stream_auto_bitrate_disable">Disable automatic bitrate</string>
-    <string name="stream_auto_bitrate_help">Bitrate adapts to network loss, up to your selected bitrate and the host cap. Saved for this PC. Setting a bitrate manually disables adaptation.</string>
-    <string name="stream_pyrowave_bitrate_help">PyroWave bitrate adapts to network loss, queued frames and decode time, up to your selected bitrate or 500 Mbps. Saved separately for this PC. Setting a bitrate manually disables adaptation.</string>
-    <string name="stream_auto_bitrate_failed">Automatic bitrate stopped because the host rejected or could not apply an update. You can enable it again from the stream menu.</string>
+    <string name="stream_auto_bitrate_enable">Automatic bitrate on</string>
+    <string name="stream_auto_bitrate_disable">Automatic bitrate off</string>
+    <string name="stream_auto_bitrate_help">Adjust bitrate to your connection.\nSaved for this PC; manual changes turn it off.</string>
+    <string name="stream_pyrowave_bitrate_help">Auto-adjust PyroWave for this PC.\nManual bitrate turns this off.</string>
+    <string name="stream_auto_bitrate_failed">Automatic bitrate stopped.\nEnable it again in the stream menu.</string>
     <string name="stream_auto_bitrate_status">Automatic bitrate: %1$.1f Mbps</string>
-    <string name="stream_bitrate_busy">A host update is still in progress. Try again in a moment.</string>
+    <string name="stream_bitrate_busy">Host busy. Try again in a moment.</string>
 </resources>
