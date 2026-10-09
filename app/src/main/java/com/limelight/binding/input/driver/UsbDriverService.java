@@ -22,6 +22,8 @@ import com.limelight.R;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class UsbDriverService extends Service implements UsbDriverListener {
@@ -41,6 +43,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     private volatile UsbDriverListener listener;
     private UsbDriverStateListener stateListener;
     private int nextDeviceId;
+    private final Set<Integer> pendingPermissions = new HashSet<>();
 
     @Override
     public void reportControllerState(int controllerId, int buttonFlags, float leftStickX, float leftStickY,
@@ -130,6 +133,9 @@ public class UsbDriverService extends Service implements UsbDriverListener {
             // Subsequent permission dialog completion intent
             else if (action.equals(ACTION_USB_PERMISSION)) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                if (device == null || !pendingPermissions.remove(device.getDeviceId())) {
+                    return;
+                }
 
                 // Permission dialog is now closed
                 if (stateListener != null) {
@@ -139,6 +145,9 @@ public class UsbDriverService extends Service implements UsbDriverListener {
                 // If we got this far, we've already found we're able to handle this device
                 if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                     handleUsbDeviceState(device);
+                }
+                else if (DualSenseController.canClaimDevice(device)) {
+                    Toast.makeText(context, R.string.usb_dualsense_denied, Toast.LENGTH_LONG).show();
                 }
             }
         }
@@ -170,7 +179,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
     }
 
     private void handleUsbDeviceState(UsbDevice device) {
-        if (!started) {
+        if (!started || device == null || pendingPermissions.contains(device.getDeviceId())) {
             return;
         }
         for (AbstractController controller : controllers) {
@@ -181,11 +190,12 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         }
 
         // Are we able to operate it?
-        if (shouldClaimDevice(device, prefConfig.bindAllUsb)) {
+        if (shouldClaimDevice(device, prefConfig)) {
             // Do we have permission yet?
             if (!usbManager.hasPermission(device)) {
                 // Let's ask for permission
                 try {
+                    pendingPermissions.add(device.getDeviceId());
                     // Tell the state listener that we're about to display a permission dialog
                     if (stateListener != null) {
                         stateListener.onUsbPermissionPromptStarting();
@@ -208,8 +218,10 @@ public class UsbDriverService extends Service implements UsbDriverListener {
                     Intent i = new Intent(ACTION_USB_PERMISSION);
                     i.setPackage(getPackageName());
 
-                    usbManager.requestPermission(device, PendingIntent.getBroadcast(UsbDriverService.this, 0, i, intentFlags));
+                    usbManager.requestPermission(device, PendingIntent.getBroadcast(UsbDriverService.this,
+                            device.getDeviceId(), i, intentFlags));
                 } catch (SecurityException e) {
+                    pendingPermissions.remove(device.getDeviceId());
                     Toast.makeText(this, this.getText(R.string.error_usb_prohibited), Toast.LENGTH_LONG).show();
                     if (stateListener != null) {
                         stateListener.onUsbPermissionPromptCompleted();
@@ -320,18 +332,22 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         return true;
     }
 
-    public static boolean shouldClaimDevice(UsbDevice device, boolean claimAllAvailable) {
+    public static boolean shouldClaimDevice(UsbDevice device, PreferenceConfiguration config) {
         // Android's InputDevice API cannot apply DualSense adaptive trigger effects.
-        return DualSenseController.canClaimDevice(device) ||
+        if (DualSenseController.canClaimDevice(device)) {
+            return config.usbDualSense;
+        }
+        boolean claimAllAvailable = config.bindAllUsb;
+        return config.usbDriver && (
                 ((!kernelSupportsXboxOne() || !isRecognizedInputDevice(device) || claimAllAvailable) && XboxOneController.canClaimDevice(device)) ||
                 ((!isRecognizedInputDevice(device) || claimAllAvailable) && Xbox360Controller.canClaimDevice(device)) ||
                 // We must not call isRecognizedInputDevice() because wireless controllers don't share the same product ID as the dongle
-                ((!kernelSupportsXbox360W() || claimAllAvailable) && Xbox360WirelessDongle.canClaimDevice(device));
+                ((!kernelSupportsXbox360W() || claimAllAvailable) && Xbox360WirelessDongle.canClaimDevice(device)));
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void start() {
-        if (started || usbManager == null || !prefConfig.usbDriver) {
+        if (started || usbManager == null || (!prefConfig.usbDriver && !prefConfig.usbDualSense)) {
             return;
         }
 
@@ -351,7 +367,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
 
         // Enumerate existing devices
         for (UsbDevice dev : usbManager.getDeviceList().values()) {
-            if (shouldClaimDevice(dev, prefConfig.bindAllUsb)) {
+            if (shouldClaimDevice(dev, prefConfig)) {
                 // Start the process of claiming this device
                 handleUsbDeviceState(dev);
             }
@@ -367,6 +383,12 @@ public class UsbDriverService extends Service implements UsbDriverListener {
 
         // Stop the attachment receiver
         unregisterReceiver(receiver);
+        for (int ignored : pendingPermissions) {
+            if (stateListener != null) {
+                stateListener.onUsbPermissionPromptCompleted();
+            }
+        }
+        pendingPermissions.clear();
 
         // Stop all controllers
         for (AbstractController controller : controllers) {

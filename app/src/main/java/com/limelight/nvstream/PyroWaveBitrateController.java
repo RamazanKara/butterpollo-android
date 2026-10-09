@@ -21,7 +21,7 @@ public final class PyroWaveBitrateController {
     }
 
     // Sample once per second while no runtime request is pending. Loss includes recovered frames' missing records.
-    public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float queueMs) {
+    public int sample(long nowMs, boolean recentVideo, boolean poorConnection, float lossPercent, float queueMs, float decodeMs) {
         if (!recentVideo) {
             healthySinceMs = -1;
             previousLoss = previousQueueMs = -1;
@@ -30,7 +30,7 @@ public final class PyroWaveBitrateController {
                 return 0;
             }
         }
-        boolean congested = poorConnection || (recentVideo && (lossPercent >= 2 ||
+        boolean congested = poorConnection || (recentVideo && (lossPercent >= 2 || decodeMs >= frameMs ||
                 queueMs >= Math.max(20, frameMs * 2) ||
                 (previousLoss >= 0 && lossPercent >= 0.5f && lossPercent - previousLoss >= 0.25f) ||
                 (previousQueueMs >= 0 && queueMs >= Math.max(8, frameMs * 0.75f) &&
@@ -45,7 +45,8 @@ public final class PyroWaveBitrateController {
             }
         } else {
             congestedSamples = 0;
-            if (lossPercent >= 0.1f || queueMs >= Math.max(4, frameMs / 2)) {
+            if (lossPercent >= 0.1f || queueMs >= Math.max(4, frameMs / 2) ||
+                    decodeMs < 0 || decodeMs >= frameMs * 0.75f) {
                 healthySinceMs = -1;
             } else if (healthySinceMs == -1) {
                 healthySinceMs = nowMs;

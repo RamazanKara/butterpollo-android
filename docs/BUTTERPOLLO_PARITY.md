@@ -1,7 +1,15 @@
-# Butterpollo Android parity — milestone 7
+# Butterpollo Android parity — client gap follow-up
 
 > The current one-page status against the host's `main` is [PARITY-MATRIX.md](PARITY-MATRIX.md).
 > This file keeps the detailed evidence and the real-device checklist.
+
+Client review on 2026-10-09: this branch already contained record framing, a USB DualSense driver
+and role-aware sessions. This follow-up adds decode time to PyroWave rate control, a separate
+off-by-default DualSense toggle with Material 3 permission explanation, captured USB input fixtures,
+Material 3 launch confirmation and interruption/unknown-410 regressions. The current checklist below
+supersedes older milestone instructions about absent records, triggers or role support.
+The read-only local host reference was [118a0abb](https://github.com/RamazanKara/Butterpollo/tree/118a0abb18480ff1da5564c57a2e00049ed67e47);
+only this client changed.
 
 Re-audited on 2026-10-08 against the read-only host checkout at
 [Butterpollo `de2d920127bc1113ff41ebc0d313a78eaf8b0e1b`](https://github.com/RamazanKara/Butterpollo/tree/de2d920127bc1113ff41ebc0d313a78eaf8b0e1b).
@@ -17,7 +25,7 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Pairing and device identity | PIN/certificate pairing, `PairStatus`, host `uniqueid`; device UUID bound to certificate | Persistent installation ID, Android model name, certificate pinning and authenticated HTTPS unpair. Installation ID, private key and client certificate are excluded from backup/device transfer so a restored installation pairs independently. Same-install updates preserve identity. |
 | One-time PIN, device permissions | OTP creation via admin API, `otpauth` pairing; `Permission`, per-device enable and access masks | Host context menu accepts the generated four-digit PIN and passphrase; masked, transient fields and a timed pairing request. Ordinary PIN pairing remains available. Unsigned permission masks are displayed and refreshed before host actions; missing fields preserve stock behavior, malformed masks grant nothing. |
 | App list and artwork | `/applist`, `/appasset`; `AppTitle`, `ID`, `IsHdrSupported`, `UUID`, `IDX`, `ArtVersion`, permission-filtered entries | UUID-aware launch/resume and shortcuts, host index ordering with alphabetical fallback, live metadata updates, and artwork version/identity keys for memory, disk, pending loads and TV posters. Unknown fields remain compatible. Unchanged host artwork tokens cannot signal changed covers. |
-| Launch, resume, quit and ownership | `/launch`, `/resume`, `/cancel`, `currentgame`, `currentgameuuid`, `state`, `gamesession`, `sessionUrl0` | Back / Ctrl+Alt+Shift+M opens a local stream menu immediately. Disconnect preserves the host app; reconnect waits for teardown and creates a fresh stream. Running-app UUID matching avoids numeric-ID reuse mistakes. View or launch permission allows viewing. Role-specific ownership/confirmation UI remains incomplete. |
+| Launch, resume, quit and ownership | `/launch`, `/resume`, `/cancel`, `currentgame`, `currentgameuuid`, `state`, `gamesession`, `sessionUrl0` | Local disconnect preserves the app; reconnect waits for teardown. UUID matching, refreshed Resume ownership, role-scoped disconnect and explicit replacement/Terminate confirmation are implemented. View or launch permission allows viewing; unknown 410 messages never cause retries. |
 | Per-host, per-app and per-device settings | Client launch parameters; host merges stream/input/display/encoder overrides, prep/undo commands, `APOLLO_*` environment | Local per-host stream profiles now save custom dimensions, refresh, bitrate, render scale, virtual display, HDR/range/chroma and codec choice. Host app/device policy applies normally. Editing the host's profiles, permissions or app settings requires its separate authenticated administration API; no native admin editor. |
 | Per-device virtual display | `VirtualDisplayCapable`, `VirtualDisplayDriverReady`, `virtualDisplay=1`; certificate-derived stable display identity | New opt-in request, sent only when advertised and driver not reported unavailable; otherwise a notice and host policy fallback. Shared/off/layout/forced-output policy stays host controlled. |
 | Native resolution and render scale | `mode=WIDTHxHEIGHTxRATE`, SDP viewport, `scaleFactor` | Native portrait/landscape/fullscreen choices and per-host custom dimensions. Per-host render scale accepts 50–200%, default 100%, with the virtual-display request. Stream viewport is unchanged by render scale. |
@@ -34,12 +42,12 @@ The current Rust host is authoritative; the retained C++ implementation is histo
 | Audio | Opus stereo, 5.1, 7.1, quality/channel-map negotiation, local playback, encryption | Existing audio negotiation/playback. Endpoint selection remains host configured. |
 | Transport and recovery | RTSP/encrypted RTSP, UDP video/audio, reliable encrypted control, FEC, keyframe recovery, optional reference invalidation, ping/connect-data extensions, QoS | Existing pinned moonlight-common-c `874ac954` handles these. Slice/reference negotiation and milestone 2 latency controls retained. |
 | Keyboard/mouse/touch/pen | Standard input plus `x-ss-general.featureFlags` pen/touch bit | Hardware/soft keyboards, captured/absolute mouse and stylus retained. Stream menu selects trackpad, direct touch-as-mouse or native multi-touch with capability fallback; native gestures send cancel-all on focus/mode changes. Keyboard/OSC cleanup and explicit soft-keyboard access added. |
-| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Existing Android/vendor mappings, face-button swap, deadzone, multiple-controller and feedback paths retained. OSC can be shown/hidden and its move/resize/save editor opened in-stream. Arbitrary per-controller remapping and DualSense adaptive/secondary-touchpad extensions remain unimplemented. |
+| Controllers and feedback | Multiple pads, touch bit, motion, battery, rumble/triggers, LED; driver-dependent DualSense effects | Android/vendor input and per-model digital remapping remain. The opt-in USB DualSense/Edge driver handles two touch contacts, calibrated motion, battery, rumble, LEDs, raw host trigger effects and Edge back paddles. USB-driver digital remapping and Bluetooth adaptive triggers remain outside this path. |
 | Frame limiter and VRR | `FrameLimiterSupported`, `FrameLimiterEnabled`, `VirtualDisplayFrameLimiterEnabled`, `FrameLimiterFpsLimitMilliHz`; `vrr` aliases and SDP `vrrLowLatency`, 1000 Hz virtual mode | Stream menu reports manual/virtual limiter state and fractional configured cap (zero means stream rate). Host defaults and selected Android pacing apply. Opt-in **Variable refresh (VRR)** sends `vrr=1` (not to GFE), which turns on the host's VRR pacing; the client then forces minimum-latency pacing at the panel's highest refresh rate. Android scanout itself stays fixed-rate before adaptive refresh rate (ARR) support. |
-| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Manual runtime adjustment plus opt-in per-host automatic bitrate for ordinary codecs on Butterpollo. Sustained network loss/poor status lowers bitrate; healthy recent video recovers slowly within the applied cap. Manual change disables automation. PyroWave and stock Sunshine/Apollo keep manual/startup behavior. No automatic codec/resolution switch. |
-| Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Tiles can be listed by existing app parser; role-specific lifecycle/confirmation UI deferred. Not claimed as full remote-session support. |
+| Runtime bitrate / ABR | `/bitrate`, `/api/abr/capabilities`: client-driven runtime bitrate, `supported:false` for host ABR | Opt-in per-host control for ordinary codecs and a separate PyroWave controller using loss, queueing and completed decode time. Manual changes/request failure disable adaptation. Stock hosts retain startup behavior; no automatic codec/resolution switch. |
+| Remote monitor/input and control tiles | Synthetic app IDs/UUIDs, `remote_monitor`, `input_only`, resume/disconnect/terminate/replace actions | Monitor input is blocked; Input-only skips media threads/decoders/watchdogs. Scoped disconnect, ownership refresh and Material 3 confirmation handle recognized XML status 410 replies (HTTP transport status 200). Device lifecycle checks remain required. |
 | Clipboard and server commands | Permission-scoped text `/actions/clipboard`, advertised `ServerCommand` names | Explicit foreground text send/receive over paired HTTPS with direction permissions, UTF-8, 1 MiB limit and no content logging. Commands use reliable encrypted control type `0x3000`, original 8-bit index and host-specific payload size; confirmation, permission refresh and one-second spacing. Host enforces app restrictions; no execution acknowledgment exists. |
-| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Explicit per-host/global codec choice, Vulkan HDR/4:4:4 SurfaceView output and runtime/warm-up gates retained. Paired host menu now offers a cancellable 32 MiB HTTP bandwidth test. Exact `186f0393` ordinary packet transport only; adaptive records and real-device certification remain open. Current bitrate ceilings cannot meet the host's recommended 4K60 quality target. |
+| PyroWave | Codec/SDP flags, bitstream ID, adaptive FEC/records, `PyroWaveHostLinkMbps`, bandwidth probe bytes/endpoint | Explicit codec choice, Vulkan HDR/4:4:4, runtime/warm-up gates and bandwidth probe. Compatible Rust versions negotiate adaptive records via pyrowaveFeatures=1; unknown versions retain ordinary containers and a bitstream mismatch falls back to conventional codecs. Startup accepts 2 Gbps; runtime changes cap at 500 Mbps. Phone certification remains open. |
 | Host diagnostics/version | `appversion`, `GfeVersion`, `MaxLumaPixelsHEVC`, `RustHostVersion`; loopback-only session/pending/app/profile fields | Accepts the current host's `7.1.431.-1` trailing build sentinel while rejecting other malformed negatives. Rust version gates decimal launch rates. Loopback-only diagnostics ignored safely. |
 | Android integration and overlay | Android launcher/PiP and existing stream telemetry | Wake-on-LAN, pinned app shortcuts, TV channels and PiP retained. Overlay toggles immediately from the stream menu or Ctrl+Alt+Shift+S. Shortcut intents carry app UUID; native touch uses the menu for soft-keyboard access. |
 | Library and host administration | Steam/Playnite sync, Lossless Scaling, RTSS/RTX HDR/TrueHDR, display/HDR profiles, settings, devices, logs, updates, auth/tokens | Host-side effects work with ordinary launches; administration remains in the web console, not a streaming-client parity requirement. No admin credentials added to pairing. |
@@ -95,13 +103,17 @@ their existing three-finger keyboard gesture.
   the old connection before starting a new activity/session; it does not quit the host application.
   Transport errors offer reconnect. Touch cancellation and input release prevent the new menu paths
   from leaving emulated input held; hardware/OEM behavior still needs the checks below.
-- Automatic bitrate is opt-in and saved per host, available on Butterpollo with ordinary codecs.
-  It samples recent video/network loss and common-c poor-connection status once per second, waits
+- Automatic bitrate is opt-in and saved per host, available on Butterpollo. For ordinary codecs it
+  samples recent video/network loss and common-c poor-connection status once per second, waits
   through transient bad samples, reduces by 20% no faster than every five seconds, then increases
   slowly after 15 healthy seconds. It respects the host's applied cap, pauses decisions during menu
   interaction/other host actions and disables itself after a request failure or a manual bitrate
-  change. It changes bitrate only, never resolution, frame rate or codec. It is disabled for PyroWave,
-  whose quality needs a different bitrate policy. Startup preferences remain the next stream's baseline.
+  change. PyroWave has separate saved opt-in state: two congested samples reduce by 15%, no faster
+  than every three seconds; 20 healthy seconds allow a 2% rise (at least 250 kbps). Its signals include
+  missing records, lost frames, queue delay and completed decode time versus the stream frame budget.
+  Decode time excludes the subsequent presentation wait; missing decode measurements or less than
+  25% decode headroom prevent recovery. Both controllers respect the applied host cap and 500 Mbps
+  runtime limit. Neither changes resolution, frame rate or codec; startup settings remain the baseline.
 - On a paired capable PC, **Test PyroWave bandwidth** asks before downloading 32 MiB over pinned HTTPS.
   It reports measured HTTP throughput and the advertised host link speed, has a 30-second total
   timeout, and cancels when leaving the screen. It does not alter stream settings. HTTP throughput
@@ -132,15 +144,26 @@ their existing three-finger keyboard gesture.
 | Editing host or per-app/per-device settings and permissions | `/api/config`, `/api/apps`, `/api/clients/update`, `/api/clients/display-layout` and HDR-profile APIs require separate administrator authentication. Pairing certificates do not grant that access. Host overrides already apply during ordinary launches; a native admin UI/credential store is not implemented. |
 | Detailed capture/encode/frame-age telemetry | The video short header carries one processing duration. Capture/encode breakdown, host warnings and broader diagnostics belong to authenticated host telemetry. The overlay/CSV reports available processing avg/p95/p99 and never infers encode-only or end-to-end time by subtracting unrelated clocks. A native admin telemetry view remains open. |
 | VRR | Requested on opt-in with launch `vrr=1`; the host ORs it into `vrrLowLatency`, so no SDP change is needed. The phone presents each frame immediately at its highest fixed refresh rate; true variable scanout needs Android 16 ARR and is not implemented or measured. |
-| PyroWave transport and 4K quality | Ordinary `186f0393` packet containers work through the implemented path; adaptive record/FEC negotiation remains absent. The host's [quality policy](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/core/src/pyrowave.rs) recommends about 277 Mbps at 720p60, 399 Mbps at 1080p60 and 1593 Mbps at 4K60. The per-PC startup profile now accepts up to 2000 Mbps, the host's stream-setup limit; the host runtime endpoint still caps changes at 500 Mbps. Recommended-quality 4K60 needs more than gigabit Ethernet. Higher bitrate/record transport needs further work, not a claim that Android GPUs cannot decode it. |
-| Remote Monitor, Remote Input and control-tile lifecycle | Stable synthetic IDs/UUIDs can be listed and sent. Host [role handling](https://github.com/RamazanKara/Butterpollo/blob/3e264545e75d5da238b150dfca214825f7a4a1ec/rust/host/src/stream.rs) emits no video for InputOnly, so the normal Android video watchdog cannot provide a usable dedicated input-only session. Dedicated role lifecycle/ownership UI is missing. Terminate/disconnect and replacement confirmation use XML status 410, currently surfaced as a start message/error rather than a dedicated action-success/confirmation flow. Remote Monitor's persistence/rejoin behavior is unverified. |
-| Axis mapping and advanced feedback | Per-model digital button remapping is available; D-pad, trigger and stick-axis remapping is not, nor is remapping for controllers on the built-in Xbox USB driver. Since rc.23 the host gives PlayStation-type clients a VHF DualSense and sends adaptive-trigger effects; common-c `874ac954` exposes `setAdaptiveTriggers`, but this app does not wire it and Android has no trigger API. A USB DualSense driver is the planned route; Bluetooth needs root. |
+| PyroWave transport and 4K quality | Record framing now recovers surviving coefficients and conceals missing records with cached data; a datagram may affect several records or a split record. Framing and bitrate state machines have unit coverage, but packet loss, GPU performance and quality still need phone checks. Startup accepts 2000 Mbps; runtime /bitrate remains capped at 500 Mbps. Recommended-quality 4K60 may require more than gigabit Ethernet. |
+| Remote Monitor, Remote Input and control-tile lifecycle | Implemented role-specific media/input gating, scoped disconnect and explicit confirmation. Replacement/Terminate XML 410 challenges require a user decision within 60 seconds, retry at most once and cancel on background/stop. Completion messages are distinguished from errors. Verify persistence/rejoin and two-client ownership on hardware. |
+| Axis mapping and advanced feedback | Axis mapping and USB-driver digital remapping remain unimplemented. USB DualSense/Edge feedback is wired through common-c/JNI to physical USB reports, including opaque rc.23+ trigger payloads. Bluetooth adaptive triggers and USB audio haptics are not claimed. |
 | Other Artemis desktop conveniences | Arbitrary virtual-button bindings/import/export, automatic clipboard sync, view pan/zoom, external-monitor-specific UI and SBS 3D remain absent. Manual foreground text clipboard is intentional current behavior. No claim of every Artemis feature being reproduced. |
-| Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain their normal startup bitrate. PyroWave-specific adaptation and automatic resolution/codec switching remain unimplemented. |
+| Automatic bitrate on other hosts | Only the verified Butterpollo runtime API is used; stock Sunshine/Apollo retain startup bitrate. PyroWave has its own loss/queue/decode policy. Automatic resolution/codec switching remains unimplemented. |
 
 ### Current verification scope and real-device checklist
 
-The local checks cover profile validation/round-trips, fractional/stock-host query behavior,
+2026-10-09 follow-up, Windows/JDK 17: `:app:assembleNonRootDebug`,
+`:app:testNonRootDebugUnitTest` and `:app:lintNonRootDebug` all passed with
+`--no-daemon --max-workers=2`. The APK includes all four Android ABIs. JUnit passed
+432 tests with zero failures, errors or skips; lint reported zero errors and 178 warnings.
+The standalone native `pyrowave_frame_test` passed with GCC 16.2, including record loss,
+format-change concealment, malformed/truncated input and negotiation cases. Dependencies
+were copied to a writable worktree cache after the shared-cache ZIP cleanup failed.
+No emulator, adb, phone or physical controller was used in this follow-up. Captured USB
+input reports supplement synthetic Edge/effect fixtures; the hardware checks below remain open.
+
+Historical milestone-7 verification (before the 2026-10-09 follow-up): the local checks covered
+profile validation/round-trips, fractional/stock-host query behavior,
 UUID/order/artwork identity, the trailing version sentinel, OTP hashing/request mode, bandwidth
 streaming/cancellation boundaries and the automatic-bitrate state machine, alongside existing native
 protocol/decoder tests. After rebasing onto the UI pass at `67e929b1`, `assembleNonRootDebug` passed for all four ordinary-codec ABIs,
@@ -149,7 +172,7 @@ reported zero errors and 196 warnings (including two AV1 spelling warnings). The
 `pyrowave_frame_test` assertions passed with GCC 16.1. These runs used Windows/JDK 17 and Gradle
 `--no-daemon --max-workers=2`; they do not certify a stream or real device.
 
-After rebasing, `scripts/emulator-smoke.py` passed on the headless Android 35 `sunset` AVD:
+In that earlier run, `scripts/emulator-smoke.py` passed on the headless Android 35 `sunset` AVD:
 manual discovery, invalid profile input, saving/reopening 1920×1080 at 59.94 Hz, resetting to global
 settings, overlay preference persistence, About's Moonlight/GPL-3.0 attribution, and production
 overlay layout/rotation. Eleven screenshots were refreshed and the profile, settings, host list and
@@ -186,7 +209,7 @@ The following still require real Android hardware and a host; passing synthetic 
 5. **Network adaptation/probe:** test wired and Wi-Fi routes with controlled loss/congestion/recovery,
    host caps, stale/no-video periods, rapid manual/automatic switches, permission revocation and
    disconnect during a request. Confirm bitrate reduces/recovers without oscillation or overlap and
-   that PyroWave/stock hosts never acquire automatic control. Run/cancel/background/timeout the
+   that stock hosts never acquire automatic control; PyroWave uses its separate opt-in controller. Run/cancel/background/timeout the
    bandwidth test, distinguish link speed from HTTP throughput, and compare with sustained UDP behavior.
 6. **Input:** connect at least two physical USB/Bluetooth controllers, test slot order/hotplug,
    standard/vendor mappings, face swap, Settings → Controller buttons (remap, disable, reset, two
@@ -204,6 +227,54 @@ The following still require real Android hardware and a host; passing synthetic 
    frame load, missing timing and loss; client render callbacks are not physical scanout. Test stereo,
    5.1/7.1 and route/encryption options, Unicode/empty/oversized clipboard with independent permissions,
    and server commands with reordered/empty/high indices, host app restrictions and disconnect.
+
+9. **PyroWave records and rate control:** on the phone choose Video → Prefer PyroWave and start
+   1280×720/60, then 1920×1080/120 if supported, first over USB Ethernet and then Wi-Fi. With a compatible
+   Butterpollo host confirm SDP `pyrowaveFeatures=1` and `186f0393`. On a controlled test link lose/reorder
+   packets (including first, middle and last packets and a burst spanning a FEC block). Check surviving
+   regions keep updating, affected regions recover with later records, and reconnect clears old imagery.
+   Loss need not equal exactly one visible 64×64 block: one datagram can carry several records.
+   Enable Automatic bitrate in the stream menu: sustained loss, queueing or decode time over the frame
+   budget should lower bitrate; at least 20 healthy seconds with decode headroom should permit a slow rise.
+   Repeat during a 20-minute thermal run, export the latency CSV and record overlay decode time/bitrate.
+   Check the chosen/applied cap and 500 Mbps runtime cap, manual override, permission denial and reconnect.
+   A host with unknown Rust version must use ordinary containers; an incompatible bitstream, unsupported
+   Vulkan device or surface must fall back to AV1/HEVC/H.264. Compare ordinary-codec streaming afterwards.
+10. **USB DualSense / Edge:** before enabling anything, connect by USB and verify ordinary Android
+    controller input and no DualSense USB permission prompt. In Settings → Input turn on **USB DualSense
+    driver**, read/cancel the Material 3 explanation, then enable it and start a stream on rc.23+.
+    Deny the Android permission once: normal input should remain and the denial message should appear.
+    Unplug/replug, allow permission, and verify one player slot, sticks, hat/buttons, analog triggers,
+    both touch contacts, gyro/accelerometer, battery, player LEDs, lightbar RGB and each rumble motor.
+    Exercise host-driven left-only, right-only, simultaneous and Off trigger effects (feedback, weapon,
+    vibration and a title using zone effects); interleave lightbar/rumble changes and verify the other
+    trigger is preserved. On Edge press each back paddle separately/together and each Fn button; only
+    the paddles should send paddle flags (rc.24+ mapping). Repeat with a second pad, cable removal while
+    effects are active, reconnect, stream exit and the toggle disabled. Rumble/triggers must reset on
+    exit; no duplicate slot, stuck button, permission loop or blocked reconnect. Confirm the USB audio
+    interfaces stay available; audio haptics are not implemented. Bluetooth keeps Android's input path.
+    Record pad PID/firmware and phone OS, and retain USB input/output captures for Edge and actual host
+    effects: those fixtures are still synthetic here. Physical input fixtures in JUnit come from the
+    [published DS5/PS5 USB sniffer capture](https://github.com/matlo/GIMX/issues/672#issuecomment-1019605142),
+    not this phone; they do not certify Android transfers or feedback strength.
+11. **Role lifecycle and confirmation:** pair a second client and keep a game active there. Start
+    Remote Monitor: video/audio should work and keyboard/touch/gamepad input must not reach the host.
+    Start Input-only with the host option enabled: input/feedback should work without video/audio or
+    a missing-video timeout (leave it connected at least a minute). Disconnect locally, reopen/rejoin,
+    background/foreground, lose the network and reconnect. The main game must survive. Exercise the
+    role-specific End remote session action: only that role should end. Refresh the app list and try
+    Resume after ownership changes. For a replacement app and Terminate, test Cancel, Back, Home,
+    rotation, a wait beyond 60 seconds and Confirm. Only an explicit timely Confirm may send the second
+    request; successful Terminate/disconnect should close the tile without a stream failure. Verify
+    unknown 410/conflict/permission-denied replies display an error and never repeat a destructive action.
+12. **2024+ decoder evidence:** record the exact phone/SoC, OS/build, decoder name, advertised low-latency
+    support, codec/profile, resolution/rate and pacing mode with each CSV. Compare H.264/HEVC/AV1 at
+    1080p60/120 and native resolution, static scenes followed by motion, display power-save/full-resolution
+    modes and at least 20 minutes of heat/load. For a 9300-class device include >1440p static-to-motion;
+    for S24+ Exynos include the upstream workload-dependent stutter scenario; for 8 Gen 3 include sustained
+    AV1/HDR/120. Keep network loss separate from decode/render stalls. Elite/Tensor G4 timing and useful
+    vendor keys remain unknown until measured; see [decoder-errata.txt](../decoder-errata.txt). No new
+    SoC tuning was added on the strength of issue reports, and no phone timings were generated locally.
 
 ## Milestone 5: extras and packaging (historical record)
 

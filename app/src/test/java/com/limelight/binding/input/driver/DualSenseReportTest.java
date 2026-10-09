@@ -12,6 +12,43 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class DualSenseReportTest {
+    // Physical USB captures, Total Phase sniffer, DS5 -> PS5; unmodified 64-byte reports:
+    // https://github.com/matlo/GIMX/issues/672#issuecomment-1019605142
+    private static final byte[][] CAPTURED_USB = {
+            hex("01 7f 83 83 7d 00 00 66 08 00 00 00 af d5 c6 68 " +
+                "fa ff fd ff 05 00 32 00 40 1f 8d 05 f7 f5 e4 00 " +
+                "01 80 00 00 00 80 00 00 00 00 09 09 00 00 00 00 " +
+                "00 96 f8 e4 00 2a 08 00 42 31 48 e4 b4 54 34 31"),
+            hex("01 7f 83 83 7e 00 00 76 08 00 00 00 bf d5 c6 68 " +
+                "fc ff ff ff 03 00 37 00 42 1f 82 05 ee b0 e5 00 " +
+                "01 80 00 00 00 80 00 00 00 00 09 09 00 00 00 00 " +
+                "00 16 b4 e5 00 2a 08 00 45 f3 a0 df bb 82 1d 49")
+    };
+
+    @Test
+    public void capturedUsbReportsDecodeDespiteNonzeroReservedBytes() {
+        for (int i = 0; i < CAPTURED_USB.length; i++) {
+            DualSenseReport.Input input = parse(CAPTURED_USB[i], false);
+            assertEquals(0, input.buttons);
+            assertEquals(-1 / 128.0f, input.leftStickX, 0);
+            assertEquals(3 / 127.0f, input.leftStickY, 0);
+            assertEquals(3 / 127.0f, input.rightStickX, 0);
+            assertEquals((i == 0 ? -3 : -2) / 128.0f, input.rightStickY, 0);
+            assertEquals(0, input.leftTrigger, 0);
+            assertEquals(0, input.rightTrigger, 0);
+            assertArrayEquals(new boolean[]{false, false}, input.touching);
+            assertEquals(MoonBridge.LI_BATTERY_STATE_FULL, input.batteryState);
+            assertEquals(100, input.batteryPercentage);
+            new DualSenseReport.Calibration().apply(input);
+            assertArrayEquals(i == 0 ? new float[]{-0.375f, -0.1875f, 0.3125f} :
+                    new float[]{-0.25f, -0.0625f, 0.1875f}, input.gyro, 0);
+            float unit = 9.80665f / 8192;
+            assertArrayEquals(i == 0 ? new float[]{50 * unit, 8000 * unit, 1421 * unit} :
+                    new float[]{55 * unit, 8002 * unit, 1410 * unit}, input.accel, 0.000001f);
+        }
+    }
+
+    // Synthetic edge cases complement the physical captures above.
     private static final byte[] NEUTRAL = hex(
             "01 80 80 80 80 00 00 00 08 00 00 00 00 00 00 00 " +
             "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " +

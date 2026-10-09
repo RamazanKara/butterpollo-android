@@ -64,6 +64,44 @@ public class NvConnectionRoleTest {
     }
 
     @Test
+    public void interruptedConfirmationNeverRetriesAndClosesThePrompt() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        ConnectionContext context = context(73, request -> Thread.currentThread().interrupt(), new AtomicInteger());
+        NvHTTP http = http(context, "launch", requests, NvHTTPRoleTest.error("replace-confirm"));
+        AtomicInteger finished = new AtomicInteger();
+        NvConnectionListener listener = context.connListener;
+        context.connListener = (NvConnectionListener) Proxy.newProxyInstance(
+                NvConnectionListener.class.getClassLoader(), new Class<?>[] {NvConnectionListener.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("launchConfirmationFinished")) finished.incrementAndGet();
+                    return method.invoke(listener, args);
+                });
+        try {
+            assertThrows(java.io.InterruptedIOException.class, () -> NvConnection.launchApp(http, context, "launch"));
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertEquals(1, requests.get());
+            assertEquals(1, finished.get());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    public void remoteRoleAndUnknown410NeverBecomeReplacementConfirmations() throws Exception {
+        for (int appId : new int[]{2147483505, 2147483506, 73}) {
+            AtomicInteger requests = new AtomicInteger();
+            ConnectionContext context = context(appId, request -> fail("Unexpected confirmation"), new AtomicInteger());
+            HostHttpResponseException error = appId == 73 ? new HostHttpResponseException(410, "Gone") :
+                    NvHTTPRoleTest.error("replace-confirm");
+            NvHTTP http = http(context, "launch", requests, error);
+            assertSame(error, assertThrows(HostHttpResponseException.class,
+                    () -> NvConnection.launchApp(http, context, "launch")));
+            assertEquals(1, requests.get());
+            assertFalse(context.launchActionCompleted);
+        }
+    }
+
+    @Test
     public void launchAndResumeRepeatTheSameRequestOnlyAfterConfirmation() throws Exception {
         for (String verb : new String[] {"launch", "resume"}) {
             AtomicInteger requests = new AtomicInteger();

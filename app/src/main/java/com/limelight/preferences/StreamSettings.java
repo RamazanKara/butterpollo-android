@@ -715,12 +715,27 @@ public class StreamSettings extends AppCompatActivity {
                 category.removePreference(findPreference("checkbox_gamepad_motion_fallback"));
             }
 
+            CheckBoxPreference dualSense = (CheckBoxPreference) findPreference("checkbox_usb_dualsense");
+            dualSense.setOnPreferenceChangeListener((preference, value) -> {
+                if (!Boolean.TRUE.equals(value)) {
+                    return true;
+                }
+                new MaterialAlertDialogBuilder(getActivity())
+                        .setTitle(R.string.title_usb_dualsense)
+                        .setMessage(R.string.usb_dualsense_permission_info)
+                        .setPositiveButton(R.string.usb_dualsense_enable, (dialog, which) -> dualSense.setChecked(true))
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+                return false;
+            });
+
             // Hide USB driver options on devices without USB host support
             if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {
                 PreferenceCategory category =
                         (PreferenceCategory) findPreference("category_gamepad_settings");
                 category.removePreference(findPreference("checkbox_usb_bind_all"));
                 category.removePreference(findPreference("checkbox_usb_driver"));
+                category.removePreference(dualSense);
             }
 
             // Remove PiP mode on devices pre-Oreo, where the feature is not available (some low RAM devices),
