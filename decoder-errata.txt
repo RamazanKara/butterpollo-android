@@ -50,3 +50,24 @@ This file serves to document some of the decoder errata when using MediaCodec ha
 
 17. Fire TV 3's Amlogic HEVC decoder doesn't produce any output frames without setting the magic "vdec-lowlatency" MediaFormat option
     - Affected devices: Fire TV 3
+
+2024+ device evidence review (2026-10-09; reports, not local measurements)
+
+18. Vivo Pad3 Pro / Dimensity 9300, Android 14: the reporter observed a decode-time spike and cursor stutter when motion resumed after 2-3 seconds of a static image above 1440p. Codec/firmware cause and a client workaround are not established. Do not generalize older MTK OMX errata to all C2 MTK decoders.
+    - Source: https://github.com/moonlight-stream/moonlight-android/issues/1356
+    - Related codec-info evidence lists c2.mtk.hevc.decoder.lowlatency on Poco X6 Pro / Dimensity 8300 Ultra: https://github.com/moonlight-stream/moonlight-android/issues/1241#issuecomment-2833328947
+    - Existing policy: MediaCodecHelper.findKnownSafeDecoder() searches all candidates for advertised FEATURE_LowLatency first. setDecoderLowLatencyOptions() prefers KEY_LOW_LATENCY on that path before vendor retries. No new MTK key or SoC blacklist is justified by these reports.
+
+19. Samsung Galaxy S24+ (Exynos), Android 14: upstream reports high decode latency/stutter at 2560x1440/60, changing while screen recording is active. Comments contain conflicting software/workload workarounds and reports from older Exynos devices. No controlled result establishes an Exynos 2400 codec quirk or a reliable fix.
+    - Source: https://github.com/moonlight-stream/moonlight-android/issues/1370
+    - Existing policy: omx.exynos/c2.exynos vendor.rtc-ext-dec-low-latency.enable fallback remains. Screen recording, CPU-Z and forced GPU activity are not added as workarounds; measure the actual phone/firmware and advertised decoder first.
+
+20. iQOO 12 Pro / Snapdragon 8 Gen 3, Android 14: an upstream report describes periodic rendered-FPS drops at 3200x1440/120 with AV1/HDR and balanced pacing, while incoming FPS remains steady. This does not establish a codec-specific decoder defect or an effective vendor key.
+    - Source: https://github.com/moonlight-stream/moonlight-android/issues/1371
+    - Counterexample to a blanket Snapdragon blacklist: the Xiaomi Pad 7 Pro / 8s Gen 3 corruption/freeze reporter later resolved their issue by replacing the router: https://github.com/moonlight-stream/moonlight-android/issues/1471#issuecomment-2816285963
+    - Existing policy: omx.qcom/c2.qti low-latency and picture-order retries remain capability-based. 8s Gen 3, 8 Gen 3 and 8 Elite are not interchangeable driver evidence.
+
+21. Snapdragon 8 Elite, Tensor G4/Pixel 9, newer Dimensity and Exynos revisions: no verified model-specific decoder workaround or reproducible decode measurement was established by the reachable upstream issues and this code review. Absence of evidence is not certification. Keep standard low-latency capability selection, supported size/rate/profile checks and vendor-option retry fallback; do not invent SoC timings or new tuning keys.
+    - Local implementation reviewed: app/src/main/java/com/limelight/binding/video/MediaCodecHelper.java and MediaCodecDecoderRenderer.java.
+    - Upstream issue searches: https://github.com/moonlight-stream/moonlight-android/issues?q=is%3Aissue+%228+Elite%22 and https://github.com/moonlight-stream/moonlight-android/issues?q=is%3Aissue+%22Tensor+G4%22
+    - Required phone checks, including firmware/decoder names, static-to-motion transitions and thermal runs: docs/BUTTERPOLLO_PARITY.md, current real-device checklist.

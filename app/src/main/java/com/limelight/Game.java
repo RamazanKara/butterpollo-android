@@ -151,7 +151,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private Thread connectionStopThread;
     private int suppressPipRefCount = 0;
     private AlertDialog streamMenu;
-    private AlertDialog launchConfirmationDialog;
+    private androidx.appcompat.app.AlertDialog launchConfirmationDialog;
     private LaunchConfirmation pendingConfirmation;
     private String connectionErrorMessage;
     private boolean hostActionInProgress;
@@ -174,7 +174,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 long now = SystemClock.uptimeMillis();
                 int target = pyroWaveBitrate != null ?
                         pyroWaveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now), poorConnection,
-                                decoderRenderer.getPyroWaveLossPercent(), decoderRenderer.getPyroWaveQueueDelayMs()) :
+                                decoderRenderer.getPyroWaveLossPercent(), decoderRenderer.getPyroWaveQueueDelayMs(),
+                                decoderRenderer.getPyroWaveDecodeTimeMs()) :
                         adaptiveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now),
                                 poorConnection, decoderRenderer.getNetworkFrameLossPercent());
                 if (target != 0) {
@@ -574,7 +575,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             virtualController.show();
         }
 
-        if (prefConfig.usbDriver && app.getRole() != NvApp.Role.REMOTE_MONITOR) {
+        if ((prefConfig.usbDriver || prefConfig.usbDualSense) && app.getRole() != NvApp.Role.REMOTE_MONITOR) {
             // Start the USB driver
             bindService(new Intent(this, UsbDriverService.class),
                     usbDriverServiceConnection, Service.BIND_AUTO_CREATE);
@@ -3156,7 +3157,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 spinner = null;
             }
             pendingConfirmation = confirmation;
-            launchConfirmationDialog = new AlertDialog.Builder(this)
+            launchConfirmationDialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(
+                    new androidx.appcompat.view.ContextThemeWrapper(this, R.style.AppTheme))
                     .setTitle(R.string.launch_confirm_title)
                     .setMessage(confirmation.isTerminate() ? R.string.launch_confirm_terminate : R.string.launch_confirm_replace)
                     .setPositiveButton(R.string.launch_confirm, (dialog, which) -> {

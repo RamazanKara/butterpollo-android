@@ -139,6 +139,21 @@ static void testRecords() {
     assert(state.lossPercent == 100);
     assert(decode(recordEnvelope(recordPackets(6, 80), 1)));
     assert(decoded[1][4] == 60 && decoded[2][4] == 80 && decoded[3][4] == 80);
+
+    // Concealment must never reuse coefficients from a different geometry or chroma layout.
+    for (bool changeChroma : {false, true}) {
+        PyroWaveRecords changed;
+        auto baseline = recordEnvelope(recordPackets(0, 10));
+        assert(changed.pushFrame(baseline.data(), baseline.size(), push));
+        auto resized = recordPackets(1, 20);
+        if (changeChroma) resized[0][15] |= 4;
+        else pyroWriteLe32(resized[0].data() + 8, 0x90000000u | 127 | (63 << 14));
+        auto lossy = recordEnvelope(resized, 2);
+        decoded.clear();
+        assert(changed.pushFrame(lossy.data(), lossy.size(), push));
+        assert(decoded.size() == 3 && pyroReadLe32(decoded[0].data() + 4) % (1u << 24) == 2);
+        assert(decoded[1][4] == 20 && decoded[2][4] == 20);
+    }
     std::puts("PyroWave records: passed (including truncation and count sweeps)");
 }
 

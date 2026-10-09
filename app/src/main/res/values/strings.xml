@@ -175,7 +175,12 @@
     <string name="summary_seekbar_deadzone">Some games enforce a larger deadzone than this</string>
     <string name="suffix_seekbar_deadzone">%</string>
     <string name="title_checkbox_xb1_driver">USB controller driver</string>
-    <string name="summary_checkbox_xb1_driver">Xbox and USB DualSense drivers, without root. DualSense trigger effects require USB.</string>
+    <string name="summary_checkbox_xb1_driver">Xbox USB drivers, without root.</string>
+    <string name="title_usb_dualsense">USB DualSense driver</string>
+    <string name="summary_usb_dualsense">Off by default. Enables adaptive triggers, rumble, lightbar and Edge back paddles over USB. Requires USB permission.</string>
+    <string name="usb_dualsense_permission_info">During a stream, allow Butterpollo to access your USB DualSense in Android’s permission dialog. Butterpollo takes control of the pad until you disconnect. Denying access keeps Android’s normal controller input. Bluetooth continues to use Android’s controller support.</string>
+    <string name="usb_dualsense_enable">Enable USB driver</string>
+    <string name="usb_dualsense_denied">USB access denied. Using Android controller support; adaptive triggers are unavailable. Reconnect the USB cable to try again.</string>
     <string name="title_checkbox_usb_bind_all">Always use the USB driver</string>
     <string name="summary_checkbox_usb_bind_all">Use the built-in Xbox driver instead of Android’s driver.</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>

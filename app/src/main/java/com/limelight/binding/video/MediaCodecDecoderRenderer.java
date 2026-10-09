@@ -123,8 +123,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private float pyroWaveLossTotal;
     private int pyroWaveLossSamples;
     private float pyroWaveQueueDelayTotal;
+    private float pyroWaveDecodeTimeTotal;
+    private int pyroWaveDecodeSamples;
     private volatile float pyroWaveLossPercent;
     private volatile float pyroWaveQueueDelayMs;
+    private volatile float pyroWaveDecodeTimeMs = -1;
 
     private final FrameLatencyStats frameLatencyStats;
     private HandlerThread latencyThread;
@@ -186,6 +189,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public float getPyroWaveQueueDelayMs() {
         return pyroWaveQueueDelayMs;
+    }
+
+    public float getPyroWaveDecodeTimeMs() {
+        return pyroWaveDecodeTimeMs;
     }
 
     private long lastTimestampUs;
@@ -1738,6 +1745,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 pyroWaveLossTotal = pyroWaveQueueDelayTotal = 0;
                 pyroWaveLossSamples = 0;
             }
+            pyroWaveDecodeTimeMs = pyroWaveDecodeSamples == 0 ? -1 : pyroWaveDecodeTimeTotal / pyroWaveDecodeSamples;
+            pyroWaveDecodeTimeTotal = 0;
+            pyroWaveDecodeSamples = 0;
             VideoStats lastTwo = new VideoStats();
             lastTwo.add(lastWindowVideoStats);
             lastTwo.add(activeWindowVideoStats);
@@ -1807,6 +1817,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             activeWindowVideoStats.totalFramesReceived++;
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
+                // The native completion timestamp excludes swapchain acquisition/presentation waits.
+                pyroWaveDecodeTimeTotal += (outputNs - inputNs) / 1000000.0f;
+                pyroWaveDecodeSamples++;
                 pyroWaveDecodeRemainderNs += outputNs - inputNs;
                 activeWindowVideoStats.decoderTimeMs += pyroWaveDecodeRemainderNs / 1000000;
                 pyroWaveDecodeRemainderNs %= 1000000;
