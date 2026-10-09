@@ -25,7 +25,7 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
     private NsdManager.DiscoveryListener pendingListener;
     private NsdManager.DiscoveryListener activeListener;
     private final HashMap<String, NsdManager.ServiceInfoCallback> serviceCallbacks = new HashMap<>();
-    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
     private NsdManager.DiscoveryListener createDiscoveryListener() {
         return new NsdManager.DiscoveryListener() {
@@ -98,20 +98,31 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                     }
 
                     LimeLog.info("NSD: Machine appeared: " + nsdServiceInfo.getServiceName());
+                    if (serviceCallbacks.containsKey(nsdServiceInfo.getServiceName())) {
+                        return;
+                    }
 
                     NsdManager.ServiceInfoCallback serviceInfoCallback = new NsdManager.ServiceInfoCallback() {
                         @Override
                         public void onServiceInfoCallbackRegistrationFailed(int errorCode) {
+                            synchronized (listenerLock) {
+                                serviceCallbacks.remove(nsdServiceInfo.getServiceName(), this);
+                            }
                             LimeLog.severe("NSD: Service info callback registration failed: " + errorCode);
                             listener.notifyDiscoveryFailure(new RuntimeException("onServiceInfoCallbackRegistrationFailed(): " + errorCode));
                         }
 
                         @Override
                         public void onServiceUpdated(NsdServiceInfo nsdServiceInfo) {
-                            LimeLog.info("NSD: Machine resolved: " + nsdServiceInfo.getServiceName());
-                            reportNewComputer(nsdServiceInfo.getServiceName(), nsdServiceInfo.getPort(),
-                                    getV4Addrs(nsdServiceInfo.getHostAddresses()),
-                                    getV6Addrs(nsdServiceInfo.getHostAddresses()));
+                            synchronized (listenerLock) {
+                                if (serviceCallbacks.get(nsdServiceInfo.getServiceName()) != this) {
+                                    return;
+                                }
+                                LimeLog.info("NSD: Machine resolved: " + nsdServiceInfo.getServiceName());
+                                reportNewComputer(nsdServiceInfo.getServiceName(), nsdServiceInfo.getPort(),
+                                        getV4Addrs(nsdServiceInfo.getHostAddresses()),
+                                        getV6Addrs(nsdServiceInfo.getHostAddresses()));
+                            }
                         }
 
                         @Override

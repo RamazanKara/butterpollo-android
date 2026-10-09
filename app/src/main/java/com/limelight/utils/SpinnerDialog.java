@@ -17,6 +17,7 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
     private final Activity activity;
     private AlertDialog progress;
     private final boolean finish;
+    private volatile boolean dismissed;
 
     private static final ArrayList<SpinnerDialog> rundownDialogs = new ArrayList<>();
 
@@ -32,6 +33,9 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
     public static SpinnerDialog displayDialog(Activity activity, String title, String message, boolean finish)
     {
         SpinnerDialog spinner = new SpinnerDialog(activity, title, message, finish);
+        synchronized (rundownDialogs) {
+            rundownDialogs.add(spinner);
+        }
         activity.runOnUiThread(spinner);
         return spinner;
     }
@@ -44,7 +48,8 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
                 SpinnerDialog dialog = i.next();
                 if (dialog.activity == activity) {
                     i.remove();
-                    if (dialog.progress.isShowing()) {
+                    dialog.dismissed = true;
+                    if (dialog.progress != null && dialog.progress.isShowing()) {
                         dialog.progress.dismiss();
                     }
                 }
@@ -54,8 +59,15 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
 
     public void dismiss()
     {
-        // Running again with progress != null will destroy it
-        activity.runOnUiThread(this);
+        dismissed = true;
+        activity.runOnUiThread(() -> {
+            synchronized (rundownDialogs) {
+                rundownDialogs.remove(this);
+            }
+            if (progress != null) {
+                progress.dismiss();
+            }
+        });
     }
 
     public void setMessage(final String message)
@@ -63,7 +75,9 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                progress.setMessage(message);
+                if (progress != null && !dismissed) {
+                    progress.setMessage(message);
+                }
             }
         });
     }
@@ -72,7 +86,10 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
     public void run() {
 
         // If we're dying, don't bother doing anything
-        if (activity.isFinishing()) {
+        if (dismissed || activity.isFinishing() || activity.isDestroyed()) {
+            synchronized (rundownDialogs) {
+                rundownDialogs.remove(this);
+            }
             return;
         }
 
@@ -102,7 +119,6 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
             }
 
             synchronized (rundownDialogs) {
-                rundownDialogs.add(this);
                 progress.show();
             }
         }
@@ -118,6 +134,7 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
 
     @Override
     public void onCancel(DialogInterface dialog) {
+        dismissed = true;
         synchronized (rundownDialogs) {
             rundownDialogs.remove(this);
         }

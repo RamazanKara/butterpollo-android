@@ -28,18 +28,18 @@
 
     <!-- Pair messages -->
     <string name="pairing">Pairing…</string>
-    <string name="pair_pc_offline">Computer is offline</string>
-    <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
+    <string name="pair_pc_offline">The PC is offline. Wake it, start the host app and connect both devices to the same network, then try pairing again.</string>
+    <string name="pair_pc_ingame">The host could not pair while a game was running. Stop the stream from the host, then try pairing again.</string>
     <string name="pair_pairing_title">Pair Butterpollo Android</string>
     <string name="pair_pairing_msg">Enter this PIN on the host:</string>
     <string name="pair_pairing_help">In the Butterpollo host web console, open Devices and enter this PIN. Sunshine and Apollo hosts use their own pairing page.</string>
-    <string name="pair_incorrect_pin">Incorrect PIN</string>
-    <string name="pair_fail">Pairing failed</string>
-    <string name="pair_already_in_progress">Pairing already in progress</string>
+    <string name="pair_incorrect_pin">The PIN was not accepted. Try again with the new PIN shown here. For one-time PIN pairing, generate a fresh PIN in the host console and check its passphrase.</string>
+    <string name="pair_fail">Pairing could not finish. Keep the host console open, cancel any old pairing request there and try again.</string>
+    <string name="pair_already_in_progress">Another pairing request is waiting. Complete or cancel it in the host console, then try again.</string>
 
     <!-- WOL messages -->
     <string name="wol_pc_online">Computer is online</string>
-    <string name="wol_no_mac">Unable to wake PC because there is no stored MAC address</string>
+    <string name="wol_no_mac">Connect to this PC while it is awake first. The app needs its network adapter address before it can send a wake request. See Set up Wake-on-LAN in the PC menu.</string>
     <string name="wol_waking_pc">Waking PC…</string>
     <string name="wol_waking_msg">It may take a few seconds for your PC to wake up.
 	    If it doesn\'t, make sure it\'s configured properly for Wake-On-LAN.
@@ -86,7 +86,7 @@
 
     <!-- General strings -->
     <string name="ip_hint">IP address or hostname</string>
-    <string name="searching_pc">Looking for PCs…\n\nStart Butterpollo on your PC, or tap + to add an address. Sunshine and Apollo work too.</string>
+    <string name="searching_pc">Looking for PCs…\n\nStart the host app and put both devices on the same network. Guest Wi-Fi or a VPN may block discovery. Add the PC address manually if it does not appear.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>

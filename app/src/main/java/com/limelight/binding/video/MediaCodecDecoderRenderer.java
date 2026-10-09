@@ -1776,7 +1776,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     decoder = "(unknown)";
                 }
 
-                float decodeTimeMs = (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
+                float decodeTimeMs = lastTwo.totalFramesReceived == 0 ? 0 :
+                        (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 StringBuilder sb = new StringBuilder();
                 sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
@@ -1786,7 +1787,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
                 }
                 sb.append(context.getString(R.string.perf_overlay_netdrops,
-                        (float)lastTwo.framesLost / lastTwo.totalFrames * 100)).append('\n');
+                        networkFrameLossPercent)).append('\n');
                 sb.append(context.getString(R.string.perf_overlay_netlatency,
                         (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
                 sb.append((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0 ? "YUV 4:4:4" : "YUV 4:2:0");
@@ -1801,7 +1802,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             this.decodeTimeMs, gpuUs));
                 }
                 sb.append('\n').append(latencyOverlay);
-                perfListener.onPerfUpdate(sb.toString());
+                perfListener.onPerfUpdate(sb.toString(), context.getString(R.string.overlay_compact_stats,
+                        fps.receivedFps, (int)(rttInfo >> 32), (int)rttInfo, networkFrameLossPercent));
             }
 
             globalVideoStats.add(activeWindowVideoStats);

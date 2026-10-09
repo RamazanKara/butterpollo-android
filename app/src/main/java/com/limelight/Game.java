@@ -239,6 +239,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private TextView notificationOverlayView;
     private int requestedNotificationOverlayVisibility = View.GONE;
     private TextView performanceOverlayView;
+    private String expandedPerformanceText = "";
+    private String compactPerformanceText = "";
+    private boolean compactPerformanceOverlay;
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
@@ -246,20 +249,24 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private WifiManager.WifiLock highPerfWifiLock;
     private WifiManager.WifiLock lowLatencyWifiLock;
 
-    private boolean connectedToUsbDriverService = false;
+    private boolean usbDriverServiceBound;
+    private UsbDriverService.UsbDriverBinder usbDriverBinder;
     private ServiceConnection usbDriverServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            if (isFinishing() || isDestroyed() || connectionStopThread != null) {
+                return;
+            }
             UsbDriverService.UsbDriverBinder binder = (UsbDriverService.UsbDriverBinder) iBinder;
+            usbDriverBinder = binder;
             binder.setListener(controllerHandler);
             binder.setStateListener(Game.this);
             binder.start();
-            connectedToUsbDriverService = true;
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
-            connectedToUsbDriverService = false;
+            usbDriverBinder = null;
         }
     };
 
@@ -279,6 +286,21 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (savedInstanceState != null) {
+            LimeLog.info("Stream restored after process death");
+            Toast.makeText(this, R.string.stream_restore_help, Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        if (!isValidLaunch(getIntent().getStringExtra(EXTRA_HOST),
+                getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT),
+                getIntent().getStringExtra(EXTRA_UNIQUEID),
+                getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID),
+                getIntent().getStringExtra(EXTRA_APP_UUID))) {
+            finish();
+            return;
+        }
 
         UiHelper.setLocale(this);
 
@@ -369,6 +391,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         notificationOverlayView = findViewById(R.id.notificationOverlay);
 
         performanceOverlayView = findViewById(R.id.performanceOverlay);
+        compactPerformanceOverlay = "compact".equals(PreferenceManager.getDefaultSharedPreferences(this)
+                .getString("performance_overlay_mode", "expanded"));
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
@@ -390,14 +414,16 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         // Make sure Wi-Fi is fully powered up
         WifiManager wifiMgr = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         try {
-            highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Moonlight High Perf Lock");
-            highPerfWifiLock.setReferenceCounted(false);
-            highPerfWifiLock.acquire();
+            if (wifiMgr != null) {
+                highPerfWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Moonlight High Perf Lock");
+                highPerfWifiLock.setReferenceCounted(false);
+                highPerfWifiLock.acquire();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Moonlight Low Latency Lock");
-                lowLatencyWifiLock.setReferenceCounted(false);
-                lowLatencyWifiLock.acquire();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    lowLatencyWifiLock = wifiMgr.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "Moonlight Low Latency Lock");
+                    lowLatencyWifiLock.setReferenceCounted(false);
+                    lowLatencyWifiLock.acquire();
+                }
             }
         } catch (SecurityException e) {
             // Some Samsung Galaxy S10+/S10e devices throw a SecurityException from
@@ -598,7 +624,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         if ((prefConfig.usbDriver || prefConfig.usbDualSense) && app.getRole() != NvApp.Role.REMOTE_MONITOR) {
             // Start the USB driver
-            bindService(new Intent(this, UsbDriverService.class),
+            usbDriverServiceBound = bindService(new Intent(this, UsbDriverService.class),
                     usbDriverServiceConnection, Service.BIND_AUTO_CREATE);
         }
 
@@ -661,9 +687,18 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
     }
 
+    static boolean isValidLaunch(String host, int port, String uniqueId, int appId, String appUuid) {
+        return host != null && !host.trim().isEmpty() && port > 0 && port <= 65535
+                && uniqueId != null && !uniqueId.isEmpty()
+                && (appId != StreamConfiguration.INVALID_APP_ID || (appUuid != null && !appUuid.isEmpty()));
+    }
+
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (controllerHandler == null || isFinishing()) {
+            return;
+        }
 
         // Set requested orientation for possible new screen size
         setPreferredOrientationForCurrentDisplay();
@@ -758,14 +793,19 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void updatePipAutoEnter() {
-        if (!prefConfig.enablePip) {
+        if (prefConfig == null || !prefConfig.enablePip || isFinishing() || isDestroyed() ||
+                !getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             return;
         }
 
         boolean autoEnter = connected && app.getRole() != NvApp.Role.INPUT_ONLY && suppressPipRefCount == 0;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            setPictureInPictureParams(getPictureInPictureParams(autoEnter));
+            try {
+                setPictureInPictureParams(getPictureInPictureParams(autoEnter));
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                LimeLog.warning("Picture-in-picture unavailable");
+            }
         }
         else {
             autoEnterPip = autoEnter;
@@ -833,7 +873,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     public boolean onPictureInPictureRequested() {
         // Enter PiP when requested unless we're on Android 12 which supports auto-enter.
         if (autoEnterPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            enterPictureInPictureMode(getPictureInPictureParams(false));
+            try {
+                enterPictureInPictureMode(getPictureInPictureParams(false));
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                LimeLog.warning("Picture-in-picture unavailable");
+            }
         }
         return true;
     }
@@ -857,7 +901,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
-        inputCaptureProvider.onWindowFocusChanged(hasFocus);
+        if (inputCaptureProvider != null) {
+            inputCaptureProvider.onWindowFocusChanged(hasFocus);
+        }
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
@@ -1150,6 +1196,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @TargetApi(Build.VERSION_CODES.N)
     public void onMultiWindowModeChanged(boolean isInMultiWindowMode) {
         super.onMultiWindowModeChanged(isInMultiWindowMode);
+        if (decoderRenderer == null) {
+            return;
+        }
 
         // In multi-window, we don't want to use the full-screen layout
         // flag. It will cause us to collide with the system UI.
@@ -1170,12 +1219,19 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        stopConnection();
+        SpinnerDialog.closeDialogs(this);
+        Dialog.closeDialogs(this);
+        getWindow().getDecorView().removeCallbacks(hideSystemUi);
+        getWindow().getDecorView().removeCallbacks(toggleGrab);
+        if (streamView != null) {
+            streamView.removeCallbacks(updateArrFrameRate);
+        }
         if (pipDisconnectIntent != null) {
             unregisterReceiver(pipReceiver);
             pipDisconnectIntent.cancel();
         }
-        bitrateHandler.removeCallbacks(updateBitrate);
+        bitrateHandler.removeCallbacksAndMessages(null);
 
         if (controllerHandler != null) {
             controllerHandler.destroy();
@@ -1185,20 +1241,24 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             inputManager.unregisterInputDeviceListener(keyboardTranslator);
         }
 
-        if (lowLatencyWifiLock != null) {
+        if (lowLatencyWifiLock != null && lowLatencyWifiLock.isHeld()) {
             lowLatencyWifiLock.release();
         }
-        if (highPerfWifiLock != null) {
+        if (highPerfWifiLock != null && highPerfWifiLock.isHeld()) {
             highPerfWifiLock.release();
         }
 
-        if (connectedToUsbDriverService) {
-            // Unbind from the discovery service
+        if (usbDriverServiceBound) {
             unbindService(usbDriverServiceConnection);
+            usbDriverServiceBound = false;
         }
 
         // Destroy the capture provider
-        inputCaptureProvider.destroy();
+        if (inputCaptureProvider != null) {
+            inputCaptureProvider.destroy();
+        }
+        LimeLog.info("Stream activity destroyed");
+        super.onDestroy();
     }
 
     @Override
@@ -1245,7 +1305,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         }
 
         SpinnerDialog.closeDialogs(this);
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(Game.this);
 
         if (virtualController != null) {
             virtualController.hide();
@@ -1368,6 +1428,15 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         if (app.getRole() != NvApp.Role.INPUT_ONLY) {
             labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
             actions.add(this::togglePerformanceOverlay);
+            labels.add(getString(compactPerformanceOverlay ? R.string.overlay_expanded : R.string.overlay_compact));
+            actions.add(() -> {
+                compactPerformanceOverlay = !compactPerformanceOverlay;
+                PreferenceManager.getDefaultSharedPreferences(this).edit()
+                        .putString("performance_overlay_mode", compactPerformanceOverlay ? "compact" : "expanded").apply();
+                performanceOverlayView.setText(compactPerformanceOverlay ? compactPerformanceText : expandedPerformanceText);
+            });
+            labels.add(getString(R.string.overlay_copy));
+            actions.add(this::copyPerformanceStats);
             if (details.rustHostVersion != null &&
                     details.hasPermission(ComputerDetails.PERMISSION_VIEW | ComputerDetails.PERMISSION_LAUNCH)) {
                 labels.add(getString(R.string.stream_bitrate));
@@ -1471,6 +1540,17 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay && !isHidingOverlays ? View.VISIBLE : View.GONE);
         PreferenceManager.getDefaultSharedPreferences(this).edit()
                 .putBoolean("checkbox_enable_perf_overlay", prefConfig.enablePerfOverlay).apply();
+    }
+
+    private void copyPerformanceStats() {
+        if (expandedPerformanceText.isEmpty()) {
+            Toast.makeText(this, R.string.overlay_empty, Toast.LENGTH_LONG).show();
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.overlay_copy),
+                expandedPerformanceText.replace("\n", " | ")));
+        Toast.makeText(this, R.string.overlay_copied, Toast.LENGTH_SHORT).show();
     }
 
     private void initializeTouchContexts() {
@@ -1827,6 +1907,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void setInputGrabState(boolean grab) {
+        if (inputCaptureProvider == null) {
+            return;
+        }
         grab = grab && conn != null && conn.canSendInput();
         // Grab/ungrab the mouse cursor
         if (grab) {
@@ -2939,6 +3022,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         bitrateHandler.removeCallbacks(updateBitrate);
         adaptiveBitrate = null;
         pyroWaveBitrate = null;
+        if (usbDriverBinder != null) {
+            usbDriverBinder.setListener(null);
+            usbDriverBinder.setStateListener(null);
+            usbDriverBinder.stop();
+            usbDriverBinder = null;
+        }
         if (connecting || connected) {
             connecting = connected = false;
             updatePipAutoEnter();
@@ -2955,11 +3044,13 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             // during the process of stopping this one.
             connectionStopThread = new Thread(conn::stop, "Stop stream");
             connectionStopThread.start();
+            LimeLog.info("Stream stopping");
         }
     }
 
     @Override
     public void stageFailed(final String stage, final int portFlags, final int errorCode) {
+        LimeLog.info("Stream failed");
         // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread.
         final int portTestResult = portFlags == 0 ? MoonBridge.ML_TEST_RESULT_INCONCLUSIVE :
@@ -2968,11 +3059,20 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
                 if (spinner != null) {
                     spinner.dismiss();
                     spinner = null;
                 }
 
+                if (!displayedFailureDialog && !foreground) {
+                    displayedFailureDialog = true;
+                    stopConnection();
+                    finish();
+                    return;
+                }
                 if (!displayedFailureDialog && foreground && !isFinishing()) {
                     displayedFailureDialog = true;
                     LimeLog.severe(stage + " failed: " + errorCode);
@@ -3003,6 +3103,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     public void connectionTerminated(final int errorCode) {
+        LimeLog.info("Stream disconnected");
         // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread.
         final int portFlags = MoonBridge.getPortFlagsFromTerminationErrorCode(errorCode);
@@ -3011,6 +3112,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
                 // Let the display go to sleep now
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -3073,7 +3177,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                                     MoonBridge.stringifyPortFlags(portFlags, "\n");
                         }
 
-                        showReconnectDialog(R.string.conn_terminated_title, message);
+                        if (foreground) {
+                            showReconnectDialog(R.string.conn_terminated_title, message);
+                        } else {
+                            finish();
+                        }
                     }
                     else {
                         finish();
@@ -3088,6 +3196,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (!connected || isFinishing() || isDestroyed()) {
+                    return;
+                }
                 poorConnection = connectionStatus == MoonBridge.CONN_STATUS_POOR;
                 if (prefConfig.disableWarnings) {
                     return;
@@ -3119,7 +3230,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (!connecting || isFinishing()) {
+                if (!connecting || isFinishing() || isDestroyed()) {
                     return;
                 }
                 if (spinner != null) {
@@ -3128,6 +3239,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 }
 
                 connected = true;
+                LimeLog.info("Stream connected");
                 connecting = false;
                 if (!conn.canSendInput()) {
                     if (virtualController != null) {
@@ -3154,8 +3266,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 // when the spinner gets displayed. On Android Q, even now
                 // is too early to capture. We will delay a second to allow
                 // the spinner to dismiss before capturing.
-                Handler h = new Handler();
-                h.postDelayed(new Runnable() {
+                bitrateHandler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         if (foreground && connected && streamMenu == null && !isFinishing()) {
@@ -3306,13 +3417,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void startConnectionOnSurface() {
-        if (!surfaceCreated) {
-            throw new IllegalStateException("Surface changed before creation!");
+        if (!surfaceCreated || isFinishing() || isDestroyed()) {
+            return;
         }
 
         if (!attemptedConnection) {
             attemptedConnection = true;
             connecting = true;
+            LimeLog.info("Stream starting");
 
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
@@ -3400,7 +3512,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     private void destroyVideoSurface() {
         if (!surfaceCreated) {
-            throw new IllegalStateException("Surface destroyed before creation!");
+            return;
         }
         streamView.removeCallbacks(updateArrFrameRate);
 
@@ -3561,15 +3673,20 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     @Override
-    public void onPerfUpdate(final String text) {
+    public void onPerfUpdate(final String text, final String compactText) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (!connected || isFinishing() || isDestroyed()) {
+                    return;
+                }
                 String displayLine = prefConfig.vrr ? String.format(java.util.Locale.ROOT,
                         "\nDisplay: %.2f Hz · VRR: %s", getWindowManager().getDefaultDisplay().getRefreshRate(),
                         useArr ? "ARR" : useAdaptiveFrameRate ? "cadence hints" : "max Hz") : "";
-                performanceOverlayView.setText(!isAdaptiveBitrateEnabled() ? text + displayLine : text + displayLine + "\n" +
-                        getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0));
+                expandedPerformanceText = !isAdaptiveBitrateEnabled() ? text + displayLine : text + displayLine + "\n" +
+                        getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0);
+                compactPerformanceText = compactText;
+                performanceOverlayView.setText(compactPerformanceOverlay ? compactPerformanceText : expandedPerformanceText);
             }
         });
     }

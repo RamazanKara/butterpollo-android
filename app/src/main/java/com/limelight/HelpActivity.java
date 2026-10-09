@@ -80,7 +80,11 @@ public class HelpActivity extends AppCompatActivity {
             }
         });
 
-        webView.loadUrl(getIntent().getData().toString());
+        if (getIntent().getData() == null) {
+            finish();
+        } else {
+            webView.loadUrl(getIntent().getData().toString());
+        }
     }
 
     private void refreshBackDispatchState() {
@@ -99,6 +103,11 @@ public class HelpActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        SpinnerDialog.closeDialogs(this);
+        webView.stopLoading();
+        webView.setWebViewClient(null);
+        ((FrameLayout) findViewById(R.id.stream_settings)).removeView(webView);
+        webView.destroy();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (backCallbackRegistered) {
                 getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(onBackInvokedCallback);

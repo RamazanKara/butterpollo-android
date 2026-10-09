@@ -59,17 +59,22 @@ public class ComputerManagerService extends Service {
 
     private IdentityManager idManager;
     private final LinkedList<PollingTuple> pollingTuples = new LinkedList<>();
-    private ComputerManagerListener listener = null;
+    private volatile ComputerManagerListener listener;
     private final AtomicInteger activePolls = new AtomicInteger(0);
-    private boolean pollingActive = false;
+    private volatile boolean pollingActive;
+    private volatile boolean destroyed;
+    private boolean discoveryServiceBound;
     private final Lock defaultNetworkLock = new ReentrantLock();
 
     private ConnectivityManager.NetworkCallback networkCallback;
 
-    private DiscoveryService.DiscoveryBinder discoveryBinder;
+    private volatile DiscoveryService.DiscoveryBinder discoveryBinder;
     private final ServiceConnection discoveryServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
             synchronized (discoveryServiceConnection) {
+                if (destroyed) {
+                    return;
+                }
                 DiscoveryService.DiscoveryBinder privateBinder = ((DiscoveryService.DiscoveryBinder)binder);
 
                 // Set us as the event listener
@@ -77,6 +82,9 @@ public class ComputerManagerService extends Service {
 
                 // Signal a possible waiter that we're all setup
                 discoveryBinder = privateBinder;
+                if (pollingActive) {
+                    privateBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);
+                }
                 discoveryServiceConnection.notifyAll();
             }
         }
@@ -153,8 +161,9 @@ public class ComputerManagerService extends Service {
         }
 
         // Don't call the listener if this is a failed lookup of a new PC
-        if ((!newPc || details.state == ComputerDetails.State.ONLINE) && listener != null) {
-            listener.notifyComputerUpdated(details);
+        ComputerManagerListener currentListener = listener;
+        if ((!newPc || details.state == ComputerDetails.State.ONLINE) && currentListener != null) {
+            currentListener.notifyComputerUpdated(details);
         }
 
         releaseLocalDatabaseReference();
@@ -195,6 +204,9 @@ public class ComputerManagerService extends Service {
 
     public class ComputerManagerBinder extends Binder {
         public void startPolling(ComputerManagerListener listener) {
+            if (destroyed) {
+                return;
+            }
             // Polling is active
             pollingActive = true;
 
@@ -202,7 +214,10 @@ public class ComputerManagerService extends Service {
             ComputerManagerService.this.listener = listener;
 
             // Start mDNS autodiscovery too
-            discoveryBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);
+            DiscoveryService.DiscoveryBinder discovery = discoveryBinder;
+            if (discovery != null) {
+                discovery.startDiscovery(MDNS_QUERY_PERIOD_MS);
+            }
 
             synchronized (pollingTuples) {
                 for (PollingTuple tuple : pollingTuples) {
@@ -224,10 +239,10 @@ public class ComputerManagerService extends Service {
             }
         }
 
-        public void waitForReady() {
+        public boolean waitForReady() {
             synchronized (discoveryServiceConnection) {
                 try {
-                    while (discoveryBinder == null) {
+                    while (discoveryBinder == null && discoveryServiceBound && !destroyed) {
                         // Wait for the bind notification
                         discoveryServiceConnection.wait(1000);
                     }
@@ -238,7 +253,9 @@ public class ComputerManagerService extends Service {
                     // handle that here, we will re-interrupt the thread to set the interrupt
                     // status back to true.
                     Thread.currentThread().interrupt();
+                    return false;
                 }
+                return discoveryBinder != null && !destroyed;
             }
         }
 
@@ -253,6 +270,7 @@ public class ComputerManagerService extends Service {
                     // handle that here, we will re-interrupt the thread to set the interrupt
                     // status back to true.
                     Thread.currentThread().interrupt();
+                    return;
                 }
             }
         }
@@ -307,9 +325,9 @@ public class ComputerManagerService extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        if (discoveryBinder != null) {
-            // Stop mDNS autodiscovery
-            discoveryBinder.stopDiscovery();
+        DiscoveryService.DiscoveryBinder discovery = discoveryBinder;
+        if (discovery != null) {
+            discovery.stopDiscovery();
         }
 
         // Stop polling
@@ -715,8 +733,9 @@ public class ComputerManagerService extends Service {
 
     @Override
     public void onCreate() {
+        super.onCreate();
         // Bind to the discovery service
-        bindService(new Intent(this, DiscoveryService.class),
+        discoveryServiceBound = bindService(new Intent(this, DiscoveryService.class),
                 discoveryServiceConnection, Service.BIND_AUTO_CREATE);
 
         // Lookup or generate this device's UID
@@ -747,8 +766,9 @@ public class ComputerManagerService extends Service {
                     synchronized (pollingTuples) {
                         for (PollingTuple tuple : pollingTuples) {
                             tuple.computer.state = ComputerDetails.State.UNKNOWN;
-                            if (listener != null) {
-                                listener.notifyComputerUpdated(tuple.computer);
+                            ComputerManagerListener currentListener = listener;
+                            if (currentListener != null) {
+                                currentListener.notifyComputerUpdated(tuple.computer);
                             }
                         }
                     }
@@ -760,8 +780,9 @@ public class ComputerManagerService extends Service {
                     synchronized (pollingTuples) {
                         for (PollingTuple tuple : pollingTuples) {
                             tuple.computer.state = ComputerDetails.State.OFFLINE;
-                            if (listener != null) {
-                                listener.notifyComputerUpdated(tuple.computer);
+                            ComputerManagerListener currentListener = listener;
+                            if (currentListener != null) {
+                                currentListener.notifyComputerUpdated(tuple.computer);
                             }
                         }
                     }
@@ -775,20 +796,27 @@ public class ComputerManagerService extends Service {
 
     @Override
     public void onDestroy() {
+        synchronized (discoveryServiceConnection) {
+            destroyed = true;
+            discoveryServiceConnection.notifyAll();
+        }
+        onUnbind(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             connMgr.unregisterNetworkCallback(networkCallback);
         }
 
-        if (discoveryBinder != null) {
-            // Unbind from the discovery service
+        if (discoveryServiceBound) {
             unbindService(discoveryServiceConnection);
+            discoveryServiceBound = false;
         }
+        discoveryBinder = null;
 
         // FIXME: Should await termination here but we have timeout issues in HttpURLConnection
 
         // Remove the initial DB reference
         releaseLocalDatabaseReference();
+        super.onDestroy();
     }
 
     @Override
@@ -797,7 +825,7 @@ public class ComputerManagerService extends Service {
     }
 
     public class ApplistPoller {
-        private Thread thread;
+        private volatile Thread thread;
         private final ComputerDetails computer;
         private final Object pollEvent = new Object();
         private boolean receivedAppList = false;
@@ -829,7 +857,7 @@ public class ComputerManagerService extends Service {
                 return false;
             }
 
-            return thread != null && !thread.isInterrupted();
+            return thread == Thread.currentThread() && !Thread.currentThread().isInterrupted();
         }
 
         private PollingTuple getPollingTuple(ComputerDetails details) {
@@ -844,7 +872,10 @@ public class ComputerManagerService extends Service {
             return null;
         }
 
-        public void start() {
+        public synchronized void start() {
+            if (thread != null) {
+                return;
+            }
             thread = new Thread() {
                 @Override
                 public void run() {
@@ -853,8 +884,9 @@ public class ComputerManagerService extends Service {
                         // Can't poll if it's not online or paired
                         if (computer.state != ComputerDetails.State.ONLINE ||
                                 computer.pairState != PairingManager.PairState.PAIRED) {
-                            if (listener != null) {
-                                listener.notifyComputerUpdated(computer);
+                            ComputerManagerListener currentListener = listener;
+                            if (currentListener != null) {
+                                currentListener.notifyComputerUpdated(computer);
                             }
                             continue;
                         }
@@ -914,8 +946,9 @@ public class ComputerManagerService extends Service {
 
                                 // Notify that the app list has been updated
                                 // and ensure that the thread is still active
-                                if (listener != null && thread != null) {
-                                    listener.notifyComputerUpdated(computer);
+                                ComputerManagerListener currentListener = listener;
+                                if (currentListener != null && thread != null) {
+                                    currentListener.notifyComputerUpdated(computer);
                                 }
                             }
                             else if (appList.isEmpty()) {
@@ -933,7 +966,7 @@ public class ComputerManagerService extends Service {
             thread.start();
         }
 
-        public void stop() {
+        public synchronized void stop() {
             if (thread != null) {
                 thread.interrupt();
 

@@ -17,6 +17,7 @@ public class Dialog implements Runnable {
     private final Runnable runOnDismiss;
 
     private AlertDialog alert;
+    private boolean dismissed;
 
     private static final ArrayList<Dialog> rundownDialogs = new ArrayList<>();
 
@@ -26,19 +27,29 @@ public class Dialog implements Runnable {
         this.title = title;
         this.message = message;
         this.runOnDismiss = runOnDismiss;
+        synchronized (rundownDialogs) {
+            rundownDialogs.add(this);
+        }
     }
 
-    public static void closeDialogs()
+    public static void closeDialogs(Activity activity)
     {
-        synchronized (rundownDialogs) {
-            for (Dialog d : rundownDialogs) {
-                if (d.alert.isShowing()) {
-                    d.alert.dismiss();
+        activity.runOnUiThread(() -> {
+            synchronized (rundownDialogs) {
+                java.util.Iterator<Dialog> iterator = rundownDialogs.iterator();
+                while (iterator.hasNext()) {
+                    Dialog d = iterator.next();
+                    if (d.activity != activity) {
+                        continue;
+                    }
+                    iterator.remove();
+                    d.dismissed = true;
+                    if (d.alert != null) {
+                        d.alert.dismiss();
+                    }
                 }
             }
-
-            rundownDialogs.clear();
-        }
+        });
     }
 
     public static void displayDialog(final Activity activity, String title, String message, final boolean endAfterDismiss)
@@ -61,8 +72,12 @@ public class Dialog implements Runnable {
     @Override
     public void run() {
         // If we're dying, don't bother creating a dialog
-        if (activity.isFinishing())
+        if (dismissed || activity.isFinishing() || activity.isDestroyed()) {
+            synchronized (rundownDialogs) {
+                rundownDialogs.remove(this);
+            }
             return;
+        }
 
         alert = new MaterialAlertDialogBuilder(activity).create();
 
@@ -106,7 +121,6 @@ public class Dialog implements Runnable {
         });
 
         synchronized (rundownDialogs) {
-            rundownDialogs.add(this);
             alert.show();
         }
     }

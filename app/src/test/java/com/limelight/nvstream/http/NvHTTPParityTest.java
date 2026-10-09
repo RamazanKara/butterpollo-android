@@ -71,6 +71,7 @@ public class NvHTTPParityTest {
                         () -> response.get(2, java.util.concurrent.TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof java.io.IOException);
                 assertThrows(java.io.IOException.class, () -> http.getServerInfo(true));
+                assertThrows(java.io.IOException.class, http::probeServerLatency);
             } finally {
                 finish.countDown();
             }
@@ -79,6 +80,27 @@ public class NvHTTPParityTest {
             finish.countDown();
             workers.shutdownNow();
         }
+    }
+
+    @Test
+    public void latencyProbeHasABoundedDeadlineAndRejectsInvalidHostResponses() throws Exception {
+        NvHTTP http = http();
+        java.lang.reflect.Field client = NvHTTP.class.getDeclaredField("httpClientShortConnectTimeout");
+        client.setAccessible(true);
+        client.set(http, new OkHttpClient.Builder().addInterceptor(chain -> {
+            assertEquals(java.util.concurrent.TimeUnit.SECONDS.toNanos(2), chain.call().timeout().timeoutNanos());
+            assertEquals("/serverinfo", chain.request().url().encodedPath());
+            return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK").body(ResponseBody.create(
+                            "<root status_code=\"200\"><appversion>7.1.0.0</appversion></root>",
+                            MediaType.get("application/xml"))).build();
+        }).build());
+        assertTrue(http.probeServerLatency() >= 0);
+        client.set(http, new OkHttpClient.Builder().addInterceptor(chain ->
+                new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                        .code(200).message("OK").body(ResponseBody.create("<root status_code=\"200\" />",
+                                MediaType.get("application/xml"))).build()).build());
+        assertThrows(org.xmlpull.v1.XmlPullParserException.class, http::probeServerLatency);
     }
 
     private ComputerDetails capabilities(String xml) throws Exception {

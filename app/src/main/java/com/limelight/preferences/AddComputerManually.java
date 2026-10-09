@@ -43,8 +43,12 @@ public class AddComputerManually extends AppCompatActivity {
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private final LinkedBlockingQueue<String> computersToAdd = new LinkedBlockingQueue<>();
     private Thread addThread;
+    private boolean managerServiceBound;
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, final IBinder binder) {
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
             managerBinder = ((ComputerManagerService.ComputerManagerBinder)binder);
             startAddThread();
         }
@@ -120,7 +124,7 @@ public class AddComputerManually extends AppCompatActivity {
         return null;
     }
 
-    private void doAddPc(String rawUserInput) throws InterruptedException {
+    private void doAddPc(String rawUserInput, ComputerManagerService.ComputerManagerBinder binder) throws InterruptedException {
         boolean wrongSiteLocal = false;
         boolean invalidInput = false;
         boolean success;
@@ -144,7 +148,7 @@ public class AddComputerManually extends AppCompatActivity {
                 }
 
                 details.manualAddress = new ComputerDetails.AddressTuple(host, port);
-                success = managerBinder.addComputerBlocking(details);
+                success = binder.addComputerBlocking(details);
                 if (!success){
                     wrongSiteLocal = isWrongSubnetSiteLocalAddress(host);
                 }
@@ -163,6 +167,11 @@ public class AddComputerManually extends AppCompatActivity {
             e.printStackTrace();
             success = false;
             invalidInput = true;
+        }
+
+        if (Thread.currentThread().isInterrupted()) {
+            dialog.dismiss();
+            throw new InterruptedException();
         }
 
         // Keep the SpinnerDialog open while testing connectivity
@@ -210,13 +219,14 @@ public class AddComputerManually extends AppCompatActivity {
     }
 
     private void startAddThread() {
+        final ComputerManagerService.ComputerManagerBinder binder = managerBinder;
         addThread = new Thread() {
             @Override
             public void run() {
                 while (!isInterrupted()) {
                     try {
                         String computer = computersToAdd.take();
-                        doAddPc(computer);
+                        doAddPc(computer, binder);
                     } catch (InterruptedException e) {
                         return;
                     }
@@ -231,17 +241,6 @@ public class AddComputerManually extends AppCompatActivity {
         if (addThread != null) {
             addThread.interrupt();
 
-            try {
-                addThread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-
-                // InterruptedException clears the thread's interrupt status. Since we can't
-                // handle that here, we will re-interrupt the thread to set the interrupt
-                // status back to true.
-                Thread.currentThread().interrupt();
-            }
-
             addThread = null;
         }
     }
@@ -250,7 +249,7 @@ public class AddComputerManually extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
 
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(AddComputerManually.this);
         SpinnerDialog.closeDialogs(this);
     }
 
@@ -258,10 +257,12 @@ public class AddComputerManually extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-        if (managerBinder != null) {
-            joinAddThread();
+        joinAddThread();
+        if (managerServiceBound) {
             unbindService(serviceConnection);
+            managerServiceBound = false;
         }
+        managerBinder = null;
     }
 
     @Override
@@ -305,7 +306,7 @@ public class AddComputerManually extends AppCompatActivity {
         });
 
         // Bind to the ComputerManager service
-        bindService(new Intent(AddComputerManually.this,
+        managerServiceBound = bindService(new Intent(AddComputerManually.this,
                     ComputerManagerService.class), serviceConnection, Service.BIND_AUTO_CREATE);
     }
 

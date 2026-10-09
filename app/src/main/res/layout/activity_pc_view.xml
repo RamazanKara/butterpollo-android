@@ -22,9 +22,18 @@
             <ProgressBar android:id="@+id/pcs_loading"
                 android:layout_width="48dp" android:layout_height="48dp" android:layout_centerHorizontal="true"
                 android:importantForAccessibility="no" android:indeterminate="true" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            <TextView android:id="@+id/discovery_message" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_below="@id/pcs_loading" android:layout_marginTop="24dp" android:gravity="center"
                 android:text="@string/searching_pc" android:textColor="@color/on_surface_variant" android:textSize="16sp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/discovery_add"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_below="@id/discovery_message" android:layout_centerHorizontal="true"
+                android:layout_marginTop="16dp" android:minHeight="48dp" android:text="@string/discovery_add" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/discovery_help"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_below="@id/discovery_add" android:layout_centerHorizontal="true"
+                android:minHeight="48dp" android:text="@string/discovery_help" />
         </RelativeLayout>
     </FrameLayout>
 </LinearLayout>

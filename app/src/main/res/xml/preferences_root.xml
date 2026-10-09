@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory android:title="@string/stream_presets">
+        <Preference android:key="stream_presets" android:title="@string/stream_presets"
+            android:summary="@string/stream_presets_summary" />
+    </PreferenceCategory>
     <Preference
         android:key="video"
         android:title="@string/settings_section_video" />
@@ -18,6 +22,10 @@
         android:key="app"
         android:title="@string/settings_section_app" />
     <PreferenceCategory android:title="@string/settings_category_support">
+        <Preference android:key="report_problem" android:title="@string/report_problem"
+            android:summary="@string/report_problem_summary" />
+        <Preference android:key="wol_help" android:title="@string/wol_help_title"
+            android:summary="@string/summary_wol_help" />
         <Preference
             android:key="help"
             android:title="@string/title_troubleshooting"

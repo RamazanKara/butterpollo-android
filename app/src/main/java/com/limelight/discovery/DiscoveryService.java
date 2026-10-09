@@ -17,7 +17,7 @@ import android.os.IBinder;
 public class DiscoveryService extends Service {
 
     private MdnsDiscoveryAgent discoveryAgent;
-    private MdnsDiscoveryListener boundListener;
+    private volatile MdnsDiscoveryListener boundListener;
 
     public class DiscoveryBinder extends Binder {
         public void setListener(MdnsDiscoveryListener listener) {
@@ -39,18 +39,21 @@ public class DiscoveryService extends Service {
 
     @Override
     public void onCreate() {
+        super.onCreate();
         MdnsDiscoveryListener listener = new MdnsDiscoveryListener() {
             @Override
             public void notifyComputerAdded(MdnsComputer computer) {
-                if (boundListener != null) {
-                    boundListener.notifyComputerAdded(computer);
+                MdnsDiscoveryListener current = boundListener;
+                if (current != null) {
+                    current.notifyComputerAdded(computer);
                 }
             }
 
             @Override
             public void notifyDiscoveryFailure(Exception e) {
-                if (boundListener != null) {
-                    boundListener.notifyDiscoveryFailure(e);
+                MdnsDiscoveryListener current = boundListener;
+                if (current != null) {
+                    current.notifyDiscoveryFailure(e);
                 }
             }
         };
@@ -69,6 +72,13 @@ public class DiscoveryService extends Service {
         else {
             discoveryAgent = new NsdManagerDiscoveryAgent(getApplicationContext(), listener);
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        boundListener = null;
+        discoveryAgent.stopDiscovery();
+        super.onDestroy();
     }
 
     private final DiscoveryBinder binder = new DiscoveryBinder();
