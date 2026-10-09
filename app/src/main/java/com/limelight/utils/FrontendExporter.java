@@ -144,7 +144,7 @@ public final class FrontendExporter {
         mergeXml(custom, files, "es_systems.xml", new XmlMerge() {
             @Override
             public String merge(String existing) {
-                return FrontendEntry.mergeEsSystems(existing, "Butterpollo");
+                return FrontendEntry.mergeEsSystems(existing, "Rubylight");
             }
         });
         mergeXml(custom, files, "es_find_rules.xml", new XmlMerge() {

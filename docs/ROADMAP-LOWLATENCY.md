@@ -107,7 +107,7 @@ Done in this round: `.art` entries, ES-DE export, Daijisho/Pegasus/`am start` do
 - Android TV/handheld: return focus to ES-DE after the stream on devices where ES-DE is the home app;
 - an "Export for Daijisho" platform JSON.
 
-## Host-side changes (RamazanKara/Butterpollo)
+## Host-side changes (Rubylight)
 
 - PyroWave adaptive record/FEC framing documented for clients, with a version attribute the client can
   negotiate safely (today any `pyrowaveAdaptiveFec` attribute switches framing).

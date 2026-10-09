@@ -111,5 +111,5 @@ Without any app extra, Rubylight opens that PC's game list instead.
   frontend didn't grant access to it. Export again and check the ES-DE command uses `%ROMPROVIDER%`.
 - **"PC not found"**: the entry was made on another phone or the PC was removed. Pair the PC here and export again.
 - **The game list opens instead of the game**: the entry has no app fields. Export again.
-- **No Butterpollo system in ES-DE**: restart ES-DE after the export and check that
+- **No Rubylight system in ES-DE**: restart ES-DE after the export and check that
   `ES-DE/custom_systems/` contains both XML files.

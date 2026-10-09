@@ -48,7 +48,7 @@ public final class FrontendEntry {
     private FrontendEntry() {}
 
     public static String serialize(String hostUuid, String hostName, String appUuid, String appName, int appId) {
-        StringBuilder sb = new StringBuilder("# Butterpollo game entry\n");
+        StringBuilder sb = new StringBuilder("# Rubylight game entry\n");
         appendLine(sb, KEY_HOST_UUID, hostUuid);
         appendLine(sb, KEY_HOST_NAME, hostName);
         appendLine(sb, KEY_APP_UUID, appUuid);
@@ -150,7 +150,7 @@ public final class FrontendEntry {
                 "        <fullname>" + xmlEscape(hostLabel) + "</fullname>\n" +
                 "        <path>%ROMPATH%/" + ES_SYSTEM_NAME + "</path>\n" +
                 "        <extension>" + EXTENSION + " " + EXTENSION.toUpperCase(Locale.ROOT) + "</extension>\n" +
-                "        <command label=\"Butterpollo\">%EMULATOR_" + ES_EMULATOR_NAME + "% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% " +
+                "        <command label=\"Rubylight\">%EMULATOR_" + ES_EMULATOR_NAME + "% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% " +
                 "%ACTION%=android.intent.action.VIEW %DATA%=%ROMPROVIDER%</command>\n" +
                 "        <platform>pc</platform>\n" +
                 "        <theme>windows</theme>\n" +
@@ -159,7 +159,7 @@ public final class FrontendEntry {
 
     public static String esFindRuleBlock(String packageName) {
         return "    <emulator name=\"" + ES_EMULATOR_NAME + "\">\n" +
-                "        <!-- Butterpollo game streaming client -->\n" +
+                "        <!-- Rubylight game streaming client -->\n" +
                 "        <rule type=\"androidpackage\">\n" +
                 "            <entry>" + xmlEscape(packageName) + "/com.limelight.ShortcutTrampoline</entry>\n" +
                 "        </rule>\n" +
