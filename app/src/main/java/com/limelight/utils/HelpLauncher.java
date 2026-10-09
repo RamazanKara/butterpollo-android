@@ -38,10 +38,10 @@ public class HelpLauncher {
     }
 
     public static final String TROUBLESHOOTING_URL =
-            "https://github.com/RamazanKara/rubylight-android/blob/main/docs/TROUBLESHOOTING.md";
+            "https://github.com/RamazanKara/rubylight-android/blob/main/docs/troubleshooting.md";
 
     public static void launchSetupGuide(Context context) {
-        launchUrl(context, TROUBLESHOOTING_URL + "#add-and-pair-a-host");
+        launchUrl(context, "https://github.com/RamazanKara/rubylight-android/blob/main/docs/quick-start.md");
     }
 
     public static void launchTroubleshooting(Context context) {

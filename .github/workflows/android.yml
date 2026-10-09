@@ -16,6 +16,16 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check generated settings and documentation links
+        run: |
+          python3 scripts/generate-settings.py
+          git diff --exit-code -- docs/settings.md
+          node --test scripts/check-doc-links.test.mjs
+          node scripts/check-doc-links.mjs
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40

@@ -15,8 +15,8 @@ private key used for pairing, a locally generated client identifier, app and
 per-PC settings, controller mappings, and cached app lists and artwork.
 
 A short, redacted event log is kept in memory. A redacted record of the latest
-crash or abnormal exit is saved locally. Optional latency logging saves a local
-CSV file when you enable it. Preparing a problem report creates a temporary
+crash or abnormal exit is saved locally. Frame-timing measurements are saved in
+a local CSV file that you can export. Preparing a problem report creates a temporary
 local file. These records can include the app version, Android version, device
 model, decoder settings, timing measurements and crash details.
 
@@ -47,7 +47,7 @@ details. The receiving app controls what happens to the report afterward.
 ## Backups and deletion
 
 Android backup and device transfer are enabled. Depending on your Android
-settings, eligible app data, including the saved-host database and optional
+settings, eligible app data, including the saved-host database and local
 latency files, may be backed up or transferred by Android. Client certificates,
 private keys, the client identifier and preferences are excluded. Crash records
 and temporary report files are kept outside Android backup.

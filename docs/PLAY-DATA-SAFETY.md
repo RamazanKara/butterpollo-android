@@ -15,7 +15,7 @@ retention policies are not known from this code.
 Google distinguishes local processing, off-device collection and sharing.
 Transient off-device processing still belongs in the form. User-requested
 sharing can qualify for a sharing exception; it is not a blanket exemption
-from collection. See [Google's Data safety guidance](https://support.google.com/googleplay/android-developer/answer/10787469).
+from collection. See [Google's Data safety guidance](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en).
 
 | Form question | Proposed answer / release review |
 | --- | --- |
@@ -66,5 +66,5 @@ of games or media. The manifest's game category is not a content rating.
 
 Do not preselect an age rating or claim a Families commitment. The publisher
 must choose the intended audience separately and review the ratings returned
-by IARC. [Google's content rating instructions](https://support.google.com/googleplay/android-developer/answer/9859655)
+by IARC. [Google's content rating instructions](https://support.google.com/googleplay/android-developer/answer/9859655?hl=en)
 explain how questionnaire responses produce the final regional ratings.
