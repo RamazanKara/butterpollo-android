@@ -6,6 +6,15 @@ import static org.junit.Assert.assertEquals;
 
 public class PyroWaveBitrateControllerTest {
     @Test
+    public void timeSpentInMenusDoesNotCountAsHealthyRecovery() {
+        PyroWaveBitrateController controller = new PyroWaveBitrateController(200000, 100000, 60, 0);
+        assertEquals(0, controller.sample(1000, true, false, 0, 0, 2));
+        controller.suspend();
+        assertEquals(0, controller.sample(30000, true, false, 0, 0, 2));
+        assertEquals(102000, controller.sample(50000, true, false, 0, 0, 2));
+    }
+
+    @Test
     public void sustainedDecodeOverBudgetReducesWithoutPacketLossOrQueueing() {
         PyroWaveBitrateController c = new PyroWaveBitrateController(300000, 300000, 120, 0);
         assertEquals(0, c.sample(4000, true, false, 0, 0, 9));

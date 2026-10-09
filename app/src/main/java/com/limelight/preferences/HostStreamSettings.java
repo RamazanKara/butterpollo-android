@@ -1,7 +1,8 @@
 package com.limelight.preferences;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.os.Build;
 import android.text.InputType;
 import android.util.DisplayMetrics;
@@ -12,6 +13,9 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.button.MaterialButton;
+import androidx.appcompat.widget.AppCompatEditText;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,7 +36,7 @@ public final class HostStreamSettings {
 
         TextView status = new TextView(activity);
         status.setText(hasProfile ? R.string.host_profile_status_custom : R.string.host_profile_status_global);
-        status.setTextAppearance(activity, android.R.style.TextAppearance_Material_Body2);
+        status.setTextAppearance(activity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
         status.setPadding(0, 0, 0, padding / 3);
         form.addView(status);
 
@@ -55,7 +59,7 @@ public final class HostStreamSettings {
         EditText refresh = addNumber(activity, form, R.string.host_profile_refresh,
                 HostStreamProfile.formatRefreshRate(config.launchRefreshRateX100 == 0 ?
                         config.fps * 100 : config.launchRefreshRateX100), true);
-        Button matchScreen = new Button(activity, null, android.R.attr.borderlessButtonStyle);
+        Button matchScreen = new MaterialButton(activity);
         matchScreen.setText(R.string.host_profile_match_screen);
         matchScreen.setOnClickListener(v -> {
             Display display = activity.getWindowManager().getDefaultDisplay();
@@ -81,6 +85,7 @@ public final class HostStreamSettings {
 
         Spinner codec = new Spinner(activity);
         codec.setId(View.generateViewId());
+        codec.setMinimumHeight(dp(activity, 48));
         addLabel(activity, form, R.string.host_profile_codec, codec);
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(activity,
                 R.array.host_profile_codecs, android.R.layout.simple_spinner_item);
@@ -100,14 +105,14 @@ public final class HostStreamSettings {
 
         TextView explanation = new TextView(activity);
         explanation.setText(R.string.host_profile_explanation);
-        explanation.setTextAppearance(activity, android.R.style.TextAppearance_Material_Caption);
+        explanation.setTextAppearance(activity, com.google.android.material.R.style.TextAppearance_Material3_BodySmall);
         explanation.setPadding(0, padding / 2, 0, 0);
         form.addView(explanation);
 
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(form);
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(activity)
                 .setTitle(activity.getString(R.string.host_profile_title, hostName))
                 .setView(scroll)
                 .setPositiveButton(R.string.host_profile_save, null)
@@ -165,8 +170,9 @@ public final class HostStreamSettings {
     }
 
     private static EditText numberField(Activity activity, String value, boolean decimal) {
-        EditText field = new EditText(activity);
+        EditText field = new AppCompatEditText(activity);
         field.setId(View.generateViewId());
+        field.setMinHeight(dp(activity, 48));
         field.setInputType(InputType.TYPE_CLASS_NUMBER | (decimal ? InputType.TYPE_NUMBER_FLAG_DECIMAL : 0));
         field.setSingleLine(true);
         field.setSelectAllOnFocus(true);
@@ -182,8 +188,9 @@ public final class HostStreamSettings {
     }
 
     private static CheckBox addCheck(Activity activity, LinearLayout form, int title, boolean checked) {
-        CheckBox check = new CheckBox(activity);
+        CheckBox check = new MaterialCheckBox(activity);
         check.setText(title);
+        check.setMinHeight(dp(activity, 48));
         check.setChecked(checked);
         form.addView(check);
         return check;

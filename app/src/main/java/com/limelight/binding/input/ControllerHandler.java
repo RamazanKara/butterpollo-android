@@ -587,6 +587,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         context.vendorId = device.getVendorId();
         context.productId = device.getProductId();
+        context.buttonMap = ControllerButtonMap.load(activityContext,
+                ControllerButtonMap.deviceKey(context.vendorId, context.productId, null));
 
         context.leftStickDeadzoneRadius = (float) stickDeadzone;
         context.rightStickDeadzoneRadius = (float) stickDeadzone;
@@ -2868,7 +2870,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                                       float leftStickX, float leftStickY,
                                       float rightStickX, float rightStickY,
                                       float leftTrigger, float rightTrigger) {
-        GenericControllerContext context = usbDeviceContexts.get(controllerId);
+        UsbDeviceContext context = usbDeviceContexts.get(controllerId);
         if (stopped || context == null) {
             return;
         }
@@ -2897,7 +2899,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         context.leftTrigger = (byte)(leftTrigger * 0xFF);
         context.rightTrigger = (byte)(rightTrigger * 0xFF);
 
-        context.inputMap = buttonFlags;
+        context.inputMap = context.buttonMap.mapButtonFlags(buttonFlags, prefConfig.flipFaceButtons);
 
         sendControllerInputPacket(context);
     }
@@ -3378,6 +3380,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     class UsbDeviceContext extends GenericControllerContext {
         public AbstractController device;
+        public ControllerButtonMap buttonMap;
 
         @Override
         public void destroy() {

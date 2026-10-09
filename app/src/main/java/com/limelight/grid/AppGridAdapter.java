@@ -175,9 +175,10 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
 
         TextView roleView = parentView.findViewById(R.id.grid_role);
         NvApp.Role role = obj.app.getRole();
-        roleView.setVisibility(role == NvApp.Role.STREAM ? View.GONE : View.VISIBLE);
-        if (role != NvApp.Role.STREAM) {
-            roleView.setText(role == NvApp.Role.REMOTE_MONITOR ? R.string.role_view_only : R.string.role_input_only);
+        int roleLabel = roleLabel(obj.app);
+        roleView.setVisibility(roleLabel == 0 ? View.GONE : View.VISIBLE);
+        if (roleLabel != 0) {
+            roleView.setText(roleLabel);
             roleView.setCompoundDrawablesRelativeWithIntrinsicBounds(
                     role == NvApp.Role.REMOTE_MONITOR ? R.drawable.ic_remote_monitor : R.drawable.ic_input_only, 0, 0, 0);
         }
@@ -186,14 +187,31 @@ public class AppGridAdapter extends GenericGridAdapter<AppView.AppObject> {
         TextView status = parentView.findViewById(R.id.grid_status);
         status.setText(obj.isRunning ? (obj.isHidden ? R.string.app_running_hidden : R.string.app_running) : R.string.app_hidden);
         status.setVisibility(obj.isRunning || obj.isHidden ? View.VISIBLE : View.INVISIBLE);
-        parentView.findViewById(R.id.grid_actions).setVisibility(obj.isRunning ? View.VISIBLE : View.INVISIBLE);
+        TextView actions = parentView.findViewById(R.id.grid_actions);
+        actions.setText(runningActionLabel(obj.app));
+        actions.setVisibility(obj.isRunning && !obj.app.isControlAction() ? View.VISIBLE : View.INVISIBLE);
         String description = obj.app.getAppName();
+        if (roleLabel != 0) {
+            description = context.getString(R.string.library_item_description, description, roleView.getText());
+        }
         if (obj.isRunning || obj.isHidden) {
             description = context.getString(R.string.library_item_description, description, status.getText());
         }
-        if (obj.isRunning) {
-            description = context.getString(R.string.library_item_description, description, context.getString(R.string.app_resume_quit));
+        if (actions.getVisibility() == View.VISIBLE) {
+            description = context.getString(R.string.library_item_description, description, actions.getText());
         }
         parentView.setContentDescription(description);
+    }
+
+    static int runningActionLabel(NvApp app) {
+        return app.getControl() == NvApp.Control.NONE ? R.string.app_resume_quit : R.string.applist_menu_resume;
+    }
+
+    static int roleLabel(NvApp app) {
+        if (app.getControl() == NvApp.Control.DISCONNECT_MONITOR) return R.string.stream_end_monitor;
+        if (app.getControl() == NvApp.Control.DISCONNECT_INPUT) return R.string.stream_end_input;
+        if (app.getRole() == NvApp.Role.REMOTE_MONITOR) return R.string.role_view_only;
+        if (app.getRole() == NvApp.Role.INPUT_ONLY) return R.string.role_input_only;
+        return 0;
     }
 }

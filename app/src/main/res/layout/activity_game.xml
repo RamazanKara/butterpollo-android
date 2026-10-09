@@ -30,7 +30,8 @@
         android:padding="24dp"
         android:gravity="center"
         android:text="@string/stream_input_only_help"
-        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@android:color/white"
         android:visibility="gone" />
 
     <TextView
@@ -43,7 +44,9 @@
         android:layout_gravity="left"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:gravity="left"
-        android:background="#80000000"
+        android:background="#B3000000"
+        android:textColor="@android:color/white"
+        android:padding="4dp"
         android:preferKeepClear="true"
         android:visibility="gone" />
 
@@ -57,7 +60,9 @@
         android:layout_gravity="right"
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:gravity="right"
-        android:background="#80000000"
+        android:background="#B3000000"
+        android:textColor="@android:color/white"
+        android:padding="4dp"
         android:preferKeepClear="true"
         android:visibility="gone" />
 

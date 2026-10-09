@@ -425,4 +425,7 @@
     <string name="launch_confirm_terminate">Close the running app?\n\nRemote Monitor and Input-only connections will stay connected. Confirm within 60 seconds.</string>
     <string name="launch_confirm">Confirm</string>
     <string name="summary_about">Version %1$s · Based on Moonlight (GPL-3.0). Source code and licenses.</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_empty">No matching settings on this device</string>
+    <string name="pip_disconnect_description">Disconnect this client and leave the host app running</string>
 </resources>

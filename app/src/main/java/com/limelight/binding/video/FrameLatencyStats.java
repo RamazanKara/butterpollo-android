@@ -33,6 +33,8 @@ class FrameLatencyStats {
     private long lastReleaseNs;
     private long releaseIntervalTotalNs;
     private int releaseIntervalCount;
+    private long decodeTimeTotalNs;
+    private int decodeTimeSamples;
 
     FrameLatencyStats() {
         this(false);
@@ -86,6 +88,10 @@ class FrameLatencyStats {
             }
             outputs.put(index, frame);
             addSample(1, frame.inputNs, outputNs);
+            if (frame.inputNs > 0 && outputNs >= frame.inputNs) {
+                decodeTimeTotalNs += outputNs - frame.inputNs;
+                decodeTimeSamples++;
+            }
         }
     }
 
@@ -136,6 +142,15 @@ class FrameLatencyStats {
         }
         lastOutputNs = lastReleaseNs = releaseIntervalTotalNs = 0;
         releaseIntervalCount = 0;
+        decodeTimeTotalNs = 0;
+        decodeTimeSamples = 0;
+    }
+
+    synchronized float takeDecodeTimeMs() {
+        float result = decodeTimeSamples == 0 ? -1 : decodeTimeTotalNs / (decodeTimeSamples * 1000000.0f);
+        decodeTimeTotalNs = 0;
+        decodeTimeSamples = 0;
+        return result;
     }
 
     synchronized float takeReleaseFrameRate() {

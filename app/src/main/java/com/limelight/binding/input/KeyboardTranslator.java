@@ -47,7 +47,7 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
     public static final int VK_SEMICOLON = 59;
     public static final int VK_SLASH = 47;
     public static final int VK_SPACE = 32;
-    public static final int VK_PRINTSCREEN = 154;
+    public static final int VK_PRINTSCREEN = 0x2C;
     public static final int VK_TAB = 9;
     public static final int VK_LEFT = 37;
     public static final int VK_RIGHT = 39;
@@ -130,7 +130,6 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
      */
     @SuppressLint("InlinedApi")
     public short translate(int keycode, int deviceId) {
-        int translated;
 
         // If a device ID was provided, look up the keyboard mapping
         if (deviceId >= 0) {
@@ -145,6 +144,20 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
             }
         }
         
+        return translateKeyCode(keycode);
+    }
+
+    public static String textForCodePoint(int codePoint) {
+        if (codePoint <= 0 || !Character.isValidCodePoint(codePoint) ||
+                (codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE)) {
+            return null;
+        }
+        return new String(Character.toChars(codePoint));
+    }
+
+    @SuppressLint("InlinedApi")
+    static short translateKeyCode(int keycode) {
+        int translated;
         // This is a poor man's mapping between Android key codes
         // and Windows VK_* codes. For all defined VK_ codes, see:
         // https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -207,6 +220,7 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
                 break;
                 
             case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 translated = 0x0d;
                 break;
 
@@ -354,6 +368,10 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
 
             case KeyEvent.KEYCODE_NUMPAD_DOT:
                 translated = 0x6E;
+                break;
+
+            case KeyEvent.KEYCODE_NUMPAD_COMMA:
+                translated = 0x6C;
                 break;
 
             case KeyEvent.KEYCODE_PRINT:

@@ -8,14 +8,15 @@
             <TextView android:id="@+id/grid_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_margin="8dp" android:padding="8dp" android:background="@drawable/dialog_background"
                 android:textSize="16sp" android:textColor="@color/on_surface" />
-                    <TextView android:id="@+id/grid_role" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_gravity="bottom|start" android:layout_margin="8dp" android:padding="6dp"
-                android:background="@drawable/dialog_background" android:drawablePadding="4dp"
-                android:textSize="14sp" android:textColor="@color/on_surface" android:visibility="gone" />
+
         </FrameLayout>
         <TextView android:id="@+id/grid_text" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="8dp" android:textSize="16sp" android:textColor="@color/on_surface"
             android:minLines="2" android:maxLines="2" android:ellipsize="end" />
+        <TextView android:id="@+id/grid_role" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:padding="6dp"
+            android:background="@drawable/dialog_background" android:drawablePadding="4dp"
+            android:textSize="14sp" android:textColor="@color/on_surface" android:visibility="gone" />
         <TextView android:id="@+id/grid_actions" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:minHeight="48dp" android:minLines="2" android:gravity="center_vertical"
             android:text="@string/app_resume_quit" android:textSize="16sp" android:textColor="@color/accent" />
