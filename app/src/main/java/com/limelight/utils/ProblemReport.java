@@ -46,18 +46,9 @@ public final class ProblemReport {
             File report = new File(directory, "butterpollo-problem.txt");
             String text = "Butterpollo " + BuildConfig.VERSION_NAME + " / Android API " + Build.VERSION.SDK_INT
                     + "\nRedacted event log for this app process, oldest first (up to 200 entries)."
-                    + "
-Addresses, user-assigned device/host names, PINs, credentials and free-text diagnostic details are omitted.
-
-"
-                    + "Last decoder configuration:
-" + decoderDiagnostics + "
-
-"
-                    + LimeLog.getRedactedLog() + "
-
-Last crash record:
-" + CrashCapture.lastReport(activity);
+                    + "\nAddresses, user-assigned device/host names, PINs, credentials and free-text diagnostic details are omitted.\n\n"
+                    + "Last decoder configuration:\n" + decoderDiagnostics + "\n\n"
+                    + LimeLog.getRedactedLog() + "\n\nLast crash record:\n" + CrashCapture.lastReport(activity);
             try (FileOutputStream output = new FileOutputStream(report)) {
                 output.write(text.getBytes(StandardCharsets.UTF_8));
             }
