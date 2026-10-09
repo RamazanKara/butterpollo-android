@@ -1,8 +1,10 @@
-"""Run after assembleNonRootDebug; needs Python 3 and the android-35 sunset AVD.
+"""Run after assembleNonRootDebug, or select an APK with --apk.
 
+Needs Python 3 and the android-35 sunset AVD (Google APIs, not Google Play).
 Uses a disposable, read-only AVD session and a loopback serverinfo fixture.
 This checks UI rendering, manual discovery and frontend errors, not pairing or live streaming.
 """
+import argparse
 import http.server
 import io
 import os
@@ -24,6 +26,7 @@ PACKAGE = "com.butterpollo.client"
 SHOTS = ROOT / "docs/screenshots"
 LOGS = ROOT / "app/build/emulator-smoke"
 HOST_NAME = "Butterpollo smoke fixture"
+DEBUGGABLE = True
 
 
 def adb(*args, timeout=30, binary=False):
@@ -110,7 +113,11 @@ def prefs(name, check, message):
     """SharedPreferences.apply() writes asynchronously, so poll briefly before failing."""
     for _ in range(20):
         try:
-            root = ET.fromstring(adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{name}.xml"))
+            if DEBUGGABLE:
+                contents = adb("shell", "run-as", PACKAGE, "cat", f"shared_prefs/{name}.xml")
+            else:
+                contents = adb("shell", "cat", f"/data/user/0/{PACKAGE}/shared_prefs/{name}.xml")
+            root = ET.fromstring(contents)
             if check(root):
                 return root
         except (subprocess.SubprocessError, ET.ParseError):
@@ -179,9 +186,14 @@ class HostFixture(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    apk = ROOT / "app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk"
+    global DEBUGGABLE, SHOTS, LOGS
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--apk", type=Path,
+                        default=ROOT / "app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk",
+                        help="APK to install; defaults to the nonRoot debug build")
+    apk = parser.parse_args().apk.resolve()
     if not apk.is_file():
-        raise FileNotFoundError("Build :app:assembleNonRootDebug before running the smoke test")
+        raise FileNotFoundError(f"Build the selected APK before running the smoke test: {apk}")
     deadline = time.monotonic() + 30 * 60
     while "emulator-" in subprocess.check_output([str(ADB), "devices"], text=True, timeout=30):
         if time.monotonic() >= deadline:
@@ -234,8 +246,22 @@ def main():
                 time.sleep(2)
             else:
                 raise TimeoutError("Emulator launcher did not settle")
-            print("Emulator services and launcher ready; installing debug APK", flush=True)
+            print(f"Emulator services and launcher ready; installing {apk}", flush=True)
             adb("install", "-r", str(apk), timeout=90)
+            package_info = adb("shell", "dumpsys", "package", PACKAGE)
+            DEBUGGABLE = "DEBUGGABLE" in package_info
+            if not DEBUGGABLE:
+                # A release APK stays non-debuggable; the disposable emulator provides
+                # root access for the same persistence assertions used on debug builds.
+                adb("root")
+                adb("wait-for-device")
+                if adb("shell", "id", "-u").strip() != "0":
+                    raise RuntimeError("Release smoke needs a rootable Google APIs AVD, not a Google Play image")
+                SHOTS = SHOTS / "release"
+                LOGS = LOGS / "release"
+                SHOTS.mkdir(parents=True, exist_ok=True)
+                LOGS.mkdir(parents=True, exist_ok=True)
+            version = re.search(r"versionName=(\S+)", package_info).group(1)
             adb("shell", "pm", "clear", PACKAGE)
             adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
             adb("shell", "svc", "wifi", "disable")
@@ -374,6 +400,7 @@ def main():
             summary = next((n.get("text", "") for n in tree().iter("node")
                             if "Moonlight" in n.get("text", "")), "")
             assert "GPL-3.0" in summary, "About entry lost the Moonlight attribution"
+            assert f"Version {version}" in summary, "About entry does not show the installed app version"
             tap("Navigate up")
             tap("Controllers, touch and mouse")
             tap("Controller buttons", scroll=True)
@@ -418,15 +445,29 @@ def main():
                 screenshot(shot)
                 tap("android:id/button1")
                 find(HOST_NAME)
-            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
-            node = find(f"{PACKAGE}:id/performanceOverlay")
-            assert "no data yet" in node.get("text", ""), node.attrib
-            assert "Client latency (receive → present): no data yet" in node.get("text", ""), node.attrib
-            assert "Decode → present: no data yet" in node.get("text", ""), node.attrib
-            width, height = screenshot("07-latency-overlay")
+            if DEBUGGABLE:
+                adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
+                node = find(f"{PACKAGE}:id/performanceOverlay")
+                assert "no data yet" in node.get("text", ""), node.attrib
+                assert "Client latency (receive → present): no data yet" in node.get("text", ""), node.attrib
+                assert "Decode → present: no data yet" in node.get("text", ""), node.attrib
+                overlay_node = f"{PACKAGE}:id/performanceOverlay"
+                overlay_shot = "07-latency-overlay"
+            else:
+                # The rendering fixture is debug-only. Check the production overlay
+                # controls here; a paired streaming host is needed for live rendering.
+                tap(f"{PACKAGE}:id/settingsButton")
+                tap("Latency and diagnostics")
+                tap(overlay, scroll=True)
+                prefs(f"{PACKAGE}_preferences", lambda root: any(
+                    n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
+                    "Overlay preference was not enabled after reset")
+                overlay_node = overlay
+                overlay_shot = "07-overlay-settings"
+            width, height = screenshot(overlay_shot)
             adb("shell", "wm", "user-rotation", "lock", "1" if width < height else "0")
             time.sleep(1)
-            find(f"{PACKAGE}:id/performanceOverlay")
+            find(overlay_node, scroll=not DEBUGGABLE)
             rotated_width, rotated_height = screenshot("08-overlay-rotated")
             assert (width < height) != (rotated_width < rotated_height), "Overlay did not rotate"
             crashes = adb("logcat", "-b", "crash", "-d")
@@ -438,7 +479,8 @@ def main():
                            if ("FATAL EXCEPTION" in block or "Fatal signal" in block) and PACKAGE in block]
             if app_crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
-            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, overlay and rotation; screenshots: {SHOTS}", flush=True)
+            overlay_result = "overlay rendering" if DEBUGGABLE else "overlay settings (live rendering needs a paired host)"
+            print(f"PASS: pairing guide, manual discovery, OTP and details dialogs, host profile validation/save/reset, settings screens, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, {overlay_result} and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")

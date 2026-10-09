@@ -1,31 +1,46 @@
-# Don't obfuscate code
--dontobfuscate
+# Constructed by EvdevCaptureProviderShim only in the root flavor.
+-keep,allowoptimization class com.limelight.binding.input.evdev.EvdevCaptureProvider {
+    public <init>(android.app.Activity, com.limelight.binding.input.evdev.EvdevListener);
+}
 
-# Our code
--keep class com.limelight.binding.input.evdev.* {*;}
+# Looked up by name from callbacks.c and pyrowave_renderer.cpp.
+-keepclassmembers class com.limelight.nvstream.jni.MoonBridge {
+    public static *** bridge*(...);
+}
 -keepclassmembers class com.limelight.binding.video.FrameLatencyStats {
     void onFrameRendered(long, long);
 }
 
-# Moonlight common
--keep class com.limelight.nvstream.jni.* {*;}
+# The default Android rules retain native method names and descriptor classes.
+# BouncyCastle discovers mappings and JCA services by name. AndroidCryptoProvider
+# uses only RSA keys, SHA256withRSA signatures and X.509 certificates from BC.
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.RSA$Mappings {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.X509$Mappings {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.digest.SHA256$Mappings {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyFactorySpi {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.rsa.DigestSignatureSpi$SHA256 {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.asymmetric.x509.CertificateFactory {
+    public <init>();
+}
+-keep,allowoptimization class org.bouncycastle.jcajce.provider.digest.SHA256$Digest {
+    public <init>();
+}
 
-# Okio
--keep class sun.misc.Unsafe {*;}
--dontwarn java.nio.file.*
--dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
--dontwarn okio.**
-
-# BouncyCastle
--keep class org.bouncycastle.jcajce.provider.asymmetric.* {*;}
--keep class org.bouncycastle.jcajce.provider.asymmetric.util.* {*;}
--keep class org.bouncycastle.jcajce.provider.asymmetric.rsa.* {*;}
--keep class org.bouncycastle.jcajce.provider.digest.** {*;}
--keep class org.bouncycastle.jcajce.provider.symmetric.** {*;}
--keep class org.bouncycastle.jcajce.spec.* {*;}
--keep class org.bouncycastle.jce.** {*;}
+# BC's unused LDAP certificate stores reference desktop JNDI APIs.
 -dontwarn javax.naming.**
 
-# jMDNS
--dontwarn javax.jmdns.impl.DNSCache
--dontwarn org.slf4j.**
+# OkHttp/Okio ship consumer rules. jcodec's H.264 parsing and
+# ShieldControllerExtensions' Binder calls are statically referenced.

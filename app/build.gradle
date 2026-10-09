@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def releaseSigning = [
+        storeFile: System.getenv('BP_KEYSTORE') ?: keystoreProperties.getProperty('storeFile'),
+        storePassword: System.getenv('BP_KEYSTORE_PASSWORD') ?: keystoreProperties.getProperty('storePassword'),
+        keyAlias: System.getenv('BP_KEY_ALIAS') ?: keystoreProperties.getProperty('keyAlias'),
+        keyPassword: System.getenv('BP_KEY_PASSWORD') ?: keystoreProperties.getProperty('keyPassword')
+]
+def hasReleaseSigning = releaseSigning.values().any { it }
+if (hasReleaseSigning && !releaseSigning.values().every { it }) {
+    throw new GradleException('Incomplete release signing: set all four BP_KEYSTORE/BP_KEYSTORE_PASSWORD/BP_KEY_ALIAS/BP_KEY_PASSWORD variables or keystore.properties entries.')
+}
+
 android {
     ndkVersion "29.0.14206865"
 
@@ -11,8 +27,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "12.2"
-        versionCode = 315
+        versionName "0.4.0"
+        versionCode = 316
 
         externalNativeBuild {
             ndkBuild {
@@ -99,6 +115,20 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            } else {
+                initWith signingConfigs.debug
+                logger.warn('WARNING: Release signing is not configured. Release APKs and bundles use the DEBUG KEY for testing only; configure keystore.properties or BP_KEYSTORE* before publishing.')
+            }
+        }
+    }
+
     buildTypes {
         debug {
             resValue "string", "app_label", "Butterpollo"
@@ -109,6 +139,7 @@ android {
             resValue "string", "app_label_root", "Butterpollo (Root)"
 
             minifyEnabled true
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

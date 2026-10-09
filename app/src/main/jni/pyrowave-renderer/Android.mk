@@ -19,7 +19,6 @@ LOCAL_CPPFLAGS := -std=c++17 -Wall -Wextra -Wno-missing-field-initializers -fno-
 LOCAL_SHARED_LIBRARIES := pyrowave-shared
 # Vulkan is loaded with dlopen at runtime; libvulkan is not linked.
 LOCAL_LDLIBS := -llog -landroid -ldl
-LOCAL_LDFLAGS += -Wl,-z,max-page-size=16384
 include $(BUILD_SHARED_LIBRARY)
 
 endif
