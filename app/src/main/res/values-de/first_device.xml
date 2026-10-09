@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="overlay_mode">Leistungsanzeige</string>
+    <string name="overlay_mode_help">Kompakt zeigt dargestellte FPS, Gesamtlatenz (Netzwerk + Dekodierung) und Bildverlust. Erweitert zeigt alle Messwerte. Zum Wechseln die Anzeige lange drücken.</string>
+    <string name="overlay_compact">Kompakt</string>
+    <string name="overlay_advanced">Erweitert</string>
+    <string name="overlay_copy">Statistik kopieren</string>
+    <string name="overlay_copied">Statistik kopiert</string>
+    <string name="overlay_empty">Die Leistungsanzeige einschalten und auf ein Videobild warten, um die Statistik zu kopieren.</string>
+    <string name="overlay_compact_loss">%1$.1f%% Verlust</string>
+    <string name="overlay_video">Video</string>
+    <string name="overlay_network">Netzwerk</string>
+    <string name="overlay_decode">Dekodierung</string>
+    <string name="overlay_host">Host</string>
+</resources>

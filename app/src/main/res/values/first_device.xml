@@ -23,14 +23,18 @@
     <string name="summary_stretch_video">Fill the screen; the image may look wider or taller.</string>
     <string name="summary_frame_pacing">Choose how frames balance response time and smooth motion; VRR overrides this.</string>
     <string name="summary_language">Choose the language used by the app.</string>
-    <string name="overlay_mode">Performance overlay size</string>
-    <string name="overlay_mode_help">Compact shows FPS, network delay and frame loss; Expanded shows all measurements.</string>
-    <string name="overlay_compact">Compact overlay</string>
-    <string name="overlay_expanded">Expanded overlay</string>
-    <string name="overlay_copy">Copy stats line</string>
+    <string name="overlay_mode">Performance overlay mode</string>
+    <string name="overlay_mode_help">Compact shows shown FPS, total latency (network + decode) and frame loss. Advanced shows all measurements. Long-press the overlay to switch.</string>
+    <string name="overlay_compact">Compact</string>
+    <string name="overlay_advanced">Advanced</string>
+    <string name="overlay_copy">Copy stats</string>
     <string name="overlay_copied">Stats copied</string>
     <string name="overlay_empty">Turn on the performance overlay and wait for a video frame to copy stats.</string>
-    <string name="overlay_compact_stats">%1$.1f FPS · RTT %2$d ms · variation %3$d ms · frame loss %4$.1f%%</string>
+    <string name="overlay_compact_loss">%1$.1f%% loss</string>
+    <string name="overlay_video">Video</string>
+    <string name="overlay_network">Network</string>
+    <string name="overlay_decode">Decode</string>
+    <string name="overlay_host">Host</string>
     <string name="perf_overlay_releasedfps">Released to display: %1$.2f FPS</string>
     <string name="perf_overlay_shownfps">Shown (render callbacks): %1$s</string>
     <string name="perf_overlay_presentdrops">Present drops (estimated, unobserved for 5 s): %1$d</string>
@@ -38,9 +42,8 @@
     <string name="perf_overlay_low_latency_keys">Low-latency keys accepted (input format): %1$s</string>
     <string name="perf_overlay_low_latency_unconfirmed">Low-latency keys unconfirmed: %1$s</string>
     <string name="perf_overlay_phone_hints">Phone performance hints (ADPF): %1$b</string>
-    <string name="overlay_compact_presentation">Received %1$.1f · released %2$.1f · shown %3$s · present drops ≈%4$d</string>
-    <string-array name="overlay_mode_names"><item>Compact</item><item>Expanded</item></string-array>
-    <string-array name="overlay_mode_values"><item>compact</item><item>expanded</item></string-array>
+    <string-array name="overlay_mode_names"><item>@string/overlay_compact</item><item>@string/overlay_advanced</item></string-array>
+    <string-array name="overlay_mode_values" translatable="false"><item>compact</item><item>advanced</item></string-array>
     <string name="connection_test_title">Test your connection</string>
     <string name="connection_test_intro">Measures 10 host requests for latency, jitter and failed requests. On supported paired hosts, also downloads 32 MiB to measure bandwidth. This can use mobile data and briefly slow other traffic. Settings stay unchanged.</string>
     <string name="connection_test_running">Testing the connection… Leave this screen or tap Cancel to stop.</string>

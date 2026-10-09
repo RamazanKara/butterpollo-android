@@ -18,6 +18,7 @@ import com.limelight.binding.video.CrashListener;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
+import com.limelight.binding.video.PerformanceOverlay;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.AdaptiveBitrateController;
 import com.limelight.nvstream.PyroWaveBitrateController;
@@ -251,8 +252,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private TextView notificationOverlayView;
     private int requestedNotificationOverlayVisibility = View.GONE;
     private TextView performanceOverlayView;
+    private View performanceOverlayScroll;
     private String expandedPerformanceText = "";
-    private String compactPerformanceText = "";
+    private CharSequence compactPerformanceText = "";
     private boolean compactPerformanceOverlay;
 
     private MediaCodecDecoderRenderer decoderRenderer;
@@ -409,8 +411,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         notificationOverlayView = findViewById(R.id.notificationOverlay);
 
         performanceOverlayView = findViewById(R.id.performanceOverlay);
-        compactPerformanceOverlay = "compact".equals(PreferenceManager.getDefaultSharedPreferences(this)
-                .getString("performance_overlay_mode", "expanded"));
+        performanceOverlayScroll = findViewById(R.id.performanceOverlayScroll);
+        compactPerformanceOverlay = !"advanced".equals(PreferenceManager.getDefaultSharedPreferences(this)
+                .getString("performance_overlay_mode", "compact"));
+        performanceOverlayView.setOnLongClickListener(view -> {
+            togglePerformanceOverlayMode();
+            return true;
+        });
+        updatePerformanceOverlay();
 
         inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this);
 
@@ -515,7 +523,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
         // Check if the user has enabled performance stats overlay
         if (mediaStream && prefConfig.enablePerfOverlay) {
-            performanceOverlayView.setVisibility(View.VISIBLE);
+            performanceOverlayScroll.setVisibility(View.VISIBLE);
         }
 
         decoderRenderer = new MediaCodecDecoderRenderer(
@@ -735,7 +743,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     virtualController.hide();
                 }
 
-                performanceOverlayView.setVisibility(View.GONE);
+                performanceOverlayScroll.setVisibility(View.GONE);
                 notificationOverlayView.setVisibility(View.GONE);
 
                 // Disable sensors while in PiP mode
@@ -754,7 +762,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 }
 
                 if (prefConfig.enablePerfOverlay) {
-                    performanceOverlayView.setVisibility(View.VISIBLE);
+                    performanceOverlayScroll.setVisibility(View.VISIBLE);
                 }
 
                 notificationOverlayView.setVisibility(requestedNotificationOverlayVisibility);
@@ -1468,13 +1476,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         if (app.getRole() != NvApp.Role.INPUT_ONLY) {
             labels.add(getString(prefConfig.enablePerfOverlay ? R.string.stream_overlay_hide : R.string.stream_overlay_show));
             actions.add(this::togglePerformanceOverlay);
-            labels.add(getString(compactPerformanceOverlay ? R.string.overlay_expanded : R.string.overlay_compact));
-            actions.add(() -> {
-                compactPerformanceOverlay = !compactPerformanceOverlay;
-                PreferenceManager.getDefaultSharedPreferences(this).edit()
-                        .putString("performance_overlay_mode", compactPerformanceOverlay ? "compact" : "expanded").apply();
-                performanceOverlayView.setText(compactPerformanceOverlay ? compactPerformanceText : expandedPerformanceText);
-            });
+            labels.add(getString(compactPerformanceOverlay ? R.string.overlay_advanced : R.string.overlay_compact));
+            actions.add(this::togglePerformanceOverlayMode);
             labels.add(getString(R.string.overlay_copy));
             actions.add(this::copyPerformanceStats);
             if (details.rustHostVersion != null &&
@@ -1577,9 +1580,23 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             return;
         }
         prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
-        performanceOverlayView.setVisibility(prefConfig.enablePerfOverlay && !isHidingOverlays ? View.VISIBLE : View.GONE);
+        performanceOverlayScroll.setVisibility(prefConfig.enablePerfOverlay && !isHidingOverlays ? View.VISIBLE : View.GONE);
         PreferenceManager.getDefaultSharedPreferences(this).edit()
                 .putBoolean("checkbox_enable_perf_overlay", prefConfig.enablePerfOverlay).apply();
+    }
+
+    private void togglePerformanceOverlayMode() {
+        compactPerformanceOverlay = !compactPerformanceOverlay;
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putString("performance_overlay_mode", compactPerformanceOverlay ? "compact" : "advanced").apply();
+        performanceOverlayScroll.scrollTo(0, 0);
+        updatePerformanceOverlay();
+    }
+
+    private void updatePerformanceOverlay() {
+        performanceOverlayView.setMaxLines(compactPerformanceOverlay ? 1 : Integer.MAX_VALUE);
+        performanceOverlayView.setEllipsize(compactPerformanceOverlay ? android.text.TextUtils.TruncateAt.END : null);
+        performanceOverlayView.setText(compactPerformanceOverlay ? compactPerformanceText : expandedPerformanceText);
     }
 
     private void copyPerformanceStats() {
@@ -3752,7 +3769,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     @Override
-    public void onPerfUpdate(final String text, final String compactText) {
+    public void onPerfUpdate(final String video, final String network, final String decode, final CharSequence compactText) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -3765,10 +3782,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 String displayLine = prefConfig.vrr ? String.format(java.util.Locale.ROOT,
                         "\nPanel: %.2f Hz · render: %.2f Hz · VRR: %s", physicalRefreshRate, display.getRefreshRate(),
                         useArr ? "ARR" : "max Hz") : "";
-                expandedPerformanceText = !isAdaptiveBitrateEnabled() ? text + displayLine : text + displayLine + "\n" +
+                String networkText = !isAdaptiveBitrateEnabled() ? network : network + "\n" +
                         getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0);
+                expandedPerformanceText = PerformanceOverlay.advancedText(Game.this, video + displayLine, networkText, decode);
                 compactPerformanceText = compactText;
-                performanceOverlayView.setText(compactPerformanceOverlay ? compactPerformanceText : expandedPerformanceText);
+                updatePerformanceOverlay();
             }
         });
     }

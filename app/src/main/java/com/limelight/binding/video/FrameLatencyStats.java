@@ -164,6 +164,8 @@ class FrameLatencyStats {
     synchronized void discard(long ptsUs, String reason) {
         Frame frame = pending.get(ptsUs);
         if (frame != null) {
+            // Vulkan discovers missing display timing when polling after the first release.
+            if ("render_unavailable".equals(reason)) renderCallbacksAvailable = false;
             finish(frame, reason);
         }
     }

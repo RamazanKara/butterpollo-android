@@ -489,6 +489,10 @@ public class PreferenceConfiguration {
         PreferenceConfiguration config = new PreferenceConfiguration();
 
         // Migrate legacy preferences to the new locations
+        // The old ListPreference persisted "expanded" even when the user never changed its default.
+        if ("expanded".equals(prefs.getString("performance_overlay_mode", "compact"))) {
+            prefs.edit().putString("performance_overlay_mode", "compact").apply();
+        }
         if (prefs.contains(LEGACY_ENABLE_51_SURROUND_PREF_STRING)) {
             if (prefs.getBoolean(LEGACY_ENABLE_51_SURROUND_PREF_STRING, false)) {
                 prefs.edit()

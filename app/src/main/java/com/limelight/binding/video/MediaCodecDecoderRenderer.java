@@ -156,6 +156,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         StringBuilder text = new StringBuilder(context.getString(R.string.latency_header, FrameLatencyStats.WINDOW_SIZE));
         for (int line = 0; line < labels.length; line++) {
             int stage = stages[line];
+            if (stage == 4) {
+                text.append("\n\n").append(context.getString(R.string.overlay_host));
+            }
             text.append('\n').append(context.getString(labels[line])).append(": ");
             if (summary[stage][0] == 0) {
                 text.append(context.getString(R.string.latency_unavailable));
@@ -1783,40 +1786,31 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 long presentDrops = frameLatencyStats.getPresentDrops();
                 boolean mediaCodec = (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
-                StringBuilder sb = new StringBuilder();
-                sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
-                sb.append(decoderDiagnostics).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_incomingfps,
+                StringBuilder video = new StringBuilder();
+                video.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
+                video.append(context.getString(R.string.perf_overlay_incomingfps,
                         mediaCodec ? frameRates[0] : fps.receivedFps)).append('\n');
-                if (mediaCodec) {
-                    sb.append(context.getString(R.string.perf_overlay_releasedfps, frameRates[1])).append('\n');
-                    sb.append(context.getString(R.string.perf_overlay_shownfps, shownFps)).append('\n');
-                    sb.append(context.getString(R.string.perf_overlay_presentdrops, presentDrops)).append('\n');
-                }
-                sb.append(context.getString(R.string.perf_overlay_netdrops,
-                        networkFrameLossPercent)).append('\n');
-                sb.append(context.getString(R.string.perf_overlay_netlatency,
-                        (int)(rttInfo >> 32), (int)rttInfo)).append('\n');
-                sb.append((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0 ? "YUV 4:4:4" : "YUV 4:2:0");
+                video.append(context.getString(R.string.perf_overlay_releasedfps, frameRates[1])).append('\n');
+                video.append(context.getString(R.string.perf_overlay_shownfps, shownFps)).append('\n');
+                video.append(context.getString(R.string.perf_overlay_presentdrops, presentDrops)).append('\n');
+                video.append((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0 ? "YUV 4:4:4" : "YUV 4:2:0");
                 if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0) {
-                    sb.append(" 10-bit");
+                    video.append(" 10-bit");
                 }
-                sb.append('\n');
-                sb.append(decodeTimeMs >= 0 ? context.getString(R.string.perf_overlay_dectime, decodeTimeMs) :
+                String network = context.getString(R.string.perf_overlay_netdrops, networkFrameLossPercent) + '\n' +
+                        context.getString(R.string.perf_overlay_netlatency, (int)(rttInfo >> 32), (int)rttInfo);
+                StringBuilder decode = new StringBuilder(decoderDiagnostics).append('\n');
+                decode.append(decodeTimeMs >= 0 ? context.getString(R.string.perf_overlay_dectime, decodeTimeMs) :
                         context.getString(R.string.latency_input_output) + ": " + context.getString(R.string.latency_unavailable));
-                if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                if (!mediaCodec) {
                     int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
-                    sb.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
+                    decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
                             this.decodeTimeMs, gpuUs));
                 }
-                sb.append('\n').append(latencyOverlay);
-                String compact = context.getString(R.string.overlay_compact_stats,
-                        fps.receivedFps, (int)(rttInfo >> 32), (int)rttInfo, networkFrameLossPercent);
-                if (mediaCodec) {
-                    compact += "\n" + context.getString(R.string.overlay_compact_presentation,
-                            frameRates[0], frameRates[1], shownFps, presentDrops);
-                }
-                perfListener.onPerfUpdate(sb.toString(), compact);
+                decode.append('\n').append(latencyOverlay);
+                perfListener.onPerfUpdate(video.toString(), network, decode.toString(),
+                        PerformanceOverlay.compactText(context, frameRates[2], (int)(rttInfo >> 32),
+                                decodeTimeMs, lastTwo.totalFrames == 0 ? -1 : networkFrameLossPercent));
             }
 
             globalVideoStats.add(activeWindowVideoStats);

@@ -34,21 +34,29 @@
         android:textColor="@android:color/white"
         android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/performanceOverlay"
+    <ScrollView
+        android:id="@+id/performanceOverlayScroll"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="10dp"
-        android:layout_gravity="left"
-        android:textAppearance="?android:attr/textAppearanceSmall"
-        android:gravity="left"
+        android:layout_margin="8dp"
+        android:layout_gravity="top|start"
         android:background="#B3000000"
-        android:textColor="@android:color/white"
-        android:padding="4dp"
+        android:focusable="false"
+        android:descendantFocusability="blocksDescendants"
         android:preferKeepClear="true"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/performanceOverlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:textSize="12sp"
+            android:textColor="@android:color/white"
+            android:padding="6dp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </ScrollView>
 
     <TextView
         android:id="@+id/notificationOverlay"

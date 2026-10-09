@@ -149,7 +149,7 @@
         android:key="category_latency_diagnostics">
         <ListPreference android:key="performance_overlay_mode" android:title="@string/overlay_mode"
             android:summary="@string/overlay_mode_help" android:entries="@array/overlay_mode_names"
-            android:entryValues="@array/overlay_mode_values" android:defaultValue="expanded" />
+            android:entryValues="@array/overlay_mode_values" android:defaultValue="compact" />
         <CheckBoxPreference
             android:key="checkbox_enable_perf_overlay"
             android:title="@string/title_enable_perf_overlay"
