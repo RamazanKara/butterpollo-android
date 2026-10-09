@@ -100,8 +100,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     }
 
                     // Add a launcher shortcut for this PC (forced, since this is user interaction)
-                    shortcutHelper.createAppViewShortcut(computer, true, getIntent().getBooleanExtra(NEW_PAIR_EXTRA, false));
-                    shortcutHelper.reportComputerShortcutUsed(computer);
+                    if (localBinder.isPersistent()) {
+                        shortcutHelper.createAppViewShortcut(computer, true, getIntent().getBooleanExtra(NEW_PAIR_EXTRA, false));
+                        shortcutHelper.reportComputerShortcutUsed(computer);
+                    }
 
                     final AppGridAdapter adapter;
                     try {

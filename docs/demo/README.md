@@ -1,132 +1,129 @@
-# RUBYLIGHT demo production
+# RUBYLIGHT debug demo
 
-The scripts produce a 67.4-second demo in landscape and portrait, using the
-captions and source mapping in [shotlist.md](shotlist.md). Run them from any
-directory in PowerShell 7. All generated files stay in
-the worktree's gitignored `out/demo/` directory. No publishing step is included.
+The non-root debug APK includes an offline marketing fixture mode. Package IDs stay
+`com.butterpollo.client` / `com.butterpollo.client.root`. All demo activities,
+fixtures, scripted metrics, PNG artwork and MP4 samples live in `app/src/debug`;
+release variants do not compile or package them. Normal app launches still use
+the real computer manager and streaming connection.
 
-## Render the storyboard
+## Build
 
-Use the existing Windows FFmpeg installation, including `ffprobe.exe`. The
-renderer searches PATH, the WinGet link, then
-`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg_*\*\bin`. If the installation
-is not accessible, open a shell where its `bin` directory is on PATH. The scripts
-do not download or install tools. They use Windows' Segoe UI regular and bold
-fonts from `%WINDIR%\Fonts`, and Windows System.Drawing for the gradient and
-phone bezel.
+`local.properties` and the native submodule must be present (copy the missing
+files from `C:\src\bp-T5` if needed). Build from the repository root:
+
+```powershell
+$env:JAVA_HOME = 'C:\jdk17'
+.\gradlew.bat :app:assembleNonRootDebug :app:testNonRootDebugUnitTest :app:lintNonRootDebug --no-daemon --max-workers=2
+```
+
+APK: `app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk`.
+No extra flavor or dependency is required. If the build user's home is read-only,
+point `GRADLE_USER_HOME` and `ANDROID_USER_HOME` at writable local directories.
+
+## Launch on the caller's device
+
+Install that APK on an English-language Android device/emulator. The caller runs
+adb; these instructions and scripts do not start an emulator.
+
+```powershell
+adb install -r app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk
+adb shell am start -n com.butterpollo.client/com.limelight.demo.DemoLauncherActivity
+adb shell am start -n com.butterpollo.client/com.limelight.demo.DemoLauncherActivity --es state library
+```
+
+| `state` extra | Screen |
+| --- | --- |
+| `hosts` (default) | Real PcView cards: Living-room PC online/paired, Studio PC online/unpaired, Laptop offline with Wake PC action |
+| `library` | Real AppView, ten original 3:4 covers, Racing Game marked running |
+| `stream`, `compact` | Looping sample in the Game layout's StreamView with compact performance overlay |
+| `advanced` | Same sample with advanced overlay |
+| `touch` | Same sample with the real on-screen controller and its layout editor |
+| `pip` | Sample ready for PiP; press Home to enter it |
+| `settings` | Real settings and presets, with isolated demo preferences |
+| `controller` | Real controller mapping screen, populated with a demo controller |
+
+Tap Living-room PC to enter its library; tap any title to play the sample.
+Long-press the performance overlay to switch compact/advanced. Tap the stream
+or its background for overlay and touch-control actions. Studio pairing and
+Laptop Wake PC are offline demonstration actions; no pairing request or magic
+packet is sent. The fixture binder never discovers or polls hosts and creates
+no launcher shortcuts. Preferences use `demo_` names and cached art stays under
+`cache/demo`; the user's computer database and normal preferences are untouched.
+Force-stop the app and open its normal launcher to leave the demo.
+
+The network decoder requires a real host handshake, so demo playback uses
+MediaPlayer in the same `activity_game` / `StreamView` surface container. The
+production `PerfOverlayListener`, `PerformanceOverlay` formatters, Material
+ActionSheet and `VirtualController` render its UI. Supported AV1/HEVC samples
+are preferred, with H.264 fallback. PiP is Android's actual floating video window
+(Android 8+ with PiP support), not a composited image.
+
+**All performance readings are scripted illustrations, not measurements.** The
+sample is 1080p60 SDR; the displayed 119.9 FPS, approximately 6 ms decode, 0.1%
+loss, AV1 10-bit HDR and FSR 1 profile are synthetic. The stream carries a small
+DEMO label. Keep that distinction in published captions; use real-host footage
+for claims about measured performance, HDR or upscaling quality.
+
+## Capture stills and the guided tour
+
+Use an unlocked device with platform-tools on PATH (or in `ANDROID_HOME`). Set
+`ANDROID_SERIAL` when more than one device is connected. PiP must be enabled for
+the app. No host or physical controller is needed.
+
+```powershell
+.\scripts\demo\capture-stills.ps1
+.\scripts\demo\capture-video.ps1
+# Optional retakes, using the existing shot IDs:
+.\scripts\demo\capture-video.ps1 -Shot 04-library,05-stream,12-pip
+```
+
+The scripts temporarily set 1080x2400, density 420 and portrait rotation, then
+restore the prior overrides in `finally`. They force-stop only this package
+between states and at exit. They do not clear app data. Settings navigation and
+the library/stream tour taps use UIAutomator resource IDs, text and discovered
+bounds; missing UI stops capture and preserves `out/demo/capture/last-ui.xml`.
+PiP capture checks that Android actually entered pinned window mode.
+
+Stills go to `docs/screenshots/demo/`: `pc-list.png`, `library.png`, `stream.png`,
+`stream-compact.png`, `stream-advanced.png`, `settings-presets.png`,
+`upscaling-options.png`, `controller.png`, `touch-controller.png`, `pip.png`.
+PNG dimensions are checked after pulling. These files are created by the caller;
+no empty-app placeholders are substituted.
+
+`capture-video.ps1` records all thirteen [shots](shotlist.md) with
+`adb shell screenrecord --size 1080x2400 --bit-rate 20000000`. Clips go to
+`out/demo/clips/<shot-id>.mp4`, with one second of handles at each end. Shot 04
+taps into the library and shot 05 taps Racing Game while recording. Shot 12
+presses Home while recording. Logs stay beside the clips. Recording is silent.
+The older `capture.ps1` entry point forwards to this offline tour; its `-NoHost`
+option is now redundant.
+
+The existing edit remains available after capture:
 
 ```powershell
 .\scripts\demo\render.ps1 -Storyboard
-```
-
-This builds the entire edit from `docs/screenshots`, with alternating gentle
-zoom-in and zoom-out motion. The motion has padded edges to preserve UI content.
-The older screenshots provide a storyboard: several current features need live
-footage, as listed in the shotlist. The draft preserves the source screenshots;
-it does not manufacture a library, a live stream, PiP, or performance readings.
-
-```powershell
 .\scripts\demo\render.ps1
 ```
 
-The normal render uses `out/demo/clips/<shot-id>.mp4` wherever present and falls
-back to the listed still for each missing clip. A present but invalid, corrupt,
-wrong-sized, or short clip stops the render rather than being silently replaced.
-`sources.json` identifies every actual source. Check it before selecting files
-for release. Running again replaces the outputs and intermediates.
+It uses the shotlist's new demo stills or the matching recorded clips and writes
+landscape/portrait exports, posters, review frames and `sources.json` under
+`out/demo/`. Review the outputs before using them in README/site/video assets.
+Stream shots preserve the real 16:9 surface inside the portrait viewport.
 
-## Record footage on the caller's device
-
-Use the current non-root RUBYLIGHT package (`com.butterpollo.client`), an English
-UI, USB debugging, an unlocked portrait device, and Android platform-tools on
-PATH or under `ANDROID_HOME` / `%LOCALAPPDATA%\Android\Sdk`. Connect one authorized
-device, or set Android's standard `ANDROID_SERIAL` environment variable. No
-emulator is started by either script.
+## Regenerate bundled assets
 
 ```powershell
-# Deterministic screens that need no PC host.
-.\scripts\demo\capture.ps1 -NoHost
-
-# All thirteen shots: automatic navigation plus cues for host footage.
-.\scripts\demo\capture.ps1
-
-# Retake specific shots without redoing the session.
-.\scripts\demo\capture.ps1 -Shot 05-stream,06-compact,07-advanced,13-performance
+$env:JAVA_HOME = 'C:\jdk17'
+.\scripts\demo\generate-assets.ps1
 ```
 
-`capture.ps1` uses `adb input` and exact resource IDs/text from `uiautomator dump`
-to reopen the connection guide, settings presets, upscaling choices, controller
-buttons and on-screen control settings. It polls for expected UI before moving
-on and saves the last XML tree on failure. It does not clear app data or change
-preferences. The current screen is recorded for each automatic take.
-
-For manual takes, prepare the screen described in the shotlist, press Enter, and
-perform the action at the `ACTION` cue. Pairing, the library, stream launch, live
-overlays, PiP and measured performance require a prepared PC host. Have the host
-ready and a game warmed up before capture. Connect a controller before recording
-its mapping screen. Use a neutral device background for the PiP take.
-
-Each take runs:
-
-```text
-adb shell screenrecord --size 1080x2400 --bit-rate 20000000 --time-limit <seconds+2> /sdcard/rubylight-demo/<shot-id>.mp4
-adb pull /sdcard/rubylight-demo/<shot-id>.mp4 out/demo/clips/<shot-id>.capture.mp4
-```
-
-The pulled file becomes `<shot-id>.mp4` after successful recording and transfer.
-The first second is trimmed; the last second is a recording handle. UI XML and
-recorder logs remain beside the clips. Successful takes remove their remote
-MP4. The small working UI dump remains in `/sdcard/rubylight-demo/ui.xml`.
-Use a device whose recorder supports 1080x2400; a rejected recording size stops
-the take. Keep portrait orientation fixed through each take so the stream stays
-inside the recorded viewport. A landscape stream can be letterboxed within that
-portrait recording. `screenrecord` supplies the picture; the render supplies the
-audio. See the [Android screenrecord reference](https://developer.android.com/tools/adb#screenrecord).
-
-## Edit and audio
-
-The launcher vector colours are `#F4CE69` gold and `#172328` slate. The intro is a
-RUBYLIGHT wordmark with the mission tagline. The outro carries the releases URL.
-Both layouts use a centred phone bezel over a diagonal gradient; landscape adds
-feature callouts. Captions are burned in with Segoe UI, kept outside the phone,
-and wrapped explicitly in portrait. Text files avoid shell and filter escaping
-problems. Fonts are copied only to the ignored work directory.
-
-The edit uses 0.4-second crossfades and 30 fps throughout. Pairwise assembly keeps
-only two video decoders active at once. Source footage is fitted without cropping;
-the shotlist's one storyboard crop excludes older host compatibility copy.
-
-The music is synthesized entirely with FFmpeg `aevalsrc`: a slow stereo sine
-chord, low-pass filtering and echo. There are no sampled recordings or downloaded
-music assets. A separate inaudible cue ducks the bed under the caption sequence
-using `sidechaincompress`, with attack/release smoothing. Two-pass `loudnorm`
-targets -20 LUFS integrated, -2 dBTP and 7 LU loudness range. Final AAC audio is
-measured again; its report is in `work/<aspect>-audio-check.log`. Source clip audio
-is not mixed into the soundtrack. Filter details are in the
-[FFmpeg reference](https://ffmpeg.org/ffmpeg-filters.html).
-
-## Outputs and review
-
-| File | Content |
-| --- | --- |
-| `out/demo/demo-16x9.mp4` | 1920x1080, H.264, yuv420p, 30 fps, AAC stereo, faststart |
-| `out/demo/demo-9x16.mp4` | 1080x1920, H.264, yuv420p, 30 fps, AAC stereo, faststart |
-| `out/demo/poster-16x9.png` / `poster-9x16.png` | Full-size branded posters at 1 second |
-| `out/demo/frames/demo-<aspect>-01.png` through `08.png` | Eight evenly spaced frames, from 0.8 seconds to 0.8 seconds before the end |
-| `out/demo/demo-<aspect>.ffprobe.json` | Actual codec, dimensions, pixel format, frame rate and duration |
-| `out/demo/sources.json` | Clip/still provenance for all thirteen shots |
-| `out/demo/work/` | Generated artwork, text, music, segments, filter graphs and FFmpeg logs |
-
-The renderer checks export dimensions, codec, pixel format and duration, and
-extracts all sixteen review frames automatically. Inspect them at full size:
-captions must be readable, the phone and callouts must be separated, text must
-stay inside the canvas, and gold/slate branding must be consistent. Portrait
-captions end above the bottom 192-pixel safe area; landscape copy stays at least
-54 pixels from the lower edge. Play both exports to check crossfades and music.
-
-For the release cut, replace the mapped storyboard sources with recorded clips,
-render again, inspect the source manifest and review frames, then upload the two
-MP4s and chosen posters as assets on
-[RUBYLIGHT releases](https://github.com/RamazanKara/rubylight-android/releases).
-The caller owns the release upload. Neither script commits, pushes, invokes
-`gh`, creates a release, or changes the app.
+The generator finds FFmpeg on PATH or under
+`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg_*\*\bin`; it downloads
+nothing. `GenerateAssets.java` uses JDK 17 Java2D and system Segoe UI fonts to
+make ten ruby/slate gradient covers and an original ten-second seamless flight
+animation: parallax mountains, a neon ground grid, towers, particles, a moving
+ship and HUD. Raw frames are piped to FFmpeg at 1920x1080/60. H.264 is mandatory;
+HEVC and AV1 10-bit SDR copies are encoded when their software encoders are
+available. All footage and art are synthetic and contain no third-party games.
+The PNG preview and ffprobe verification reports go to `out/demo/assets/`.
+Only the generated `app/src/debug/assets/demo/` files ship in the debug APK.

@@ -1,5 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <activity android:name="com.limelight.demo.DemoLauncherActivity" android:exported="true"
+            android:theme="@style/StreamTheme" />
+        <activity android:name="com.limelight.demo.DemoPcView" android:exported="false" />
+        <activity android:name="com.limelight.demo.DemoAppView" android:exported="false" />
+        <activity android:name="com.limelight.demo.DemoStreamSettings" android:exported="false" />
+        <activity android:name="com.limelight.demo.DemoControllerMappingActivity" android:exported="false" />
+        <activity android:name="com.limelight.demo.DemoGameActivity" android:exported="false"
+            android:supportsPictureInPicture="true" android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+            android:theme="@style/StreamTheme" />
+        <service android:name="com.limelight.demo.DemoComputerManagerService" android:exported="false" />
         <activity android:name="com.limelight.CrashTestActivity"
             android:exported="true" />
         <activity android:name="com.limelight.LatencyOverlaySmokeActivity"
