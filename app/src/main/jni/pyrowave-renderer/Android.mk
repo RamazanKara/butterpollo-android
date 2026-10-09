@@ -1,6 +1,6 @@
 # Android.mk for the PyroWave Vulkan renderer.
 #
-# PyroWave is built only for 64-bit ABIs (see docs/BUTTERPOLLO_PARITY.md). On other ABIs
+# PyroWave is built only for 64-bit ABIs (see docs/device-checklist.md). On other ABIs
 # the renderer library is absent and the app never offers PyroWave.
 LOCAL_PATH := $(call my-dir)
 

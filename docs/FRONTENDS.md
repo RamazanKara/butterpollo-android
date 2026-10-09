@@ -1,115 +1,88 @@
-# Launching games from ES-DE and other frontends
+# Launcher integrations
 
-Rubylight can start a stream straight from ES-DE, Daijisho, Pegasus or any launcher that can send
-an Android intent. Each host game becomes a small `.art` file in your ROMs folder; the frontend opens
-that file with Rubylight, which wakes the PC if needed, connects and starts the game. When the
-stream ends you are back in the frontend.
+[Documentation](index.md)
 
-The file format is the same as Artemis', so entries made by
-[ApolloLauncherExport](https://github.com/ClassicOldSong/ApolloLauncherExport) work too.
+Rubylight can stream a game opened from ES-DE, Daijisho, Pegasus or another Android launcher. Exported `.art` entries identify the paired PC and app; the launcher opens the entry with Rubylight.
 
-## ES-DE in two minutes
+## ES-DE
 
-1. Pair your PC in Rubylight and open its game list once, so the app knows the games.
+1. Pair the PC in Rubylight and open its library once to refresh the cached app list.
 2. Long-press the PC and choose **Add games to ES-DE**.
-3. Pick your ROMs folder (the one ES-DE uses, for example `ROMs` on internal storage or the SD card).
-   Rubylight creates `ROMs/butterpollo/` with one `.art` file per game. Hidden games are skipped.
-4. Pick your ES-DE folder (usually `ES-DE` on internal storage). Rubylight adds its system to
-   `ES-DE/custom_systems/es_systems.xml` and `es_find_rules.xml` and copies the game covers it has
-   into `ES-DE/downloaded_media/butterpollo/covers/`. Your other custom systems are kept.
-5. Restart ES-DE. A **Rubylight** system appears; it uses the Windows theme art and scrapes as PC games.
+3. Select the ROMs folder used by ES-DE. The exporter creates a `butterpollo` subfolder containing a game entry for each visible app.
+4. Select the ES-DE folder to merge the custom system and copy cached covers. Skip this step when exporting only game files for another frontend.
+5. Restart ES-DE and open its **Rubylight** system.
 
-Run the export again after adding games on the host. Existing entries are updated in place; if two
-PCs have a game with the same name, the second one gets the PC name in brackets.
+On Android 11+, select the actual ROMs/ES-DE directories rather than a restricted storage root. Repeat export after changing the host library. Entries are updated in place; same-name games from different PCs are disambiguated.
 
-Folders on Android 11 and later can't be the root of internal storage or `Download`; pick the
-`ROMs` and `ES-DE` folders themselves.
+The exporter uses these literal paths and identifiers:
 
-### What the export writes
+| Relative to selected folder | Contents |
+| --- | --- |
+| ROMs: `butterpollo/*.art` | Game entries; hidden apps are omitted. |
+| ES-DE: `custom_systems/es_systems.xml` | Merged Rubylight system definition; other systems are retained. |
+| ES-DE: `custom_systems/es_find_rules.xml` | Android component lookup. |
+| ES-DE: `downloaded_media/butterpollo/covers/` | Available cached game covers. |
 
-`ES-DE/custom_systems/es_systems.xml` (merged):
+The generated system uses `%ROMPATH%/butterpollo`, extensions `.art .ART`, the `pc` platform and `windows` theme. Its command is:
 
-```xml
-<system>
-    <name>butterpollo</name>
-    <fullname>Rubylight</fullname>
-    <path>%ROMPATH%/butterpollo</path>
-    <extension>.art .ART</extension>
-    <command label="Rubylight">%EMULATOR_BUTTERPOLLO% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %ACTION%=android.intent.action.VIEW %DATA%=%ROMPROVIDER%</command>
-    <platform>pc</platform>
-    <theme>windows</theme>
-</system>
+```text
+%EMULATOR_BUTTERPOLLO% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %ACTION%=android.intent.action.VIEW %DATA%=%ROMPROVIDER%
 ```
 
-`ES-DE/custom_systems/es_find_rules.xml` (merged):
-
-```xml
-<emulator name="BUTTERPOLLO">
-    <rule type="androidpackage">
-        <entry>com.butterpollo.client/com.limelight.ShortcutTrampoline</entry>
-    </rule>
-</emulator>
-```
-
-The root build writes `com.butterpollo.client.root` instead.
-
-`ROMs/butterpollo/Elden Ring.art`:
-
-```
-# Rubylight game entry
-[host_uuid] 6A1B…
-[host_name] Gaming PC
-[app_uuid] 3F0C…
-[app_name] Elden Ring
-[app_id] 1234567
-```
-
-The app UUID is what launches the game, so renaming a game on the host or a changed numeric ID
-does not break the entry. Entries without `app_uuid` fall back to `app_id`, then to `app_name`.
-Without a host UUID, `host_name` must match the PC name shown in Rubylight.
+The Android component is `com.butterpollo.client/com.limelight.ShortcutTrampoline`. The root flavor substitutes `com.butterpollo.client.root` for the package.
 
 ## Daijisho
 
-Add a platform whose player uses:
+Create a platform for `.art` files and point it at the exported ROMs subfolder. Configure its Android player with the following intent arguments:
 
-```
--n com.butterpollo.client/com.limelight.ShortcutTrampoline
- -a android.intent.action.VIEW
- -d {file.uri}
+```text
+-n com.butterpollo.client/com.limelight.ShortcutTrampoline -a android.intent.action.VIEW -d {file.uri}
 ```
 
-with accepted file names `^(.*)\.(?:art)$`, and point the platform at the `ROMs/butterpollo` folder.
+The frontend must provide a readable file/content URI and grant read access to it.
 
 ## Pegasus
 
-```
+Use the exported entries with an Android launch command:
+
+```text
 launch: am start -n com.butterpollo.client/com.limelight.ShortcutTrampoline -a android.intent.action.VIEW -d {file.uri}
 ```
 
-## Any other launcher or script
+`{file.uri}` is supplied by the frontend, not entered as a literal address.
 
-Rubylight also accepts plain extras, like Moonlight:
+## Entry format and direct intents
 
-```sh
-adb shell am start -n com.butterpollo.client/com.limelight.ShortcutTrampoline \
-  --es UUID <host uuid> --es AppUuid <app uuid>
+A game entry is plain UTF-8 text. This example uses synthetic identifiers:
+
+```text
+# Rubylight game entry
+[host_uuid] 11111111-1111-1111-1111-111111111111
+[host_name] Gaming PC
+[app_uuid] 22222222-2222-2222-2222-222222222222
+[app_name] Example game
+[app_id] 1234567
 ```
+
+The host UUID is preferred over its name. The app UUID is preferred over a numeric ID, then an app name; name lookup uses the known app list. Entries without app fields open the PC library.
+
+A launcher can also target the same component with these string extras instead of a file:
 
 | Extra | Meaning |
 | --- | --- |
-| `UUID` | Host UUID (Rubylight shows it under **View details** on a PC) |
-| `Name` | Host name, used when `UUID` is missing |
-| `AppUuid` | App UUID, preferred |
-| `AppId` | Numeric app ID |
-| `AppName` | App name, looked up in the cached game list |
+| `UUID` | Paired host UUID. |
+| `Name` | Host name if UUID is absent. |
+| `AppUuid` | Preferred app UUID. |
+| `AppId` | Numeric application ID. |
+| `AppName` | App name to resolve from the known library. |
 
-Without any app extra, Rubylight opens that PC's game list instead.
+The parser is [FrontendEntry.java](../app/src/main/java/com/limelight/utils/FrontendEntry.java), export paths/commands are in [FrontendExporter.java](../app/src/main/java/com/limelight/utils/FrontendExporter.java), and intent handling is in [ShortcutTrampoline.java](../app/src/main/java/com/limelight/ShortcutTrampoline.java) and the [manifest](../app/src/main/AndroidManifest.xml).
 
-## Troubleshooting
+## Fix an integration
 
-- **"This game file can't be opened"**: the file isn't a Rubylight or Artemis entry, or the
-  frontend didn't grant access to it. Export again and check the ES-DE command uses `%ROMPROVIDER%`.
-- **"PC not found"**: the entry was made on another phone or the PC was removed. Pair the PC here and export again.
-- **The game list opens instead of the game**: the entry has no app fields. Export again.
-- **No Rubylight system in ES-DE**: restart ES-DE after the export and check that
-  `ES-DE/custom_systems/` contains both XML files.
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Game file cannot be opened | Invalid entry or unreadable URI. | Re-export; make sure the launcher grants read access. Keep `%ROMPROVIDER%` in the ES-DE command. |
+| PC not found | PC is not saved on this Android installation. | Pair it here and export again. |
+| Library opens instead of the game | Entry has no usable app fields. | Open the PC library to refresh it, then re-export. |
+| Rubylight system absent in ES-DE | Configuration folder was skipped/wrong or ES-DE has not reloaded it. | Select the correct ES-DE folder, check both custom XML files, then restart ES-DE. |
