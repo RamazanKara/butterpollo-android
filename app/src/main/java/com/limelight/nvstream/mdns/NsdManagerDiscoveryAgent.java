@@ -2,9 +2,11 @@ package com.limelight.nvstream.mdns;
 
 import android.annotation.TargetApi;
 import android.content.Context;
+import android.net.Network;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.os.Build;
+import android.util.Pair;
 
 import com.limelight.LimeLog;
 
@@ -24,7 +26,7 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
     private final Object listenerLock = new Object();
     private NsdManager.DiscoveryListener pendingListener;
     private NsdManager.DiscoveryListener activeListener;
-    private final HashMap<String, NsdManager.ServiceInfoCallback> serviceCallbacks = new HashMap<>();
+    private final HashMap<Pair<String, Network>, NsdManager.ServiceInfoCallback> serviceCallbacks = new HashMap<>();
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
     private NsdManager.DiscoveryListener createDiscoveryListener() {
@@ -98,7 +100,8 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                     }
 
                     LimeLog.info("NSD: Machine appeared: " + nsdServiceInfo.getServiceName());
-                    if (serviceCallbacks.containsKey(nsdServiceInfo.getServiceName())) {
+                    Pair<String, Network> serviceKey = Pair.create(nsdServiceInfo.getServiceName(), nsdServiceInfo.getNetwork());
+                    if (serviceCallbacks.containsKey(serviceKey)) {
                         return;
                     }
 
@@ -106,7 +109,7 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                         @Override
                         public void onServiceInfoCallbackRegistrationFailed(int errorCode) {
                             synchronized (listenerLock) {
-                                serviceCallbacks.remove(nsdServiceInfo.getServiceName(), this);
+                                serviceCallbacks.remove(serviceKey, this);
                             }
                             LimeLog.severe("NSD: Service info callback registration failed: " + errorCode);
                             listener.notifyDiscoveryFailure(new RuntimeException("onServiceInfoCallbackRegistrationFailed(): " + errorCode));
@@ -115,14 +118,14 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                         @Override
                         public void onServiceUpdated(NsdServiceInfo nsdServiceInfo) {
                             synchronized (listenerLock) {
-                                if (serviceCallbacks.get(nsdServiceInfo.getServiceName()) != this) {
+                                if (serviceCallbacks.get(serviceKey) != this) {
                                     return;
                                 }
-                                LimeLog.info("NSD: Machine resolved: " + nsdServiceInfo.getServiceName());
-                                reportNewComputer(nsdServiceInfo.getServiceName(), nsdServiceInfo.getPort(),
-                                        getV4Addrs(nsdServiceInfo.getHostAddresses()),
-                                        getV6Addrs(nsdServiceInfo.getHostAddresses()));
                             }
+                            LimeLog.info("NSD: Machine resolved: " + nsdServiceInfo.getServiceName());
+                            reportNewComputer(nsdServiceInfo.getServiceName(), nsdServiceInfo.getPort(),
+                                    getV4Addrs(nsdServiceInfo.getHostAddresses()),
+                                    getV6Addrs(nsdServiceInfo.getHostAddresses()));
                         }
 
                         @Override
@@ -135,7 +138,7 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
                     };
 
                     nsdManager.registerServiceInfoCallback(nsdServiceInfo, executor, serviceInfoCallback);
-                    serviceCallbacks.put(nsdServiceInfo.getServiceName(), serviceInfoCallback);
+                    serviceCallbacks.put(serviceKey, serviceInfoCallback);
                 }
             }
 
@@ -150,7 +153,7 @@ public class NsdManagerDiscoveryAgent extends MdnsDiscoveryAgent {
 
                     LimeLog.info("NSD: Machine lost: " + nsdServiceInfo.getServiceName());
 
-                    NsdManager.ServiceInfoCallback serviceInfoCallback = serviceCallbacks.remove(nsdServiceInfo.getServiceName());
+                    NsdManager.ServiceInfoCallback serviceInfoCallback = serviceCallbacks.remove(Pair.create(nsdServiceInfo.getServiceName(), nsdServiceInfo.getNetwork()));
                     if (serviceInfoCallback != null) {
                         nsdManager.unregisterServiceInfoCallback(serviceInfoCallback);
                     }

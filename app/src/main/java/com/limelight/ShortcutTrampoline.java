@@ -297,8 +297,6 @@ public class ShortcutTrampoline extends Activity {
         super.onCreate(savedInstanceState);
 
         UiHelper.notifyNewRootView(this);
-        ComputerDatabaseManager dbManager = new ComputerDatabaseManager(this);
-        ComputerDetails _computer = null;
 
         // ES-DE, Daijisho and other frontends hand us a game entry file instead of extras
         if (Intent.ACTION_VIEW.equals(getIntent().getAction()) && getIntent().getData() != null) {
@@ -325,7 +323,13 @@ public class ShortcutTrampoline extends Activity {
 
         if (uuidString == null || uuidString.isEmpty()) {
             // Use nameString to find the corresponding UUID
-            _computer = dbManager.getComputerByName(nameString);
+            ComputerDetails _computer;
+            ComputerDatabaseManager dbManager = new ComputerDatabaseManager(this);
+            try {
+                _computer = dbManager.getComputerByName(nameString);
+            } finally {
+                dbManager.close();
+            }
 
             if (_computer == null) {
                 Dialog.displayDialog(ShortcutTrampoline.this,

@@ -5,7 +5,7 @@ import android.util.LruCache;
 import com.limelight.LimeLog;
 
 import java.lang.ref.SoftReference;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MemoryAssetLoader {
     private static final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
@@ -26,7 +26,7 @@ public class MemoryAssetLoader {
             }
         }
     };
-    private static final HashMap<String, SoftReference<ScaledBitmap>> evictionCache = new HashMap<>();
+    private static final ConcurrentHashMap<String, SoftReference<ScaledBitmap>> evictionCache = new ConcurrentHashMap<>();
 
     private static String constructKey(CachedAppAssetLoader.LoaderTuple tuple) {
         return tuple.computer.uuid+"-"+tuple.cacheKey;

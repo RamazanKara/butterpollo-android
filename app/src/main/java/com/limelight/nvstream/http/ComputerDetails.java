@@ -30,7 +30,7 @@ public class ComputerDetails {
             if (address == null) {
                 throw new IllegalArgumentException("Address cannot be null");
             }
-            if (port <= 0) {
+            if (port <= 0 || port > 65535) {
                 throw new IllegalArgumentException("Invalid port");
             }
 
@@ -182,7 +182,7 @@ public class ComputerDetails {
             // If we have a remote address already (perhaps via STUN) but our updated details
             // don't have a new one (because GFE doesn't send one), propagate the external
             // port to the current remote address. We may have tried to guess it previously.
-            this.remoteAddress.port = details.externalPort;
+            this.remoteAddress = new AddressTuple(this.remoteAddress.address, details.externalPort);
         }
         if (details.manualAddress != null) {
             this.manualAddress = details.manualAddress;

@@ -24,9 +24,15 @@ public class LegacyDatabaseReader2 {
 
         details.uuid = c.getString(0);
         details.name = c.getString(1);
-        details.localAddress = new ComputerDetails.AddressTuple(c.getString(2), NvHTTP.DEFAULT_HTTP_PORT);
-        details.remoteAddress = new ComputerDetails.AddressTuple(c.getString(3), NvHTTP.DEFAULT_HTTP_PORT);
-        details.manualAddress = new ComputerDetails.AddressTuple(c.getString(4), NvHTTP.DEFAULT_HTTP_PORT);
+        if (c.getString(2) != null && !c.getString(2).isEmpty()) {
+            details.localAddress = new ComputerDetails.AddressTuple(c.getString(2), NvHTTP.DEFAULT_HTTP_PORT);
+        }
+        if (c.getString(3) != null && !c.getString(3).isEmpty()) {
+            details.remoteAddress = new ComputerDetails.AddressTuple(c.getString(3), NvHTTP.DEFAULT_HTTP_PORT);
+        }
+        if (c.getString(4) != null && !c.getString(4).isEmpty()) {
+            details.manualAddress = new ComputerDetails.AddressTuple(c.getString(4), NvHTTP.DEFAULT_HTTP_PORT);
+        }
         details.macAddress = c.getString(5);
 
         // This column wasn't always present in the old schema
@@ -76,9 +82,7 @@ public class LegacyDatabaseReader2 {
             return getAllComputers(computerDb);
         } catch (SQLiteException e) {
             return new LinkedList<ComputerDetails>();
-        } finally {
-            // Close and delete the old DB
-            c.deleteDatabase(COMPUTER_DB_NAME);
+
         }
     }
 }

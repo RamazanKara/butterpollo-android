@@ -11,6 +11,8 @@ import com.limelight.LimeLog;
 import com.limelight.utils.CacheHelper;
 
 import java.io.File;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,9 +29,13 @@ public class DiskAssetLoader {
     private final File cacheDir;
 
     public DiskAssetLoader(Context context) {
-        this.cacheDir = context.getCacheDir();
-        this.isLowRamDevice =
-                ((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE)).isLowRamDevice();
+        this(context.getCacheDir(),
+                ((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE)).isLowRamDevice());
+    }
+
+    DiskAssetLoader(File cacheDir, boolean isLowRamDevice) {
+        this.cacheDir = cacheDir;
+        this.isLowRamDevice = isLowRamDevice;
     }
 
     public boolean checkCacheExists(CachedAppAssetLoader.LoaderTuple tuple) {
@@ -148,18 +154,23 @@ public class DiskAssetLoader {
     }
 
     public void populateCacheWithStream(CachedAppAssetLoader.LoaderTuple tuple, InputStream input) {
-        boolean success = false;
-        try (final OutputStream out = CacheHelper.openCacheFileForOutput(
-                cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png")
-        ) {
-            CacheHelper.writeInputStreamToOutputStream(input, out, MAX_ASSET_SIZE);
-            success = true;
+        File temporary = null;
+        try {
+            File target = CacheHelper.openPath(true, cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png");
+            temporary = File.createTempFile("boxart-", ".tmp", target.getParentFile());
+            try (OutputStream out = new BufferedOutputStream(new FileOutputStream(temporary))) {
+                CacheHelper.writeInputStreamToOutputStream(input, out, MAX_ASSET_SIZE);
+            }
+            // Readers and concurrent downloads must only see complete files.
+            if (!temporary.renameTo(target)) {
+                throw new IOException("Unable to publish cached box art");
+            }
         } catch (IOException e) {
+            LimeLog.warning("Unable to populate cache with tuple: "+tuple);
             e.printStackTrace();
         } finally {
-            if (!success) {
-                LimeLog.warning("Unable to populate cache with tuple: "+tuple);
-                CacheHelper.deleteCacheFile(cacheDir, "boxart", tuple.computer.uuid, tuple.cacheKey + ".png");
+            if (temporary != null) {
+                temporary.delete();
             }
         }
     }

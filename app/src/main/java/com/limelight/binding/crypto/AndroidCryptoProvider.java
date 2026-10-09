@@ -5,7 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.security.KeyFactory;
@@ -18,6 +18,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Calendar;
@@ -56,7 +57,11 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
     private static final Provider bcProvider = new BouncyCastleProvider();
 
     public AndroidCryptoProvider(Context c) {
-        String dataPath = c.getFilesDir().getAbsolutePath();
+        this(c.getFilesDir());
+    }
+
+    AndroidCryptoProvider(File filesDir) {
+        String dataPath = filesDir.getAbsolutePath();
 
         certFile = new File(dataPath + File.separator + "client.crt");
         keyFile = new File(dataPath + File.separator + "client.key");
@@ -91,10 +96,17 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
 
         try {
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509", bcProvider);
-            cert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certBytes));
-            pemCertBytes = certBytes;
+            X509Certificate loadedCert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certBytes));
             KeyFactory keyFactory = KeyFactory.getInstance("RSA", bcProvider);
-            key = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+            PrivateKey loadedKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+            if (!(loadedCert.getPublicKey() instanceof RSAKey) ||
+                    !((RSAKey) loadedCert.getPublicKey()).getModulus().equals(((RSAKey) loadedKey).getModulus())) {
+                LimeLog.warning("Certificate and key do not match");
+                return false;
+            }
+            cert = loadedCert;
+            key = loadedKey;
+            pemCertBytes = certBytes;
         } catch (CertificateException e) {
             // May happen if the cert is corrupt
             LimeLog.warning("Corrupted certificate");
@@ -151,7 +163,14 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
 
         LimeLog.info("Generated a new key pair");
 
-        // Save the resulting pair
+        StringWriter strWriter = new StringWriter();
+        try (JcaPEMWriter pemWriter = new JcaPEMWriter(strWriter)) {
+            pemWriter.writeObject(cert);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        // The host requires UNIX line endings, including when persistence fails.
+        pemCertBytes = strWriter.toString().replace("\r", "").getBytes(StandardCharsets.US_ASCII);
         saveCertKeyPair();
 
         return true;
@@ -161,21 +180,7 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
         try (final FileOutputStream certOut = new FileOutputStream(certFile);
              final FileOutputStream keyOut = new FileOutputStream(keyFile)
         ) {
-            // Write the certificate in OpenSSL PEM format (important for the server)
-            StringWriter strWriter = new StringWriter();
-            try (final JcaPEMWriter pemWriter = new JcaPEMWriter(strWriter)) {
-                pemWriter.writeObject(cert);
-            }
-
-            // Line endings MUST be UNIX for the PC to accept the cert properly
-            try (final OutputStreamWriter certWriter = new OutputStreamWriter(certOut)) {
-                String pemStr = strWriter.getBuffer().toString();
-                for (int i = 0; i < pemStr.length(); i++) {
-                    char c = pemStr.charAt(i);
-                    if (c != '\r')
-                        certWriter.append(c);
-                }
-            }
+            certOut.write(pemCertBytes);
 
             // Write the private out in PKCS8 format
             keyOut.write(key.getEncoded());
@@ -209,8 +214,6 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
                 return null;
             }
 
-            // Load the generated pair
-            loadCertKeyPair();
             return cert;
         }
     }
@@ -236,8 +239,6 @@ public class AndroidCryptoProvider implements LimelightCryptoProvider {
                 return null;
             }
 
-            // Load the generated pair
-            loadCertKeyPair();
             return key;
         }
     }

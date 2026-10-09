@@ -36,7 +36,7 @@ public class LegacyDatabaseReader {
         } catch (UnknownHostException e) {
             // This is probably a hostname/address with the prefix string
             String stringData = c.getString(2);
-            if (stringData.startsWith(ADDRESS_PREFIX)) {
+            if (stringData != null && stringData.startsWith(ADDRESS_PREFIX) && stringData.length() > ADDRESS_PREFIX.length()) {
                 details.localAddress = new ComputerDetails.AddressTuple(c.getString(2).substring(ADDRESS_PREFIX.length()), NvHTTP.DEFAULT_HTTP_PORT);
             } else {
                 LimeLog.severe("DB: Corrupted local address for " + details.name);
@@ -49,7 +49,7 @@ public class LegacyDatabaseReader {
         } catch (UnknownHostException e) {
             // This is probably a hostname/address with the prefix string
             String stringData = c.getString(3);
-            if (stringData.startsWith(ADDRESS_PREFIX)) {
+            if (stringData != null && stringData.startsWith(ADDRESS_PREFIX) && stringData.length() > ADDRESS_PREFIX.length()) {
                 details.remoteAddress = new ComputerDetails.AddressTuple(c.getString(3).substring(ADDRESS_PREFIX.length()), NvHTTP.DEFAULT_HTTP_PORT);
             } else {
                 LimeLog.severe("DB: Corrupted remote address for " + details.name);
@@ -95,9 +95,7 @@ public class LegacyDatabaseReader {
             return getAllComputers(computerDb);
         } catch (SQLiteException e) {
             return new LinkedList<ComputerDetails>();
-        } finally {
-            // Close and delete the old DB
-            c.deleteDatabase(COMPUTER_DB_NAME);
+
         }
     }
 }

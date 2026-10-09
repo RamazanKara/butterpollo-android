@@ -56,7 +56,7 @@ public class CacheHelper {
 
         while ((bytesRead = in.read(buf)) != -1) {
             maxLength -= bytesRead;
-            if (maxLength <= 0) {
+            if (maxLength < 0) {
                 throw new IOException("Stream exceeded max size");
             }
             out.write(buf, 0, bytesRead);
@@ -64,20 +64,15 @@ public class CacheHelper {
     }
 
     public static String readInputStreamToString(InputStream in) throws IOException {
-        Reader r = new InputStreamReader(in);
-
-        StringBuilder sb = new StringBuilder();
-        char[] buf = new char[256];
-        int bytesRead;
-        while ((bytesRead = r.read(buf)) != -1) {
-            sb.append(buf, 0, bytesRead);
+        try (Reader r = new InputStreamReader(in, "UTF-8")) {
+            StringBuilder sb = new StringBuilder();
+            char[] buf = new char[256];
+            int bytesRead;
+            while ((bytesRead = r.read(buf)) != -1) {
+                sb.append(buf, 0, bytesRead);
+            }
+            return sb.toString();
         }
-
-        try {
-            in.close();
-        } catch (IOException ignored) {}
-
-        return sb.toString();
     }
 
     public static void writeStringToOutputStream(OutputStream out, String str) throws IOException {

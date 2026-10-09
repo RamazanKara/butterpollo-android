@@ -961,6 +961,10 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
     encryptedRtspEnabled = serverInfo->rtspSessionUrl && strstr(serverInfo->rtspSessionUrl, "rtspenc://");
     encryptionCtx = PltCreateCryptoContext();
     decryptionCtx = PltCreateCryptoContext();
+    if (encryptionCtx == NULL || decryptionCtx == NULL) {
+        ret = -1;
+        goto Exit;
+    }
 
     // HACK: In order to get GFE to respect our request for a lower audio bitrate, we must
     // fake our target address so it doesn't match any of the PC's local interfaces. It seems

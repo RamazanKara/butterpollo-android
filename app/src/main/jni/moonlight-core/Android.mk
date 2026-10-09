@@ -20,13 +20,13 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/Misc.c \
                    moonlight-common-c/src/Platform.c \
                    moonlight-common-c/src/PlatformCrypto.c \
-                   moonlight-common-c/src/PlatformSockets.c \
+                   android_sockets.c \
                    moonlight-common-c/src/RtpAudioQueue.c \
                    android_rtp_video.c \
                    android_rtsp.c \
-                   moonlight-common-c/src/RtspParser.c \
+                   android_rtsp_parser.c \
                    android_sdp.c \
-                   moonlight-common-c/src/SimpleStun.c \
+                   android_stun.c \
                    android_depacketizer.c \
                    moonlight-common-c/src/VideoStream.c \
                    moonlight-common-c/nanors/deps/obl/oblas_common.c \

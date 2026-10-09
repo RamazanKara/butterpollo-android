@@ -10,6 +10,8 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.Proxy;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
+import javax.net.SocketFactory;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
@@ -123,7 +126,7 @@ public class NvHTTP {
         throw new IllegalStateException("No X509 trust manager found");
     }
 
-    private void initializeHttpState(final LimelightCryptoProvider cryptoProvider) {
+    private void initializeHttpState(final LimelightCryptoProvider cryptoProvider, final InetAddress scopedAddress) {
         keyManager = new X509KeyManager() {
             public String chooseClientAlias(String[] keyTypes,
                     Principal[] issuers, Socket socket) { return "Limelight-RSA"; }
@@ -148,23 +151,13 @@ public class NvHTTP {
                 throw new IllegalStateException("Should never be called");
             }
             public void checkServerTrusted(X509Certificate[] certs, String authType) throws CertificateException {
-                try {
-                    // Try the default trust manager first to allow pairing with certificates
-                    // that chain up to a trusted root CA. This will raise CertificateException
-                    // if the certificate is not trusted (expected for GFE's self-signed certs).
+                if (NvHTTP.this.serverCert != null) {
+                    if (certs.length == 0 || !certs[0].equals(NvHTTP.this.serverCert)) {
+                        throw new CertificateException("Certificate mismatch");
+                    }
+                }
+                else {
                     defaultTrustManager.checkServerTrusted(certs, authType);
-                } catch (CertificateException e) {
-                    // Check the server certificate if we've paired to this host
-                    if (certs.length == 1 && NvHTTP.this.serverCert != null) {
-                        if (!certs[0].equals(NvHTTP.this.serverCert)) {
-                            throw new CertificateException("Certificate mismatch");
-                        }
-                    }
-                    else {
-                        // The cert chain doesn't look like a self-signed cert or we don't have
-                        // a certificate pinned, so re-throw the original validation error.
-                        throw e;
-                    }
                 }
             }
         };
@@ -173,7 +166,7 @@ public class NvHTTP {
             public boolean verify(String hostname, SSLSession session) {
                 try {
                     Certificate[] certificates = session.getPeerCertificates();
-                    if (certificates.length == 1 && certificates[0].equals(NvHTTP.this.serverCert)) {
+                    if (certificates.length > 0 && certificates[0].equals(NvHTTP.this.serverCert)) {
                         // Allow any hostname if it's our pinned cert
                         return true;
                     }
@@ -195,6 +188,46 @@ public class NvHTTP {
                 .fastFallback(false)
                 .build();
 
+        if (scopedAddress != null) {
+            // HttpUrl rejects zone IDs, and OkHttp bypasses Dns for IP literals.
+            // Restore the scope at connect time while keeping the literal HTTP host.
+            httpClientLongConnectTimeout = httpClientLongConnectTimeout.newBuilder()
+                    .socketFactory(new SocketFactory() {
+                        @Override
+                        public Socket createSocket() {
+                            return new Socket() {
+                                @Override
+                                public void connect(SocketAddress endpoint, int timeout) throws IOException {
+                                    InetSocketAddress target = (InetSocketAddress) endpoint;
+                                    if (scopedAddress.equals(target.getAddress())) {
+                                        target = new InetSocketAddress(scopedAddress, target.getPort());
+                                    }
+                                    super.connect(target, timeout);
+                                }
+                            };
+                        }
+
+                        @Override
+                        public Socket createSocket(String host, int port) throws IOException {
+                            return new Socket(host, port);
+                        }
+
+                        @Override
+                        public Socket createSocket(String host, int port, InetAddress local, int localPort) throws IOException {
+                            return new Socket(host, port, local, localPort);
+                        }
+
+                        @Override
+                        public Socket createSocket(InetAddress host, int port) throws IOException {
+                            return new Socket(host, port);
+                        }
+
+                        @Override
+                        public Socket createSocket(InetAddress host, int port, InetAddress local, int localPort) throws IOException {
+                            return new Socket(host, port, local, localPort);
+                        }
+                    }).build();
+        }
         httpClientShortConnectTimeout = httpClientLongConnectTimeout.newBuilder()
                 .connectTimeout(SHORT_CONNECTION_TIMEOUT, TimeUnit.MILLISECONDS)
                 .build();
@@ -219,9 +252,8 @@ public class NvHTTP {
 
         this.serverCert = serverCert;
 
-        initializeHttpState(cryptoProvider);
-
         this.httpsPort = httpsPort;
+        InetAddress scopedAddress = null;
 
         try {
             // If this is an IPv4-mapped IPv6 address, OkHTTP will choke on it if it's
@@ -236,6 +268,11 @@ public class NvHTTP {
                 }
             }
 
+            if (addressString.contains(":") && addressString.contains("%")) {
+                scopedAddress = InetAddress.getByName(addressString);
+                addressString = addressString.substring(0, addressString.lastIndexOf('%'));
+            }
+
             this.baseUrlHttp = new HttpUrl.Builder()
                     .scheme("http")
                     .host(addressString)
@@ -246,6 +283,7 @@ public class NvHTTP {
             throw new IOException(e);
         }
 
+        initializeHttpState(cryptoProvider, scopedAddress);
         this.pm = new PairingManager(this, cryptoProvider);
     }
 
@@ -389,6 +427,10 @@ public class NvHTTP {
 
         // UUID is mandatory to determine which machine is responding
         details.uuid = getXmlString(serverInfo, "uniqueid", true);
+        if (details.uuid.equals(".") || details.uuid.equals("..") || details.uuid.contains("/") ||
+                details.uuid.contains("\\") || details.uuid.contains(":")) {
+            throw new XmlPullParserException("Invalid host uniqueid");
+        }
 
         details.httpsPort = getHttpsPort(serverInfo);
 

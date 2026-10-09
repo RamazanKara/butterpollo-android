@@ -51,16 +51,20 @@ public class PairingManager {
         return new String(hexChars);
     }
     
-    private static byte[] hexToBytes(String s) {
+    private static byte[] hexToBytes(String s) throws IOException {
         int len = s.length();
         if (len % 2 != 0) {
-            throw new IllegalArgumentException("Illegal string length: "+len);
+            throw new IOException("Invalid pairing hex length: " + len);
         }
 
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                                 + Character.digit(s.charAt(i+1), 16));
+            int high = Character.digit(s.charAt(i), 16);
+            int low = Character.digit(s.charAt(i + 1), 16);
+            if (high < 0 || low < 0) {
+                throw new IOException("Invalid hex in pairing response");
+            }
+            data[i / 2] = (byte) ((high << 4) + low);
         }
         return data;
     }
@@ -76,8 +80,7 @@ public class PairingManager {
                 CertificateFactory cf = CertificateFactory.getInstance("X.509");
                 return (X509Certificate)cf.generateCertificate(new ByteArrayInputStream(certBytes));
             } catch (CertificateException e) {
-                e.printStackTrace();
-                throw new RuntimeException(e);
+                throw new IOException("Invalid pairing certificate", e);
             }
         }
         else {
@@ -110,15 +113,16 @@ public class PairingManager {
         }
     }
     
-    private static boolean verifySignature(byte[] data, byte[] signature, Certificate cert) {
+    private static boolean verifySignature(byte[] data, byte[] signature, Certificate cert) throws IOException {
         try {
             Signature sig = PairingManager.getSha256SignatureInstanceForKey(cert.getPublicKey());
             sig.initVerify(cert.getPublicKey());
             sig.update(data);
             return sig.verify(signature);
-        } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
+        } catch (SignatureException e) {
+            return false;
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new IOException("Unsupported pairing certificate", e);
         }
     }
     
@@ -220,86 +224,98 @@ public class PairingManager {
             return PairState.FAILED;
         }
 
-        // Save this cert for retrieval later
-        serverCert = extractPlainCert(getCert);
-        if (serverCert == null) {
-            // Attempting to pair while another device is pairing will cause GFE
-            // to give an empty cert in the response.
-            http.cancelPairing();
-            return PairState.ALREADY_IN_PROGRESS;
-        }
+        boolean paired = false;
+        try {
+            // Save this cert for retrieval later
+            serverCert = extractPlainCert(getCert);
+            if (serverCert == null) {
+                // Attempting to pair while another device is pairing will cause GFE
+                // to give an empty cert in the response.
+                return PairState.ALREADY_IN_PROGRESS;
+            }
 
-        // Require this cert for TLS to this host
-        http.setServerCert(serverCert);
-        
-        // Generate a random challenge and encrypt it with our AES key
-        byte[] randomChallenge = generateRandomBytes(16);
-        byte[] encryptedChallenge = encryptAes(randomChallenge, aesKey);
-        
-        // Send the encrypted challenge to the server
-        String challengeResp = http.executePairingCommand("clientchallenge="+bytesToHex(encryptedChallenge), true);
-        if (!NvHTTP.getXmlString(challengeResp, "paired", true).equals("1")) {
-            http.cancelPairing();
-            return PairState.FAILED;
-        }
-        
-        // Decode the server's response and subsequent challenge
-        byte[] encServerChallengeResponse = hexToBytes(NvHTTP.getXmlString(challengeResp, "challengeresponse", true));
-        byte[] decServerChallengeResponse = decryptAes(encServerChallengeResponse, aesKey);
-        
-        byte[] serverResponse = Arrays.copyOfRange(decServerChallengeResponse, 0, hashAlgo.getHashLength());
-        byte[] serverChallenge = Arrays.copyOfRange(decServerChallengeResponse, hashAlgo.getHashLength(), hashAlgo.getHashLength() + 16);
-        
-        // Using another 16 bytes secret, compute a challenge response hash using the secret, our cert sig, and the challenge
-        byte[] clientSecret = generateRandomBytes(16);
-        byte[] challengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(serverChallenge, cert.getSignature()), clientSecret));
-        byte[] challengeRespEncrypted = encryptAes(challengeRespHash, aesKey);
-        String secretResp = http.executePairingCommand("serverchallengeresp="+bytesToHex(challengeRespEncrypted), true);
-        if (!NvHTTP.getXmlString(secretResp, "paired", true).equals("1")) {
-            http.cancelPairing();
-            return PairState.FAILED;
-        }
-        
-        // Get the server's signed secret
-        byte[] serverSecretResp = hexToBytes(NvHTTP.getXmlString(secretResp, "pairingsecret", true));
-        byte[] serverSecret = Arrays.copyOfRange(serverSecretResp, 0, 16);
-        byte[] serverSignature = Arrays.copyOfRange(serverSecretResp, 16, serverSecretResp.length);
+            // Require this cert for TLS to this host
+            http.setServerCert(serverCert);
 
-        // Ensure the authenticity of the data
-        if (!verifySignature(serverSecret, serverSignature, serverCert)) {
-            // Cancel the pairing process
-            http.cancelPairing();
-            
-            // Looks like a MITM
-            return PairState.FAILED;
-        }
-        
-        // Ensure the server challenge matched what we expected (aka the PIN was correct)
-        byte[] serverChallengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(randomChallenge, serverCert.getSignature()), serverSecret));
-        if (!Arrays.equals(serverChallengeRespHash, serverResponse)) {
-            // Cancel the pairing process
-            http.cancelPairing();
-            
-            // Probably got the wrong PIN
-            return PairState.PIN_WRONG;
-        }
-        
-        // Send the server our signed secret
-        byte[] clientPairingSecret = concatBytes(clientSecret, signData(clientSecret, pk));
-        String clientSecretResp = http.executePairingCommand("clientpairingsecret="+bytesToHex(clientPairingSecret), true);
-        if (!NvHTTP.getXmlString(clientSecretResp, "paired", true).equals("1")) {
-            http.cancelPairing();
-            return PairState.FAILED;
-        }
-        
-        // Do the initial challenge (seems necessary for us to show as paired)
-        String pairChallenge = http.executePairingChallenge();
-        if (!NvHTTP.getXmlString(pairChallenge, "paired", true).equals("1")) {
-            http.unpair();
-            return PairState.FAILED;
-        }
+            // Generate a random challenge and encrypt it with our AES key
+            byte[] randomChallenge = generateRandomBytes(16);
+            byte[] encryptedChallenge = encryptAes(randomChallenge, aesKey);
 
-        return PairState.PAIRED;
+            // Send the encrypted challenge to the server
+            String challengeResp = http.executePairingCommand("clientchallenge="+bytesToHex(encryptedChallenge), true);
+            if (!NvHTTP.getXmlString(challengeResp, "paired", true).equals("1")) {
+                return PairState.FAILED;
+            }
+
+            // Decode the server's response and subsequent challenge
+            byte[] encServerChallengeResponse = hexToBytes(NvHTTP.getXmlString(challengeResp, "challengeresponse", true));
+            if (encServerChallengeResponse.length != ((hashAlgo.getHashLength() + 16 + 15) & ~15)) {
+                throw new IOException("Invalid encrypted pairing challenge length");
+            }
+            byte[] decServerChallengeResponse = decryptAes(encServerChallengeResponse, aesKey);
+
+            byte[] serverResponse = Arrays.copyOfRange(decServerChallengeResponse, 0, hashAlgo.getHashLength());
+            byte[] serverChallenge = Arrays.copyOfRange(decServerChallengeResponse, hashAlgo.getHashLength(), hashAlgo.getHashLength() + 16);
+
+            // Using another 16 bytes secret, compute a challenge response hash using the secret, our cert sig, and the challenge
+            byte[] clientSecret = generateRandomBytes(16);
+            byte[] challengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(serverChallenge, cert.getSignature()), clientSecret));
+            byte[] challengeRespEncrypted = encryptAes(challengeRespHash, aesKey);
+            String secretResp = http.executePairingCommand("serverchallengeresp="+bytesToHex(challengeRespEncrypted), true);
+            if (!NvHTTP.getXmlString(secretResp, "paired", true).equals("1")) {
+                return PairState.FAILED;
+            }
+
+            // Get the server's signed secret
+            byte[] serverSecretResp = hexToBytes(NvHTTP.getXmlString(secretResp, "pairingsecret", true));
+            if (serverSecretResp.length <= 16) {
+                throw new IOException("Invalid pairing secret length");
+            }
+            byte[] serverSecret = Arrays.copyOfRange(serverSecretResp, 0, 16);
+            byte[] serverSignature = Arrays.copyOfRange(serverSecretResp, 16, serverSecretResp.length);
+
+            // Ensure the authenticity of the data
+            if (!verifySignature(serverSecret, serverSignature, serverCert)) {
+                // Looks like a MITM
+                return PairState.FAILED;
+            }
+
+            // Ensure the server challenge matched what we expected (aka the PIN was correct)
+            byte[] serverChallengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(randomChallenge, serverCert.getSignature()), serverSecret));
+            if (!Arrays.equals(serverChallengeRespHash, serverResponse)) {
+                // Probably got the wrong PIN
+                return PairState.PIN_WRONG;
+            }
+
+            // Send the server our signed secret
+            byte[] clientPairingSecret = concatBytes(clientSecret, signData(clientSecret, pk));
+            String clientSecretResp = http.executePairingCommand("clientpairingsecret="+bytesToHex(clientPairingSecret), true);
+            if (!NvHTTP.getXmlString(clientSecretResp, "paired", true).equals("1")) {
+                return PairState.FAILED;
+            }
+
+            // Do the initial challenge (seems necessary for us to show as paired)
+            String pairChallenge = http.executePairingChallenge();
+            if (!NvHTTP.getXmlString(pairChallenge, "paired", true).equals("1")) {
+                try {
+                    http.unpair();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return PairState.FAILED;
+            }
+            paired = true;
+            return PairState.PAIRED;
+        } finally {
+            if (!paired) {
+                try {
+                    http.cancelPairing();
+                } catch (IOException e) {
+                    // Cleanup must not replace the original pairing error.
+                    e.printStackTrace();
+                }
+            }
+        }
     }
     
     private interface PairingHashAlgorithm {

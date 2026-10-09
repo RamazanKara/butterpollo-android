@@ -33,19 +33,19 @@ public class CachedAppAssetLoader {
 
     private final ThreadPoolExecutor cacheExecutor = new ThreadPoolExecutor(
             MAX_CONCURRENT_CACHE_LOADS, MAX_CONCURRENT_CACHE_LOADS,
-            Long.MAX_VALUE, TimeUnit.DAYS,
+            30, TimeUnit.SECONDS,
             new LinkedBlockingQueue<Runnable>(MAX_PENDING_CACHE_LOADS),
             new ThreadPoolExecutor.DiscardOldestPolicy());
 
     private final ThreadPoolExecutor foregroundExecutor = new ThreadPoolExecutor(
             MAX_CONCURRENT_DISK_LOADS, MAX_CONCURRENT_DISK_LOADS,
-            Long.MAX_VALUE, TimeUnit.DAYS,
+            30, TimeUnit.SECONDS,
             new LinkedBlockingQueue<Runnable>(MAX_PENDING_DISK_LOADS),
             new ThreadPoolExecutor.DiscardOldestPolicy());
 
     private final ThreadPoolExecutor networkExecutor = new ThreadPoolExecutor(
             MAX_CONCURRENT_NETWORK_LOADS, MAX_CONCURRENT_NETWORK_LOADS,
-            Long.MAX_VALUE, TimeUnit.DAYS,
+            30, TimeUnit.SECONDS,
             new LinkedBlockingQueue<Runnable>(MAX_PENDING_NETWORK_LOADS),
             new ThreadPoolExecutor.DiscardOldestPolicy());
 
@@ -60,6 +60,9 @@ public class CachedAppAssetLoader {
     public CachedAppAssetLoader(ComputerDetails computer, double scalingDivider,
                                 NetworkAssetLoader networkLoader, MemoryAssetLoader memoryLoader,
                                 DiskAssetLoader diskLoader, Bitmap noAppImageBitmap) {
+        cacheExecutor.allowCoreThreadTimeOut(true);
+        foregroundExecutor.allowCoreThreadTimeOut(true);
+        networkExecutor.allowCoreThreadTimeOut(true);
         this.computer = computer;
         this.scalingDivider = scalingDivider;
         this.networkLoader = networkLoader;
@@ -194,7 +197,7 @@ public class CachedAppAssetLoader {
             // If the current loader task for this view isn't us, do nothing
             final ImageView imageView = imageViewRef.get();
             final TextView textView = textViewRef.get();
-            if (getLoaderTask(imageView) == this) {
+            if (getLoaderTask(imageView) == this && textView != null) {
                 // Set off another loader task on the network executor. This time our AsyncDrawable
                 // will use the app image placeholder bitmap, rather than an empty bitmap.
                 LoaderTask task = new LoaderTask(imageView, textView, false);
@@ -216,7 +219,7 @@ public class CachedAppAssetLoader {
 
             final ImageView imageView = imageViewRef.get();
             final TextView textView = textViewRef.get();
-            if (getLoaderTask(imageView) == this) {
+            if (getLoaderTask(imageView) == this && textView != null) {
                 // Fade in the box art
                 if (bitmap != null) {
                     textView.setVisibility(View.VISIBLE);
@@ -230,6 +233,9 @@ public class CachedAppAssetLoader {
 
                             @Override
                             public void onAnimationEnd(Animation animation) {
+                                if (getLoaderTask(imageView) != LoaderTask.this || isCancelled()) {
+                                    return;
+                                }
                                 // Fade in the new box art
                                 imageView.setImageBitmap(bitmap.bitmap);
                                 imageView.startAnimation(AnimationUtils.loadAnimation(imageView.getContext(), R.anim.boxart_fadein));
@@ -285,7 +291,7 @@ public class CachedAppAssetLoader {
         final LoaderTask loaderTask = getLoaderTask(imageView);
 
         // Check if any task was pending for this image view
-        if (loaderTask != null && !loaderTask.isCancelled()) {
+        if (loaderTask != null && !loaderTask.isCancelled() && loaderTask.getStatus() != AsyncTask.Status.FINISHED) {
             final LoaderTuple taskTuple = loaderTask.tuple;
 
             // Cancel the task if it's not already loading the same data

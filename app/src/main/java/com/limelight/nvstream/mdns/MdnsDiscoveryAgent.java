@@ -29,23 +29,26 @@ public abstract class MdnsDiscoveryAgent {
 
         // Add a computer object for each IPv4 address reported by the PC
         for (Inet4Address v4Addr : v4Addrs) {
+            MdnsComputer computer = new MdnsComputer(name, v4Addr, v6GlobalAddr, port);
+            boolean added;
             synchronized (computers) {
-                MdnsComputer computer = new MdnsComputer(name, v4Addr, v6GlobalAddr, port);
-                if (computers.add(computer)) {
-                    // This was a new entry
-                    listener.notifyComputerAdded(computer);
-                }
+                added = computers.add(computer);
+            }
+            if (added) {
+                listener.notifyComputerAdded(computer);
             }
         }
-
         // If there were no IPv4 addresses, use IPv6 for registration
         if (v4Addrs.length == 0) {
             Inet6Address v6LocalAddr = getLocalAddress(v6Addrs);
 
             if (v6LocalAddr != null || v6GlobalAddr != null) {
                 MdnsComputer computer = new MdnsComputer(name, v6LocalAddr, v6GlobalAddr, port);
-                if (computers.add(computer)) {
-                    // This was a new entry
+                boolean added;
+                synchronized (computers) {
+                    added = computers.add(computer);
+                }
+                if (added) {
                     listener.notifyComputerAdded(computer);
                 }
             }
@@ -94,7 +97,8 @@ public abstract class MdnsDiscoveryAgent {
             // We assume the addresses are already sorted in descending order
             // of preference from Bonjour.
             for (Inet6Address addr : addresses) {
-                if (addr.isLinkLocalAddress() || addr.isSiteLocalAddress() || addr.isLoopbackAddress()) {
+                if (addr.isLinkLocalAddress() || addr.isSiteLocalAddress() || addr.isLoopbackAddress() ||
+                    addr.isAnyLocalAddress() || addr.isMulticastAddress()) {
                     // Link-local, site-local, and loopback aren't global
                     LimeLog.info("Ignoring non-global address: "+addr.getHostAddress());
                     continue;

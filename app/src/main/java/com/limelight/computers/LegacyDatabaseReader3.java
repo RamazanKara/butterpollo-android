@@ -35,15 +35,17 @@ public class LegacyDatabaseReader3 {
             return null;
         }
 
-        String[] parts = input.split(""+PORT_DELIMITER, -1);
-        if (parts.length == 1) {
-            return new ComputerDetails.AddressTuple(parts[0], NvHTTP.DEFAULT_HTTP_PORT);
-        }
-        else {
-            return new ComputerDetails.AddressTuple(parts[0], Integer.parseInt(parts[1]));
+        int delimiter = input.lastIndexOf(PORT_DELIMITER);
+        try {
+            if (delimiter < 0) {
+                return new ComputerDetails.AddressTuple(input, NvHTTP.DEFAULT_HTTP_PORT);
+            }
+            return new ComputerDetails.AddressTuple(input.substring(0, delimiter),
+                    Integer.parseInt(input.substring(delimiter + 1)));
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
-
     private static String splitTupleToAddress(ComputerDetails.AddressTuple tuple) {
         return tuple.address+PORT_DELIMITER+tuple.port;
     }
@@ -54,12 +56,12 @@ public class LegacyDatabaseReader3 {
         details.uuid = c.getString(0);
         details.name = c.getString(1);
 
-        String[] addresses = c.getString(2).split(""+ADDRESS_DELIMITER, -1);
+        String[] addresses = c.getString(2) == null ? new String[0] : c.getString(2).split(""+ADDRESS_DELIMITER, -1);
 
-        details.localAddress = splitAddressToTuple(readNonEmptyString(addresses[0]));
-        details.remoteAddress = splitAddressToTuple(readNonEmptyString(addresses[1]));
-        details.manualAddress = splitAddressToTuple(readNonEmptyString(addresses[2]));
-        details.ipv6Address = splitAddressToTuple(readNonEmptyString(addresses[3]));
+        details.localAddress = addresses.length > 0 ? splitAddressToTuple(readNonEmptyString(addresses[0])) : null;
+        details.remoteAddress = addresses.length > 1 ? splitAddressToTuple(readNonEmptyString(addresses[1])) : null;
+        details.manualAddress = addresses.length > 2 ? splitAddressToTuple(readNonEmptyString(addresses[2])) : null;
+        details.ipv6Address = addresses.length > 3 ? splitAddressToTuple(readNonEmptyString(addresses[3])) : null;
 
         // External port is persisted in the remote address field
         if (details.remoteAddress != null) {
@@ -115,9 +117,7 @@ public class LegacyDatabaseReader3 {
             return getAllComputers(computerDb);
         } catch (SQLiteException e) {
             return new LinkedList<ComputerDetails>();
-        } finally {
-            // Close and delete the old DB
-            c.deleteDatabase(COMPUTER_DB_NAME);
+
         }
     }
 }

@@ -100,74 +100,72 @@ public class ComputerManagerService extends Service {
             return false;
         }
 
-        final int pollTriesBeforeOffline = details.state == ComputerDetails.State.UNKNOWN ?
-                INITIAL_POLL_TRIES : OFFLINE_POLL_TRIES;
-
-        activePolls.incrementAndGet();
-
-        // Poll the machine
         try {
-            if (!pollComputer(details)) {
-                if (!newPc && offlineCount < pollTriesBeforeOffline) {
-                    // Return without calling the listener
-                    releaseLocalDatabaseReference();
+            final int pollTriesBeforeOffline = details.state == ComputerDetails.State.UNKNOWN ?
+                    INITIAL_POLL_TRIES : OFFLINE_POLL_TRIES;
+
+            activePolls.incrementAndGet();
+
+            // Poll the machine
+            try {
+                if (!pollComputer(details)) {
+                    if (!newPc && offlineCount < pollTriesBeforeOffline) {
+                        // Return without calling the listener
+                        return false;
+                    }
+
+                    details.state = ComputerDetails.State.OFFLINE;
+                }
+            } finally {
+                activePolls.decrementAndGet();
+            }
+
+            // If it's online, update our persistent state
+            if (details.state == ComputerDetails.State.ONLINE) {
+                ComputerDetails existingComputer = dbManager.getComputerByUUID(details.uuid);
+
+                // Check if it's in the database because it could have been
+                // removed after this was issued
+                if (!newPc && existingComputer == null) {
+                    // It's gone
                     return false;
                 }
 
-                details.state = ComputerDetails.State.OFFLINE;
-            }
-        } catch (InterruptedException e) {
-            releaseLocalDatabaseReference();
-            throw e;
-        } finally {
-            activePolls.decrementAndGet();
-        }
-
-        // If it's online, update our persistent state
-        if (details.state == ComputerDetails.State.ONLINE) {
-            ComputerDetails existingComputer = dbManager.getComputerByUUID(details.uuid);
-
-            // Check if it's in the database because it could have been
-            // removed after this was issued
-            if (!newPc && existingComputer == null) {
-                // It's gone
-                releaseLocalDatabaseReference();
-                return false;
-            }
-
-            // If we already have an entry for this computer in the DB, we must
-            // combine the existing data with this new data (which may be partially available
-            // due to detecting the PC via mDNS) without the saved external address. If we
-            // write to the DB without doing this first, we can overwrite our existing data.
-            if (existingComputer != null) {
-                existingComputer.update(details);
-                dbManager.updateComputer(existingComputer);
-            }
-            else {
-                try {
-                    // If the active address is a site-local address (RFC 1918),
-                    // then use STUN to populate the external address field if
-                    // it's not set already.
-                    if (details.remoteAddress == null) {
-                        InetAddress addr = InetAddress.getByName(details.activeAddress.address);
-                        if (addr.isSiteLocalAddress()) {
-                            populateExternalAddress(details);
+                // If we already have an entry for this computer in the DB, we must
+                // combine the existing data with this new data (which may be partially available
+                // due to detecting the PC via mDNS) without the saved external address. If we
+                // write to the DB without doing this first, we can overwrite our existing data.
+                if (existingComputer != null) {
+                    existingComputer.update(details);
+                    dbManager.updateComputer(existingComputer);
+                }
+                else {
+                    try {
+                        // If the active address is a site-local address (RFC 1918),
+                        // then use STUN to populate the external address field if
+                        // it's not set already.
+                        if (details.remoteAddress == null) {
+                            InetAddress addr = InetAddress.getByName(details.activeAddress.address);
+                            if (addr.isSiteLocalAddress()) {
+                                populateExternalAddress(details);
+                            }
                         }
-                    }
-                } catch (UnknownHostException ignored) {}
+                    } catch (UnknownHostException ignored) {}
 
-                dbManager.updateComputer(details);
+                    dbManager.updateComputer(details);
+                }
             }
-        }
 
-        // Don't call the listener if this is a failed lookup of a new PC
-        ComputerManagerListener currentListener = listener;
-        if ((!newPc || details.state == ComputerDetails.State.ONLINE) && currentListener != null) {
-            currentListener.notifyComputerUpdated(details);
-        }
+            // Don't call the listener if this is a failed lookup of a new PC
+            ComputerManagerListener currentListener = listener;
+            if ((!newPc || details.state == ComputerDetails.State.ONLINE) && currentListener != null) {
+                currentListener.notifyComputerUpdated(details);
+            }
 
-        releaseLocalDatabaseReference();
-        return true;
+            return true;
+        } finally {
+            releaseLocalDatabaseReference();
+        }
     }
 
     private Thread createPollingThread(final PollingTuple tuple) {
@@ -350,60 +348,44 @@ public class ComputerManagerService extends Service {
 
     private void populateExternalAddress(ComputerDetails details) {
         boolean boundToNetwork = false;
-        boolean activeNetworkIsVpn = NetHelper.isActiveNetworkVpn(this);
         ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        // Check if we're currently connected to a VPN which may send our
-        // STUN request from an unexpected interface
-        if (activeNetworkIsVpn) {
-            // Acquire the default network lock since we could be changing global process state
-            defaultNetworkLock.lock();
-
-            // On Lollipop or later, we can bind our process to the underlying interface
-            // to ensure our STUN request goes out on that interface or not at all (which is
-            // preferable to getting a VPN endpoint address back).
-            Network[] networks = connMgr.getAllNetworks();
-            for (Network net : networks) {
-                NetworkCapabilities netCaps = connMgr.getNetworkCapabilities(net);
-                if (netCaps != null) {
-                    if (!netCaps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+        defaultNetworkLock.lock();
+        try {
+            boolean activeNetworkIsVpn = NetHelper.isActiveNetworkVpn(this);
+            if (activeNetworkIsVpn) {
+                // STUN must use an underlying LAN, not the VPN's public endpoint.
+                for (Network net : connMgr.getAllNetworks()) {
+                    NetworkCapabilities netCaps = connMgr.getNetworkCapabilities(net);
+                    if (netCaps != null && !netCaps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
                             !netCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-                        // This network looks like an underlying multicast-capable transport,
-                        // so let's guess that it's probably where our mDNS response came from.
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            if (connMgr.bindProcessToNetwork(net)) {
-                                boundToNetwork = true;
-                                break;
-                            }
-                        } else if (ConnectivityManager.setProcessDefaultNetwork(net)) {
-                            boundToNetwork = true;
+                            boundToNetwork = connMgr.bindProcessToNetwork(net);
+                        } else {
+                            boundToNetwork = ConnectivityManager.setProcessDefaultNetwork(net);
+                        }
+                        if (boundToNetwork) {
                             break;
                         }
                     }
                 }
             }
 
-            // Perform the STUN request if we're not on a VPN or if we bound to a network
             if (!activeNetworkIsVpn || boundToNetwork) {
                 String stunResolvedAddress = NvConnection.findExternalAddressForMdns("stun.moonlight-stream.org", 3478);
                 if (stunResolvedAddress != null) {
-                    // We don't know for sure what the external port is, so we will have to guess.
-                    // When we contact the PC (if we haven't already), it will update the port.
                     details.remoteAddress = new ComputerDetails.AddressTuple(stunResolvedAddress, details.guessExternalPort());
                 }
             }
-
-            // Unbind from the network
-            if (boundToNetwork) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    connMgr.bindProcessToNetwork(null);
-                } else {
-                    ConnectivityManager.setProcessDefaultNetwork(null);
+        } finally {
+            try {
+                if (boundToNetwork) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        connMgr.bindProcessToNetwork(null);
+                    } else {
+                        ConnectivityManager.setProcessDefaultNetwork(null);
+                    }
                 }
-            }
-
-            // Unlock the network state
-            if (activeNetworkIsVpn) {
+            } finally {
                 defaultNetworkLock.unlock();
             }
         }
@@ -523,33 +505,37 @@ public class ComputerManagerService extends Service {
             return;
         }
 
-        // Remove it from the database
-        dbManager.deleteComputer(computer);
+        try {
+            // Remove it from the database
+            dbManager.deleteComputer(computer);
 
-        synchronized (pollingTuples) {
-            // Remove the computer from the computer list
-            for (PollingTuple tuple : pollingTuples) {
-                if (tuple.computer.uuid.equals(computer.uuid)) {
-                    if (tuple.thread != null) {
-                        // Interrupt the thread on this entry
-                        tuple.thread.interrupt();
-                        tuple.thread = null;
+            synchronized (pollingTuples) {
+                // Remove the computer from the computer list
+                for (PollingTuple tuple : pollingTuples) {
+                    if (tuple.computer.uuid.equals(computer.uuid)) {
+                        if (tuple.thread != null) {
+                            // Interrupt the thread on this entry
+                            tuple.thread.interrupt();
+                            tuple.thread = null;
+                        }
+                        pollingTuples.remove(tuple);
+                        break;
                     }
-                    pollingTuples.remove(tuple);
-                    break;
                 }
             }
+        } finally {
+            releaseLocalDatabaseReference();
         }
-
-        releaseLocalDatabaseReference();
     }
 
     private boolean getLocalDatabaseReference() {
-        if (dbRefCount.get() == 0) {
-            return false;
-        }
-
-        dbRefCount.incrementAndGet();
+        int count;
+        do {
+            count = dbRefCount.get();
+            if (count == 0) {
+                return false;
+            }
+        } while (!dbRefCount.compareAndSet(count, count + 1));
         return true;
     }
 

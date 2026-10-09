@@ -17,7 +17,6 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteException;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -44,14 +43,7 @@ public class ComputerDatabaseManager {
     private SQLiteDatabase computerDb;
 
     public ComputerDatabaseManager(Context c) {
-        try {
-            // Create or open an existing DB
-            computerDb = c.openOrCreateDatabase(COMPUTER_DB_NAME, 0, null);
-        } catch (SQLiteException e) {
-            // Delete the DB and try again
-            c.deleteDatabase(COMPUTER_DB_NAME);
-            computerDb = c.openOrCreateDatabase(COMPUTER_DB_NAME, 0, null);
-        }
+        computerDb = c.openOrCreateDatabase(COMPUTER_DB_NAME, 0, null);
         initializeDb(c);
     }
 
@@ -67,20 +59,29 @@ public class ComputerDatabaseManager {
                 ADDRESSES_COLUMN_NAME, MAC_ADDRESS_COLUMN_NAME, SERVER_CERT_COLUMN_NAME));
 
         // Move all computers from the old DB (if any) to the new one
-        List<ComputerDetails> oldComputers = LegacyDatabaseReader.migrateAllComputers(c);
-        for (ComputerDetails computer : oldComputers) {
-            updateComputer(computer);
-        }
-        oldComputers = LegacyDatabaseReader2.migrateAllComputers(c);
-        for (ComputerDetails computer : oldComputers) {
-            updateComputer(computer);
-        }
-        oldComputers = LegacyDatabaseReader3.migrateAllComputers(c);
-        for (ComputerDetails computer : oldComputers) {
-            updateComputer(computer);
-        }
+        migrateComputers(c, "computers.db", LegacyDatabaseReader.migrateAllComputers(c));
+        migrateComputers(c, "computers2.db", LegacyDatabaseReader2.migrateAllComputers(c));
+        migrateComputers(c, "computers3.db", LegacyDatabaseReader3.migrateAllComputers(c));
     }
 
+    private void migrateComputers(Context c, String source, List<ComputerDetails> computers) {
+        if (computers.isEmpty()) {
+            return;
+        }
+        computerDb.beginTransaction();
+        try {
+            for (ComputerDetails computer : computers) {
+                if (!updateComputer(computer)) {
+                    return;
+                }
+            }
+            computerDb.setTransactionSuccessful();
+        } finally {
+            computerDb.endTransaction();
+        }
+        // The only copy must survive a failed read, insert, or commit.
+        c.deleteDatabase(source);
+    }
     public void deleteComputer(ComputerDetails details) {
         computerDb.delete(COMPUTER_TABLE_NAME, COMPUTER_UUID_COLUMN_NAME+"=?", new String[]{details.uuid});
     }

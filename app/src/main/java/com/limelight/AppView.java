@@ -234,8 +234,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     return;
                 }
 
+                String rawAppList = details.rawAppList;
+
                 // App list is the same or empty
-                if (details.rawAppList == null || details.rawAppList.equals(lastRawApplist)) {
+                if (rawAppList == null || rawAppList.equals(lastRawApplist)) {
 
                     // Let's check if the running app ID changed
                     if (details.runningGameId != lastRunningAppId) {
@@ -248,10 +250,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                 }
 
                 lastRunningAppId = details.runningGameId;
-                lastRawApplist = details.rawAppList;
+                lastRawApplist = rawAppList;
 
                 try {
-                    updateUiWithAppList(NvHTTP.getAppListByReader(new StringReader(details.rawAppList)));
+                    updateUiWithAppList(NvHTTP.getAppListByReader(new StringReader(rawAppList)));
                     updateUiWithServerinfo(details);
 
                     if (blockingLoadSpinner != null) {

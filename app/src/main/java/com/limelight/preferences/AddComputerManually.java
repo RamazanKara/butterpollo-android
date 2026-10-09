@@ -74,19 +74,7 @@ public class AddComputerManually extends AppCompatActivity {
                         continue;
                     }
 
-                    byte[] targetAddrBytes = targetAddress.getAddress();
-                    byte[] ifaceAddrBytes = addr.getAddress().getAddress();
-
-                    // Compare prefix to ensure it's the same
-                    boolean addressMatches = true;
-                    for (int i = 0; i < addr.getNetworkPrefixLength(); i++) {
-                        if ((ifaceAddrBytes[i / 8] & (1 << (i % 8))) != (targetAddrBytes[i / 8] & (1 << (i % 8)))) {
-                            addressMatches = false;
-                            break;
-                        }
-                    }
-
-                    if (addressMatches) {
+                    if (isInSubnet(targetAddress.getAddress(), addr.getAddress().getAddress(), addr.getNetworkPrefixLength())) {
                         return false;
                     }
                 }
@@ -100,6 +88,16 @@ public class AddComputerManually extends AppCompatActivity {
             e.printStackTrace();
             return false;
         }
+    }
+
+    static boolean isInSubnet(byte[] address, byte[] subnet, int prefixLength) {
+        for (int i = 0; i < prefixLength; i++) {
+            int mask = 0x80 >> (i % 8);
+            if ((address[i / 8] & mask) != (subnet[i / 8] & mask)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private URI parseRawUserInputToUri(String rawUserInput) {
