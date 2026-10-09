@@ -6,6 +6,13 @@ based on Moonlight Android (GPL-3.0), with stock Sunshine and Apollo compatibili
 - Settings grouped into **Stream**, **Controls**, **Overlay & audio** and **App**, with expert
   options in **Advanced**. Search includes every group; preset chips show the matching preset or Custom.
 - Material 3 PC cards with status chips, an **Add PC** button and grouped action sheets.
+- Adaptive tablet, foldable, TV and desktop layouts use the current window size, preserve library
+  focus on resize, and keep content clear of separating hinges, system bars and cutouts.
+  Wide windows show more columns; short landscape windows use shorter app artwork.
+- Navigate with D-pad/Tab and Enter/A; long-press Select or use Menu/Shift+F10 for PC/app actions.
+  Outside streaming, **Ctrl+N** adds a PC, **Ctrl+,** opens settings, **Ctrl+F** searches settings,
+  **F1** opens help, and **Esc/B** goes back. In settings, Right opens a selected switch's help
+  (Left in RTL). TV settings put Controls first; choose **Map a button** before capturing a mapping.
 - Full-screen per-PC resolution, fractional refresh, bitrate, VRR, render scale, virtual-display,
   HDR, colour-range and codec profiles. Long-press a PC → **This PC → Streaming settings for this PC**;
   turn off **Use global settings** to edit, then **Save**.

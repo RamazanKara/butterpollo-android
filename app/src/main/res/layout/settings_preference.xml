@@ -2,6 +2,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="72dp"
+    android:descendantFocusability="blocksDescendants"
     android:background="?android:attr/selectableItemBackground"
     android:gravity="center_vertical"
     android:paddingStart="16dp"

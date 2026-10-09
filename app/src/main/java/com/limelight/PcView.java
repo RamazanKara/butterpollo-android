@@ -122,14 +122,8 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
-        // Only reinitialize views if completeOnCreate() was called
-        // before this callback. If it was not, completeOnCreate() will
-        // handle initializing views with the config change accounted for.
-        // This is not prone to races because both callbacks are invoked
-        // in the main thread.
         if (completeOnCreateCalled) {
-            // Reinitialize views just in case orientation changed
-            initializeViews();
+            UiHelper.notifyNewRootView(this);
         }
     }
 
@@ -459,6 +453,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private void updateEmptyState() {
         boolean empty = pcGridAdapter.getCount() == 0;
         noPcFoundLayout.setVisibility(empty ? View.VISIBLE : View.GONE);
+        findViewById(R.id.pcFragmentContainer).setVisibility(empty ? View.GONE : View.VISIBLE);
         findViewById(R.id.manuallyAddPc).setVisibility(empty ? View.GONE : View.VISIBLE);
     }
 
@@ -968,6 +963,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             showComputerMenu((ComputerObject) pcGridAdapter.getItem(position));
             return true;
         });
+        if (pcGridAdapter.getCount() == 0) findViewById(R.id.discovery_add).requestFocus();
     }
 
     public static class ComputerObject {

@@ -6,7 +6,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.app.GameManager;
 import android.app.GameState;
 import android.app.LocaleManager;
-import android.app.UiModeManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
@@ -16,14 +15,14 @@ import android.os.Build;
 import android.os.LocaleList;
 import android.view.View;
 import android.view.WindowManager;
-import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.limelight.Game;
 import com.limelight.R;
+import com.limelight.ui.AdaptiveLayout;
+import com.limelight.ui.UiNavigation;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.preferences.PreferenceConfiguration;
 
@@ -40,10 +39,8 @@ public class UiHelper {
         dialog.setOnDismissListener(ignored -> lifecycle.removeObserver(observer));
         lifecycle.addObserver(observer);
         dialog.show();
+        AdaptiveLayout.attach((Activity) context, dialog.findViewById(android.R.id.content));
     }
-
-    private static final int TV_VERTICAL_PADDING_DP = 16;
-    private static final int TV_HORIZONTAL_PADDING_DP = 16;
 
     private static void setGameModeStatus(Context context, boolean streaming, boolean interruptible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -117,7 +114,6 @@ public class UiHelper {
     public static void notifyNewRootView(final Activity activity)
     {
         View rootView = activity.findViewById(android.R.id.content);
-        UiModeManager modeMgr = (UiModeManager) activity.getSystemService(Context.UI_MODE_SERVICE);
 
         // Set GameState.MODE_NONE initially for all activities
         setGameModeStatus(activity, false, false);
@@ -149,19 +145,8 @@ public class UiHelper {
         controller.setAppearanceLightStatusBars(light);
         controller.setAppearanceLightNavigationBars(light);
 
-        boolean tv = modeMgr.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
-        float scale = activity.getResources().getDisplayMetrics().density;
-        int horizontalPadding = tv ? Math.round(TV_HORIZONTAL_PADDING_DP * scale) : 0;
-        int verticalPadding = tv ? Math.round(TV_VERTICAL_PADDING_DP * scale) : 0;
-        ViewCompat.setOnApplyWindowInsetsListener(rootView, (view, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() |
-                    WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
-            view.setPadding(insets.left + horizontalPadding, insets.top + verticalPadding,
-                    insets.right + horizontalPadding, insets.bottom + verticalPadding);
-            // The root owns all insets, including the keyboard; descendants must not apply them twice.
-            return WindowInsetsCompat.CONSUMED;
-        });
-        ViewCompat.requestApplyInsets(rootView);
+        if (rootView.getTag(R.id.adaptive_layout) == null) UiNavigation.install(activity, rootView);
+        AdaptiveLayout.attach(activity, rootView);
     }
 
     public static void showDecoderCrashDialog(Activity activity) {

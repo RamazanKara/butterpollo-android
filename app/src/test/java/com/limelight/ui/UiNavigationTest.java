@@ -1,0 +1,233 @@
+package com.limelight.ui;
+
+import android.app.Application;
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
+import android.widget.FrameLayout;
+import android.widget.GridView;
+import android.widget.ListView;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.limelight.R;
+import com.limelight.preferences.AddComputerManually;
+import com.limelight.preferences.ControllerMappingActivity;
+import com.limelight.preferences.StreamSettings;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
+import org.robolectric.Shadows;
+import org.robolectric.android.controller.ActivityController;
+import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowDialog;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.*;
+
+@RunWith(org.robolectric.RobolectricTestRunner.class)
+@Config(sdk = 28, application = Application.class,
+        shadows = com.limelight.PcViewLifecycleTest.NoNativeMoonBridge.class,
+        instrumentedPackages = "com.limelight.nvstream.jni")
+public class UiNavigationTest {
+    public static class Screen extends AppCompatActivity {
+        @Override protected void onCreate(Bundle state) {
+            setTheme(R.style.AppTheme);
+            super.onCreate(state);
+            setContentView(new FrameLayout(this));
+        }
+    }
+
+    private static void layout(AppCompatActivity activity) {
+        View root = activity.findViewById(android.R.id.content);
+        root.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, 1000, 800);
+    }
+
+    @Test
+    public void manualHostEntryHasMatchingKeyboardAndAccessibilityOrder() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup().visible();
+        try {
+            Screen screen = controller.get();
+            screen.setContentView(R.layout.activity_add_computer_manually);
+            layout(screen);
+            View back = screen.findViewById(R.id.add_pc_back);
+            View address = screen.findViewById(R.id.hostTextView);
+            View add = screen.findViewById(R.id.addPcButton);
+            assertSame(address, back.focusSearch(View.FOCUS_FORWARD));
+            assertSame(add, address.focusSearch(View.FOCUS_FORWARD));
+            assertSame(address, add.focusSearch(View.FOCUS_UP));
+            assertEquals(back.getId(), address.getAccessibilityTraversalAfter());
+            assertEquals(address.getId(), add.getAccessibilityTraversalAfter());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void emptyLibraryAndAppGridCanReturnToTheirHeaders() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup().visible();
+        try {
+            Screen screen = controller.get();
+            screen.setContentView(R.layout.activity_pc_view);
+            layout(screen);
+            View add = screen.findViewById(R.id.discovery_add);
+            View help = screen.findViewById(R.id.discovery_help);
+            assertSame(help, add.focusSearch(View.FOCUS_DOWN));
+            assertSame(add, help.focusSearch(View.FOCUS_UP));
+            assertEquals(add.getId(), help.getAccessibilityTraversalAfter());
+
+            screen.setContentView(R.layout.activity_app_view);
+            FrameLayout container = screen.findViewById(R.id.appFragmentContainer);
+            screen.getLayoutInflater().inflate(R.layout.app_grid_view, container);
+            GridView grid = screen.findViewById(R.id.fragmentView);
+            grid.setAdapter(new ArrayAdapter<>(screen, android.R.layout.simple_list_item_1,
+                    new String[] {"One", "Two", "Three"}));
+            layout(screen);
+            View back = screen.findViewById(R.id.library_back);
+            assertSame(grid, back.focusSearch(View.FOCUS_DOWN));
+            assertSame(back, grid.focusSearch(View.FOCUS_UP));
+            assertEquals(back.getId(), grid.getAccessibilityTraversalAfter());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void shortcutsRunOnReleaseAndLeaveOrdinaryKeysAlone() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup();
+        try {
+            Screen screen = controller.get();
+            assertFalse(UiNavigation.handleKey(screen, new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_N)));
+            assertTrue(UiNavigation.handleKey(screen, key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_N, KeyEvent.META_CTRL_ON)));
+            assertNull(Shadows.shadowOf(screen).getNextStartedActivity());
+            assertTrue(UiNavigation.handleKey(screen, key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_N, KeyEvent.META_CTRL_ON)));
+            Intent add = Shadows.shadowOf(screen).getNextStartedActivity();
+            assertEquals(AddComputerManually.class.getName(), add.getComponent().getClassName());
+            UiNavigation.handleKey(screen, key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_COMMA, KeyEvent.META_CTRL_ON));
+            assertEquals(StreamSettings.class.getName(), Shadows.shadowOf(screen).getNextStartedActivity().getComponent().getClassName());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void preferenceHelpDoesNotStealSelectionOrToggleTheSwitch() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup().visible();
+        try {
+            Screen screen = controller.get();
+            ListView list = new ListView(screen);
+            View row = screen.getLayoutInflater().inflate(R.layout.settings_preference, list, false);
+            ViewGroup widget = row.findViewById(android.R.id.widget_frame);
+            screen.getLayoutInflater().inflate(R.layout.settings_switch, widget);
+            AtomicInteger helpCount = new AtomicInteger();
+            AtomicInteger toggles = new AtomicInteger();
+            row.findViewById(R.id.preference_help).setOnClickListener(v -> helpCount.incrementAndGet());
+            list.setAdapter(new BaseAdapter() {
+                @Override public int getCount() { return 1; }
+                @Override public Object getItem(int position) { return position; }
+                @Override public long getItemId(int position) { return position; }
+                @Override public View getView(int position, View recycled, ViewGroup parent) { return row; }
+            });
+            list.setOnItemClickListener((parent, view, position, id) -> toggles.incrementAndGet());
+            UiNavigation.bindPreferences(list);
+            screen.setContentView(list);
+            list.requestFocus();
+            list.setSelection(0);
+            layout(screen);
+            assertTrue(list.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)));
+            assertTrue(list.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT)));
+            assertEquals(1, helpCount.get());
+            assertEquals(0, toggles.get());
+            assertEquals(0, list.getSelectedItemPosition());
+            assertEquals(ViewGroup.FOCUS_BLOCK_DESCENDANTS, ((ViewGroup) row).getDescendantFocusability());
+            list.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
+            list.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
+            assertEquals(1, toggles.get());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void controllerMappingRequiresExplicitCaptureAndCanCancelIt() {
+        ActivityController<ControllerMappingActivity> controller = Robolectric.buildActivity(ControllerMappingActivity.class).setup();
+        try {
+            ControllerMappingActivity screen = controller.get();
+            KeyEvent button = new KeyEvent(0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_X,
+                    0, 0, 0, 0, 0, InputDevice.SOURCE_GAMEPAD);
+            screen.dispatchKeyEvent(button);
+            assertNull(ShadowDialog.getLatestDialog());
+            screen.findViewById(R.id.controller_mapping_capture).performClick();
+            screen.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
+            assertFalse(screen.isFinishing());
+            screen.dispatchKeyEvent(button);
+            assertNull(ShadowDialog.getLatestDialog());
+            screen.findViewById(R.id.controller_mapping_capture).performClick();
+            screen.dispatchKeyEvent(button);
+            assertTrue(ShadowDialog.getLatestDialog().isShowing());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void actionSheetFocusMovesInTheSameOrderAsItsActions() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup();
+        ActionSheet sheet = new ActionSheet(controller.get(), "Actions");
+        View first = sheet.addAction(R.drawable.ic_play, "Play");
+        View second = sheet.addAction(R.drawable.ic_settings, "Settings");
+        try {
+            sheet.show();
+            View decor = sheet.getWindow().getDecorView();
+            decor.measure(View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY));
+            decor.layout(0, 0, 600, 800);
+            assertTrue(first.hasFocus());
+            assertSame(second, first.focusSearch(View.FOCUS_DOWN));
+            assertSame(first, second.focusSearch(View.FOCUS_UP));
+        } finally {
+            sheet.dismiss();
+            controller.pause().stop().destroy();
+        }
+    }
+
+    @Test
+    public void mouseHoverHighlightsCardsWithoutTakingKeyboardFocus() {
+        ActivityController<Screen> controller = Robolectric.buildActivity(Screen.class).setup();
+        try {
+            Screen screen = controller.get();
+            com.limelight.grid.PcGridAdapter adapter = new com.limelight.grid.PcGridAdapter(screen,
+                    new com.limelight.preferences.PreferenceConfiguration());
+            com.limelight.nvstream.http.ComputerDetails details = new com.limelight.nvstream.http.ComputerDetails();
+            details.name = "PC";
+            details.state = com.limelight.nvstream.http.ComputerDetails.State.OFFLINE;
+            adapter.addComputer(new com.limelight.PcView.ComputerObject(details));
+            View card = adapter.getView(0, null, new GridView(screen));
+            android.view.MotionEvent hover = android.view.MotionEvent.obtain(0, 0,
+                    android.view.MotionEvent.ACTION_HOVER_ENTER, 10, 10, 0);
+            hover.setSource(InputDevice.SOURCE_MOUSE);
+            card.dispatchGenericMotionEvent(hover);
+            assertTrue(card.isHovered());
+            assertFalse(card.hasFocus());
+            hover.setAction(android.view.MotionEvent.ACTION_HOVER_EXIT);
+            card.dispatchGenericMotionEvent(hover);
+            assertFalse(card.isHovered());
+            hover.recycle();
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
+
+    private static KeyEvent key(int action, int key, int modifiers) {
+        return new KeyEvent(0, 0, action, key, 0, modifiers);
+    }
+}

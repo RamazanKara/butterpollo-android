@@ -16,9 +16,11 @@
                         <TextView android:id="@+id/discovery_message" android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:text="@string/searching_pc" android:textAppearance="?attr/textAppearanceTitleLarge" />
                         <com.google.android.material.button.MaterialButton android:id="@+id/discovery_add"
+                            android:nextFocusDown="@+id/discovery_help" android:nextFocusForward="@id/discovery_help"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:layout_marginTop="24dp" android:minHeight="48dp" android:text="@string/title_add_pc" app:icon="@drawable/ic_add" />
                         <com.google.android.material.button.MaterialButton android:id="@+id/discovery_help"
+                            android:nextFocusUp="@id/discovery_add" android:accessibilityTraversalAfter="@id/discovery_add"
                             style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:minHeight="48dp" android:text="@string/discovery_help" />
                     </LinearLayout>
@@ -26,6 +28,7 @@
             </LinearLayout>
         </ScrollView>
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton android:id="@+id/manuallyAddPc"
+            android:nextFocusUp="@id/fragmentView" android:accessibilityTraversalAfter="@id/fragmentView"
             android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|end"
             android:layout_margin="24dp" android:minHeight="56dp" android:text="@string/title_add_pc" app:icon="@drawable/ic_add" />
     </FrameLayout>

@@ -24,8 +24,6 @@ import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.bottomsheet.BottomSheetDialog;
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
@@ -42,7 +40,6 @@ import android.widget.Toast;
 
 public class AddComputerManually extends AppCompatActivity {
     private TextView hostText;
-    private BottomSheetDialog addDialog;
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private final LinkedBlockingQueue<String> computersToAdd = new LinkedBlockingQueue<>();
     private Thread addThread;
@@ -256,10 +253,6 @@ public class AddComputerManually extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (addDialog != null) {
-            addDialog.setOnDismissListener(null);
-            addDialog.dismiss();
-        }
         super.onDestroy();
 
         joinAddThread();
@@ -276,11 +269,8 @@ public class AddComputerManually extends AppCompatActivity {
 
         UiHelper.setLocale(this);
 
-        setContentView(new android.widget.FrameLayout(this));
-        View content = getLayoutInflater().inflate(R.layout.activity_add_computer_manually, null);
-        addDialog = new BottomSheetDialog(this);
-        addDialog.setContentView(content);
-        addDialog.setOnDismissListener(dialog -> finish());
+        setContentView(R.layout.activity_add_computer_manually);
+        View content = findViewById(android.R.id.content);
         content.findViewById(R.id.add_pc_back).setOnClickListener(v -> finish());
 
         UiHelper.notifyNewRootView(this);
@@ -314,10 +304,6 @@ public class AddComputerManually extends AppCompatActivity {
                 handleDoneEvent();
             }
         });
-
-        addDialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        addDialog.show();
-        addDialog.getBehavior().setState(BottomSheetBehavior.STATE_EXPANDED);
 
         // Bind to the ComputerManager service
         managerServiceBound = bindService(new Intent(AddComputerManually.this,

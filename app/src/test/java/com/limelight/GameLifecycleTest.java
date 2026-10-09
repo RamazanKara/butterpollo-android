@@ -29,6 +29,14 @@ import static org.junit.Assert.*;
 @Config(sdk = 29, application = Application.class)
 public class GameLifecycleTest {
     @Test
+    @Config(qualifiers = "sw600dp-w1000dp-h800dp")
+    public void largeWindowsDoNotForceTheDisplayIntoLandscape() {
+        Game activity = Robolectric.buildActivity(Game.class).get();
+        ReflectionHelpers.callInstanceMethod(activity, "setPreferredOrientationForCurrentDisplay");
+        assertEquals(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER, activity.getRequestedOrientation());
+    }
+
+    @Test
     public void offUsesStreamSizedCompositorBuffersWithoutLosingLetterboxing() {
         Game activity = Robolectric.buildActivity(Game.class).get();
         for (UpscalingPolicy.Mode mode : UpscalingPolicy.Mode.values()) {

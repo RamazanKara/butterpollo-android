@@ -18,6 +18,7 @@ public final class ActionSheet extends BottomSheetDialog {
 
     public ActionSheet(Context context, CharSequence title) {
         super(context);
+        if (context instanceof android.app.Activity) setOwnerActivity((android.app.Activity) context);
         spacing = Math.round(8 * context.getResources().getDisplayMetrics().density);
         content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -76,5 +77,8 @@ public final class ActionSheet extends BottomSheetDialog {
         super.onStart();
         getBehavior().setState(BottomSheetBehavior.STATE_EXPANDED);
         getBehavior().setSkipCollapsed(true);
+        if (getOwnerActivity() != null) AdaptiveLayout.attach(getOwnerActivity(), findViewById(android.R.id.content));
+        getBehavior().setMaxWidth(spacing * 75);
+        if (!content.isInTouchMode()) content.requestFocus(android.view.View.FOCUS_FORWARD);
     }
 }

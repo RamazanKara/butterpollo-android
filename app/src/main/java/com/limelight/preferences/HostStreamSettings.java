@@ -363,6 +363,8 @@ public final class HostStreamSettings extends AppCompatActivity {
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle state) {
             View view = super.onCreateView(inflater, container, state);
             ListView list = view.findViewById(android.R.id.list);
+            com.limelight.ui.UiNavigation.bindPreferences(list);
+            list.setNextFocusDownId(R.id.host_profile_save);
             list.setDivider(null);
             int padding = Math.round(8 * getResources().getDisplayMetrics().density);
             list.setPadding(padding, 0, padding, padding);

@@ -60,12 +60,23 @@ public abstract class GenericGridAdapter<T> extends BaseAdapter {
     public View getView(int i, View convertView, ViewGroup viewGroup) {
         if (convertView == null) {
             convertView = inflater.inflate(layoutId, viewGroup, false);
+            convertView.setOnHoverListener((card, event) -> {
+                card.setHovered(event.getActionMasked() != android.view.MotionEvent.ACTION_HOVER_EXIT);
+                return false;
+            });
         }
 
         ImageView imgView = convertView.findViewById(R.id.grid_image);
         ImageView overlayView = convertView.findViewById(R.id.grid_overlay);
         TextView txtView = convertView.findViewById(R.id.grid_text);
         ProgressBar prgView = convertView.findViewById(R.id.grid_spinner);
+
+        if (layoutId == R.layout.app_grid_item) {
+            View artwork = (View) imgView.getParent();
+            float density = context.getResources().getDisplayMetrics().density;
+            artwork.getLayoutParams().height = Math.round((viewGroup.getHeight() > 0 &&
+                    viewGroup.getHeight() / density < 400 ? 112 : 224) * density);
+        }
 
         populateView(convertView, imgView, prgView, txtView, overlayView, itemList.get(i));
 

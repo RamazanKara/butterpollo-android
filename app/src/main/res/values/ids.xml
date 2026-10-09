@@ -1,0 +1,4 @@
+<resources>
+    <item name="controller_mapping_capture" type="id" />
+    <item name="adaptive_layout" type="id" />
+</resources>

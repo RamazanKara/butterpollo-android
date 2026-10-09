@@ -158,6 +158,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private boolean connecting = false;
     private boolean connected = false;
     private boolean autoEnterPip = false;
+    private com.limelight.ui.AdaptiveLayout adaptiveLayout;
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
     private Thread connectionStopThread;
@@ -398,6 +399,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
+        adaptiveLayout = com.limelight.ui.AdaptiveLayout.attach(this, findViewById(android.R.id.content));
+        streamView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (connected) updatePipAutoEnter();
+        });
 
         // Listen for touch events on the background touch view to enable trackpad mode
         // to work on areas outside of the StreamView itself. We use a separate View
@@ -704,6 +709,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     private void setPreferredOrientationForCurrentDisplay() {
+        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) ||
+                getResources().getConfiguration().smallestScreenWidthDp >= 600 ||
+                getPackageManager().hasSystemFeature("android.hardware.type.pc")) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+            return;
+        }
         Display display = getWindowManager().getDefaultDisplay();
 
         // For semi-square displays, we use more complex logic to determine which orientation to use (if any)
@@ -779,6 +790,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 controllerHandler.disableSensors();
 
                 // Update GameManager state to indicate we're in PiP (still gaming, but interruptible)
+                decoderRenderer.notifyVideoBackground();
                 UiHelper.notifyStreamEnteringPiP(this);
             }
             else {
@@ -800,6 +812,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 controllerHandler.enableSensors();
 
                 // Update GameManager state to indicate we're out of PiP (gaming, non-interruptible)
+                decoderRenderer.notifyVideoForeground();
                 UiHelper.notifyStreamExitingPiP(this);
             }
         }
@@ -808,12 +821,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @TargetApi(Build.VERSION_CODES.O)
     private PictureInPictureParams getPictureInPictureParams(boolean autoEnter) {
         int[] ratio = PictureInPicturePolicy.aspectRatio(prefConfig.width, prefConfig.height);
+        Rect source = new Rect();
+        streamView.getGlobalVisibleRect(source);
         PictureInPictureParams.Builder builder =
                 new PictureInPictureParams.Builder()
                         .setAspectRatio(new Rational(ratio[0], ratio[1]))
-                        .setSourceRectHint(new Rect(
-                                streamView.getLeft(), streamView.getTop(),
-                                streamView.getRight(), streamView.getBottom()));
+                        .setSourceRectHint(source);
 
         if (pipDisconnectIntent == null) {
             String action = getPackageName() + ".PIP_DISCONNECT." + java.util.UUID.randomUUID();
@@ -853,7 +866,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             return;
         }
 
-        boolean autoEnter = connected && app.getRole() != NvApp.Role.INPUT_ONLY && suppressPipRefCount == 0;
+        boolean autoEnter = PictureInPicturePolicy.shouldAutoEnter(connected, app.getRole(), suppressPipRefCount,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             try {
@@ -1250,12 +1264,18 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         // that case here too.
         if (isInMultiWindowMode) {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            decoderRenderer.notifyVideoBackground();
         }
         else {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
+
+        // A split-screen or desktop window is still visible at full streaming quality.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode()) {
+            decoderRenderer.notifyVideoBackground();
+        } else {
             decoderRenderer.notifyVideoForeground();
         }
+        updatePipAutoEnter();
 
         // Correct the system UI visibility flags
         hideSystemUi(50);
@@ -1311,6 +1331,12 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (adaptiveLayout != null) adaptiveLayout.start();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         foreground = true;
@@ -1351,6 +1377,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     @Override
     protected void onStop() {
         super.onStop();
+        if (adaptiveLayout != null) adaptiveLayout.stop();
 
         if (streamMenu != null) {
             streamMenu.dismiss();

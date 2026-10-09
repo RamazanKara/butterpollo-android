@@ -6,6 +6,17 @@ import static org.junit.Assert.*;
 
 public class PictureInPicturePolicyTest {
     @Test
+    public void desktopFocusChangesDoNotAutoEnterPip() {
+        for (NvApp.Role role : NvApp.Role.values()) {
+            assertFalse(PictureInPicturePolicy.shouldAutoEnter(true, role, 0, true));
+            assertFalse(PictureInPicturePolicy.shouldAutoEnter(false, role, 0, false));
+            assertFalse(PictureInPicturePolicy.shouldAutoEnter(true, role, 1, false));
+            assertEquals(role != NvApp.Role.INPUT_ONLY,
+                    PictureInPicturePolicy.shouldAutoEnter(true, role, 0, false));
+        }
+    }
+
+    @Test
     public void customStreamRatiosStayInsideAndroidPipLimits() {
         assertArrayEquals(new int[] {1920, 1080}, PictureInPicturePolicy.aspectRatio(1920, 1080));
         assertArrayEquals(new int[] {1080, 1920}, PictureInPicturePolicy.aspectRatio(1080, 1920));

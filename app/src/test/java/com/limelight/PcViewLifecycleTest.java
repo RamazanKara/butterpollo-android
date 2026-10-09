@@ -67,4 +67,26 @@ public class PcViewLifecycleTest {
             restored.pause().stop().destroy();
         }
     }
+
+    @Test
+    public void resizingKeepsTheLibraryViewsAndKeyboardFocus() {
+        Application application = RuntimeEnvironment.getApplication();
+        GlPreferences gl = GlPreferences.readPreferences(application);
+        gl.savedFingerprint = Build.FINGERPRINT;
+        gl.glRenderer = "Test renderer";
+        gl.writePreferences();
+        application.getSharedPreferences("FirstRun", 0).edit().putBoolean("pairing_guide_shown", true).commit();
+        ActivityController<Library> controller = Robolectric.buildActivity(Library.class).setup();
+        try {
+            android.view.View add = controller.get().findViewById(R.id.discovery_add);
+            add.requestFocus();
+            android.content.res.Configuration config = new android.content.res.Configuration(application.getResources().getConfiguration());
+            config.orientation = android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+            controller.get().onConfigurationChanged(config);
+            assertSame(add, controller.get().findViewById(R.id.discovery_add));
+            assertTrue(add.hasFocus());
+        } finally {
+            controller.pause().stop().destroy();
+        }
+    }
 }

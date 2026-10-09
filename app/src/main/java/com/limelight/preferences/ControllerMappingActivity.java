@@ -29,6 +29,7 @@ public class ControllerMappingActivity extends AppCompatActivity {
     private String deviceKey;
     private String deviceName;
     private ControllerButtonMap map;
+    private boolean capturing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,10 +52,20 @@ public class ControllerMappingActivity extends AppCompatActivity {
         root.addView(intro);
 
         deviceView = new TextView(this);
+        ViewCompat.setAccessibilityLiveRegion(deviceView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
         deviceView.setTextSize(14);
         deviceView.setTextColor(accentColor());
         deviceView.setPadding(0, padding * 3 / 2, 0, padding / 2);
         root.addView(deviceView);
+
+        MaterialButton capture = new MaterialButton(this);
+        capture.setId(R.id.controller_mapping_capture);
+        capture.setText(R.string.controller_mapping_capture);
+        capture.setOnClickListener(v -> {
+            capturing = true;
+            deviceView.setText(R.string.controller_mapping_press);
+        });
+        root.addView(capture);
 
         mappingList = new LinearLayout(this);
         mappingList.setOrientation(LinearLayout.VERTICAL);
@@ -179,11 +190,19 @@ public class ControllerMappingActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (!isControllerEvent(event) || !ControllerButtonMap.isRemappableSource(event.getKeyCode())) {
+        if (capturing && (event.getKeyCode() == KeyEvent.KEYCODE_BACK || event.getKeyCode() == KeyEvent.KEYCODE_ESCAPE)) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                capturing = false;
+                refresh();
+            }
+            return true;
+        }
+        if (!capturing || !isControllerEvent(event) || !ControllerButtonMap.isRemappableSource(event.getKeyCode())) {
             return super.dispatchKeyEvent(event);
         }
         // Act on release so the press cannot leak into the dialog that opens next
         if (event.getAction() == KeyEvent.ACTION_UP) {
+            capturing = false;
             InputDevice device = event.getDevice();
             if (device != null) {
                 select(device.getVendorId(), device.getProductId(), device.getName());
@@ -211,7 +230,7 @@ public class ControllerMappingActivity extends AppCompatActivity {
         for (int i = 0; i < count; i++) {
             labels[i + 1] = targetName(targets[i]);
         }
-        new MaterialAlertDialogBuilder(this)
+        UiHelper.showDialog(this, new MaterialAlertDialogBuilder(this)
                 .setTitle(getString(R.string.controller_mapping_choose, buttonName(source)))
                 .setItems(labels, (dialog, which) -> {
                     if (which == 0) {
@@ -224,7 +243,7 @@ public class ControllerMappingActivity extends AppCompatActivity {
                     refresh();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                .create());
     }
 
     private String targetName(int keyCode) {

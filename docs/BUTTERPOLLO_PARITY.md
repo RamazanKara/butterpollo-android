@@ -205,6 +205,53 @@ their existing three-finger keyboard gesture.
 
 ### Current verification scope and real-device checklist
 
+#### Adaptive windows and living-room controls (2026-10-09)
+
+Rubylight uses Jetpack WindowManager (`window-java` and `window-core` 1.4.0) for live folding features and
+Material window size classes (compact below 600 dp, medium below 840 dp, expanded above).
+This dependency supplies hinge data unavailable from display metrics. Layout uses each window's
+available content area, including system bars, caption bars, cutouts and the on-screen keyboard.
+Separating book/tabletop folds and occluding hinges select the larger contiguous pane; ties use
+the leading pane. Flat, non-separating folds use the whole window. This is a single-pane layout,
+not a two-pane master/detail UI. Settings and manual host entry are bounded to 840 dp.
+
+PC/app grids retain their views and focus during window resizing. Landscape app artwork is
+shorter, TV tiles are larger, and mouse hover uses the existing Material 3 accent. The leanback
+launcher retains its IDs and now displays Rubylight in the banner. TV settings start with Controls.
+Controller mapping requires selecting **Map a button**, so ordinary gamepad presses can navigate.
+Switch help is available with Right (Left in RTL) or F1; D-pad center toggles the selected row.
+Library action sheets are available through Menu or Shift+F10 as well as long-press Select.
+
+Outside streaming: Ctrl+N adds a PC, Ctrl+, opens settings, Ctrl+F focuses settings search,
+F1 opens troubleshooting, and Esc/B navigates back. Streaming keeps its existing input shortcuts.
+Large/freeform streaming windows allow either orientation. Split-screen stays at foreground
+video quality and suppresses automatic PiP entry; returning fullscreen restores eligibility.
+PiP source bounds follow the visible stream, and PiP drops browsing margins and hinge padding.
+
+JVM/Robolectric coverage includes window breakpoints, hinge panes, unfold restoration, independent
+window insets, keyboard and accessibility traversal order, preference help versus toggle, explicit
+controller capture, library focus preservation and PiP eligibility. These checks do not certify
+hardware rendering, OEM folding callbacks, remote key maps or screen-reader announcements.
+
+Device checklist — all pending hardware verification:
+
+- Tablet: PC and both app-grid sizes in portrait/landscape, 600/840 dp boundaries, font scales
+  1.0/1.3/2.0, light/dark mode, long names, grid scrolling and preserved selection after rotation.
+- Foldable: folded outer display, unfolded inner display, book and tabletop postures, flat display,
+  hinge offset, RTL, and folding while settings, host entry, action sheets or streaming are open.
+  Check that every control and the stream remain in the usable pane and that unfolding restores space.
+- Android TV/Fire TV: launcher icon/banner; use only a remote/gamepad through discovery, pairing,
+  PC/app actions, manual host entry, every settings group, search, sliders, switch help, host profiles,
+  controller mapping, diagnostics, help and stream menus. Verify visible focus, Enter/A, long Select,
+  Menu and Back/B, including cancellation and returning focus after dialogs.
+- Chromebook/DeX/desktop: resize from narrow to wide and short windows; move between displays;
+  check hover, wheel scrolling, Tab/Shift+Tab, all documented shortcuts and text-field editing.
+  Switch focus between visible apps without unintended PiP or reduced stream cadence; enter PiP
+  from fullscreen, restore, close and disconnect. Repeat with captured mouse input and an open menu.
+- Insets/accessibility: gesture/three-button navigation, desktop caption bar, each cutout edge,
+  keyboard show/hide, two windows with different insets, TalkBack traversal and focus returning from
+  dialogs. Check Add PC address → Add and header → grid → actions without traps or obscured targets.
+
 #### Low-latency policies and hostless diagnostics (2026-10-09)
 
 Verification: JDK 17 `:app:assembleNonRootDebug` and `:app:testNonRootDebugUnitTest` pass with

@@ -89,9 +89,6 @@ public class StreamSettings extends AppCompatActivity {
     private SearchView searchView;
     private String searchResultKey;
 
-    // HACK for Android 9
-    static DisplayCutout displayCutoutP;
-
     void reloadSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();
@@ -289,17 +286,6 @@ public class StreamSettings extends AppCompatActivity {
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
 
-        // We have to use this hack on Android 9 because we don't have Display.getCutout()
-        // which was added in Android 10.
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.P) {
-            // Insets can be null when the activity is recreated on screen rotation
-            // https://stackoverflow.com/questions/61241255/windowinsets-getdisplaycutout-is-null-everywhere-except-within-onattachedtowindo
-            WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
-            if (insets != null) {
-                displayCutoutP = insets.getDisplayCutout();
-            }
-        }
-
         reloadSettings();
     }
 
@@ -360,8 +346,15 @@ public class StreamSettings extends AppCompatActivity {
         }
     }
 
-    private static void stylePreferenceList(View view) {
+    private static void stylePreferenceList(View view, android.app.Activity activity) {
         ListView list = view.findViewById(android.R.id.list);
+        com.limelight.ui.UiNavigation.bindPreferences(list);
+        list.setNextFocusUpId(R.id.settings_search);
+        View search = activity.findViewById(R.id.settings_search);
+        if ((view.getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK)
+                == Configuration.UI_MODE_TYPE_TELEVISION && (search == null || !search.hasFocus())) {
+            list.requestFocus();
+        }
         list.setDivider(null);
         list.setDividerHeight(0);
         int spacing = Math.round(8 * view.getResources().getDisplayMetrics().density);
@@ -406,6 +399,10 @@ public class StreamSettings extends AppCompatActivity {
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             addPreferencesFromResource(R.xml.preferences_root);
+            if ((getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK)
+                    == Configuration.UI_MODE_TYPE_TELEVISION) {
+                findPreference("input").setOrder(-1);
+            }
             stylePreferences(getPreferenceScreen());
             for (String key : SECTIONS.keySet()) {
                 findPreference(key).setOnPreferenceClickListener(preference -> {
@@ -419,7 +416,7 @@ public class StreamSettings extends AppCompatActivity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-            stylePreferenceList(view);
+            stylePreferenceList(view, getActivity());
             return view;
         }
 
@@ -756,7 +753,7 @@ public class StreamSettings extends AppCompatActivity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-            stylePreferenceList(view);
+            stylePreferenceList(view, getActivity());
             return view;
         }
 
@@ -958,7 +955,8 @@ public class StreamSettings extends AppCompatActivity {
                     }
                     else {
                         // Android 9 only
-                        cutout = displayCutoutP;
+                        WindowInsets insets = getActivity().getWindow().getDecorView().getRootWindowInsets();
+                        cutout = insets == null ? null : insets.getDisplayCutout();
                     }
 
                     if (cutout != null) {

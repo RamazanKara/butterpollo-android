@@ -163,7 +163,7 @@
             android:label="@string/controller_mapping_title" />
         <activity
             android:name=".preferences.AddComputerManually"
-            android:theme="@style/AddPcTheme"
+            android:theme="@style/AppTheme"
             android:resizeableActivity="true"
             android:windowSoftInputMode="stateVisible|adjustResize"
             android:enableOnBackInvokedCallback="true"

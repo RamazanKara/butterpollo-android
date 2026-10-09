@@ -2,7 +2,7 @@
 <resources>
     <string name="controller_mapping_title">Controller-Tasten</string>
     <string name="controller_mapping_summary">Belege die Tasten je Controllermodell.</string>
-    <string name="controller_mapping_intro">Drücke eine Taste, um sie neu zu belegen.\nGilt ab dem nächsten Stream.</string>
+    <string name="controller_mapping_intro">Wähle Taste zuordnen und drücke dann die Controller-Taste.\nGilt ab dem nächsten Stream.</string>
     <string name="controller_mapping_waiting">Warte auf Tastendruck…</string>
     <string name="controller_mapping_unnamed">Controller</string>
     <string name="controller_mapping_none">Alle Tasten nutzen die Standardbelegung.</string>
