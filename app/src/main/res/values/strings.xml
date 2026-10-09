@@ -430,4 +430,25 @@
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_empty">No matching settings on this device</string>
     <string name="pip_disconnect_description">Disconnect this client and leave the host app running</string>
+    <string name="title_upscaling">Client-side upscaling</string>
+    <string name="upscaling_off">Off</string>
+    <string name="upscaling_bilinear">Bilinear</string>
+    <string name="upscaling_fsr1">FSR 1.0</string>
+    <string name="summary_upscaling">Upscale lower-resolution SDR streams on the GPU. FSR 1.0 uses EASU and RCAS sharpening. HDR/10-bit and PyroWave keep direct output. Sustained added latency or dropped frames switch back to direct output until reconnect. Uses more battery; timing and the current mode appear in Advanced stats.</string>
+    <string name="title_upscaling_sharpness">FSR sharpening</string>
+    <string name="summary_upscaling_sharpness" formatted="false">RCAS strength: 0% disables sharpening, 100% is maximum. Applies when the next stream starts.</string>
+    <string name="upscaling_sharpness_value">%1$d%%</string>
+    <string name="upscaling_direct">Off (direct output)</string>
+    <string name="upscaling_fallback">Upscaling: direct output. %1$s</string>
+    <string name="upscaling_hdr">HDR/10-bit keeps direct output to preserve color and precision.</string>
+    <string name="upscaling_pyrowave">PyroWave keeps its Vulkan output; upscaling requires a MediaCodec stream.</string>
+    <string name="upscaling_native">The stream already fills the output resolution; no upscaling is needed.</string>
+    <string name="upscaling_unsupported">GLES 3.0 video textures or EGL presentation timing are unavailable.</string>
+    <string name="upscaling_gpu_error">The GPU path or decoder surface failed. Direct output stays active until reconnect.</string>
+    <string name="upscaling_slow">Added processing exceeded one frame repeatedly. Direct output stays active until reconnect.</string>
+    <string name="upscaling_dropped">The GPU path dropped frames repeatedly. Direct output stays active until reconnect.</string>
+    <string name="upscaling_size_changed">The video or output size changed. Direct output stays active until reconnect.</string>
+    <string name="perf_overlay_upscaling">Upscaling: %1$s · added %2$s</string>
+    <string name="upscaling_timing_estimate">Estimate includes texture handoff, GPU completion and swap wait (1 ms polling). Display presentation timing is unavailable.</string>
+    <string name="upscaling_last_timing">Last GPU path estimate: %1$s</string>
 </resources>

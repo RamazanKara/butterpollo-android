@@ -19,6 +19,7 @@ import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
 import com.limelight.binding.video.PerformanceOverlay;
+import com.limelight.binding.video.UpscalingPolicy;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.AdaptiveBitrateController;
 import com.limelight.nvstream.PyroWaveBitrateController;
@@ -1175,7 +1176,8 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             getWindow().setAttributes(windowLayoutParams);
         }
 
-        if ((prefConfig.stretchVideo || aspectRatioMatch) && !prefConfig.useTextureView) {
+        if ((prefConfig.stretchVideo || aspectRatioMatch) && !prefConfig.useTextureView &&
+                prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF) {
             // Set the surface to the size of the video
             streamView.getHolder().setFixedSize(prefConfig.width, prefConfig.height);
         }
@@ -3598,7 +3600,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             // Update GameManager state to indicate we're "loading" while connecting
             UiHelper.notifyStreamConnecting(Game.this);
 
-            decoderRenderer.setRenderTarget(videoSurface);
+            decoderRenderer.setRenderTarget(videoSurface, streamView.getWidth(), streamView.getHeight());
             conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
                     decoderRenderer, Game.this);
         }
@@ -3702,14 +3704,16 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-        texture.setDefaultBufferSize(prefConfig.width, prefConfig.height);
+        texture.setDefaultBufferSize(prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF ? prefConfig.width : width,
+                prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF ? prefConfig.height : height);
         configureVideoSurface(new Surface(texture));
         startConnectionOnSurface();
     }
 
     @Override
     public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-        texture.setDefaultBufferSize(prefConfig.width, prefConfig.height);
+        texture.setDefaultBufferSize(prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF ? prefConfig.width : width,
+                prefConfig.upscalingMode == UpscalingPolicy.Mode.OFF ? prefConfig.height : height);
     }
 
     @Override

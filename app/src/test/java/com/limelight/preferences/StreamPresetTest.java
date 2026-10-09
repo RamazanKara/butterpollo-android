@@ -34,9 +34,11 @@ public class StreamPresetTest {
         for (StreamPreset preset : StreamPreset.values()) {
             values.put("video_format", "forceav1");
             values.put("checkbox_drop_late_frames", true);
+            values.put("upscaling_mode", "bilinear");
             preset.apply(preferences, 120);
             assertEquals(preset == StreamPreset.LOW_LATENCY ? "forceav1" : preset.codec, values.get("video_format"));
             assertEquals(preset.bitrate, values.get("seekbar_bitrate_kbps"));
+            assertEquals(preset == StreamPreset.BEST_QUALITY ? "fsr1" : "off", values.get("upscaling_mode"));
             assertEquals(preset == StreamPreset.BATTERY_SAVER ? "30" : "120", values.get("list_fps"));
             assertEquals(preset.vrr, values.get("checkbox_vrr"));
             assertEquals(preset.pacing, values.get("frame_pacing"));
@@ -98,6 +100,20 @@ public class StreamPresetTest {
         SharedPreferences preferences = preferences(values, new int[1]);
         StreamPreset.LOW_LATENCY.apply(preferences, 144);
         assertTrue(StreamPreset.LOW_LATENCY.matches(preferences, 144));
+        assertFalse(StreamPreset.LOW_LATENCY.matches(preferences, 120));
+    }
+
+    @Test
+    public void changingUpscalingMakesThePresetCustom() {
+        Map<String, Object> values = new HashMap<>();
+        SharedPreferences preferences = preferences(values, new int[1]);
+        StreamPreset.BEST_QUALITY.apply(preferences, 120);
+        assertTrue(StreamPreset.BEST_QUALITY.matches(preferences, 120));
+        values.put("upscaling_mode", "off");
+        assertFalse(StreamPreset.BEST_QUALITY.matches(preferences, 120));
+        StreamPreset.LOW_LATENCY.apply(preferences, 120);
+        assertTrue(StreamPreset.LOW_LATENCY.matches(preferences, 120));
+        values.put("upscaling_mode", "fsr1");
         assertFalse(StreamPreset.LOW_LATENCY.matches(preferences, 120));
     }
 

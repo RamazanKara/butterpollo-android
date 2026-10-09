@@ -872,3 +872,87 @@ Real-device testing still required:
   capability reporting and 4:2:0 fallback against Radeon and other hosts; verify HDR wins over SDR 4:4:4.
 - Compare host processing overlay/CSV with host logs, including absent timing, drops, reconnects and
   sustained high FPS; client render callbacks are not physical scanout measurements.
+
+
+## Client-side upscaling (2026-10-09)
+
+MediaCodec SDR can output to a zero-copy external-OES SurfaceTexture on a dedicated GLES 3.0
+thread. Bilinear draws once; FSR 1.0 runs AMD EASU into a display-sized RGBA8 texture, then RCAS
+to the existing EGL window surface. Aspect ratio, Stretch and the SurfaceTexture crop/orientation
+matrix are respected. Shaders, uniforms, textures and tracking buffers are prepared at stream
+start; the Java draw path allocates no per-frame objects and does no work without incoming frames.
+Extra GPU passes can increase battery drain and heat.
+
+The [AMD source](https://github.com/GPUOpen-Effects/FidelityFX-FSR/tree/a21ffb8f6c13233ba336352bdff293894c706575)
+is adapted to GLES FP32 with explicit OES taps instead of gather4, native high-precision
+arithmetic and finite flat-color divisions. The complete MIT notice is packaged in
+[NOTICE-FSR1.txt](../app/src/main/assets/NOTICE-FSR1.txt).
+
+Video settings offer Off (default), Bilinear and FSR 1.0. The sharpening slider previews its
+numeric value while dragging: 0% bypasses RCAS sharpening, 100% is maximum. Changes apply to the
+next stream. Per-PC profiles save both settings; old profiles inherit the global values.
+Best quality selects FSR; other presets, including Low latency and Battery saver, use Off.
+
+HDR and all negotiated 10-bit streams, including 10-bit SDR, bypass the 8-bit GPU path.
+HDR transitions and unexpected PQ/HLG or P010 output also force direct output. PyroWave retains
+its Vulkan renderer and reports that upscaling needs a MediaCodec stream. Unsupported GLES/OES
+or EGL timing, shader/codec-surface errors, and size changes use direct output with a visible
+reason. Codec recovery also leaves the GPU path to avoid retaining stale texture buffers.
+Fallback uses the existing coordinated codec restart: stop the decoder, release the
+EGL producer, then configure the original output surface. No host files are changed.
+
+Original presentation deadlines are forwarded through eglPresentationTimeANDROID; frame-rate
+votes and Android ARR / fixed-maximum VRR policy stay on the same display surface.
+Only one GPU submission is allowed in flight. Completion fences are checked without blocking,
+using a reusable callback at 1 ms while work is outstanding. Advanced stats and Copy stats show
+an exponential mean of release-to-GPU-completion/swap time, including handoff, swap blocking
+and polling delay. This is a conservative added-path estimate, **not measured scanout latency**.
+MediaCodec's intermediate-texture callback is excluded from shown FPS and presentation latency;
+these remain unavailable on the GPU path. After fallback, stats show direct output at zero
+added post-process time and retain the last GPU estimate and reason.
+
+After eight startup samples, six over-budget samples trigger fallback; samples below 75% of
+budget reduce the slow count. Three local dropped frames within 60 samples also trigger fallback.
+A stall longer than six frame intervals triggers even without completion callbacks. The budget
+uses the lower of stream rate and physical panel rate. Drops count only buffers released into
+the upscaler and skipped by texture acquisition or a busy GPU, not network loss.
+Fallback stays latched until reconnect to avoid oscillation under thermal load.
+
+JVM tests cover enable/bypass decisions, viewport geometry, hysteresis/stalls, bounded timestamp
+and drop tracking, AMD EASU golden constants, RCAS strength, shader-source contracts, legacy
+profiles and presets. NDK shader checks compile portable arithmetic as ES 3.10 with sampler2D
+in place of external OES and validate SPIR-V; this does **not** validate a phone's GLES 3.0/OES
+driver. Actual compile/link checks run at stream startup and fall back on failure.
+
+Local verification: JDK 17 / Gradle 9.7.1, `--no-daemon --max-workers=2`, all requested tasks
+passed: `:app:assembleNonRootDebug`, `:app:testNonRootDebugUnitTest` (**609 tests**, no failures,
+errors or skips) and `:app:lintNonRootDebug` (**0 errors, 212 existing warnings**, none on new
+files or added lines). A Robolectric regression also checks UI cancellation while the GPU
+startup/recovery lock is held and subsequent worker shutdown. The APK contains all four shaders
+and the complete AMD license. The shared `C:\Android\gradle` wrapper lock was read-only in the
+sandbox; verification used the installed Gradle distribution, a worktree-local Gradle/Android
+user directory and the shared dependency cache read-only. No adb, emulator or phone was used.
+
+Real-device checklist (not run here):
+
+1. Compare Off, Bilinear and FSR at 720p/1080p → native: small text, diagonal edges, fine textures,
+   motion and black/white ramps, with RCAS 0/50/100%. Check ringing, banding, range/color,
+   orientation and crop. Repeat letterboxed, stretched and portrait output. Native/larger input
+   should report direct output.
+2. Save Advanced and copied stats per mode at 60/120 FPS and higher where supported. Record added
+   milliseconds and independently measure presentation/latency with a device trace or camera.
+   GPU-path shown FPS/presentation fields must remain unavailable instead of counting decoder
+   texture callbacks as display presentation.
+3. Repeat VRR off/on with changing game cadence, both Android ARR and fixed-maximum fallback,
+   SurfaceView and optional TextureView. Check physical/render Hz, frame-rate hints, pacing,
+   judder/tearing and whether the display queue grows.
+4. Run a thermal/battery comparison for at least 20 minutes and deliberately overload the GPU.
+   Verify one visible fallback reason, released GPU resources, resumed direct output, and no
+   reactivation until reconnect. A single short spike must not repeatedly toggle renderers.
+5. Enable HDR10 and host 10-bit SDR, and compare PQ highlights, gradients and metadata against
+   Off. Both GPU modes must report direct output with the HDR/10-bit note. Toggle host HDR live.
+   Repeat with PyroWave and missing GLES/OES support; check the stated direct-output reason.
+6. Exercise disconnect/reconnect, background/resume, PiP, rotation/resize, surface destruction
+   during startup/fallback and codec recovery. Check hangs, black/stale surfaces and leaked
+   threads/buffers/EGL objects. Verify per-PC save/reset, legacy inheritance, presets, slider
+   cancellation/live value, and copied stats after fallback.

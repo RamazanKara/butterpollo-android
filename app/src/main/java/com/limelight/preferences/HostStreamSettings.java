@@ -16,6 +16,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.Toast;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -24,6 +25,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.limelight.R;
+import com.limelight.binding.video.UpscalingPolicy;
+import com.google.android.material.slider.Slider;
 import com.limelight.utils.UiHelper;
 
 public final class HostStreamSettings extends AppCompatActivity {
@@ -82,7 +85,8 @@ public final class HostStreamSettings extends AppCompatActivity {
         return new HostStreamProfile(draft.width, draft.height,
                 draft.launchRefreshRateX100 == 0 ? draft.fps * 100 : draft.launchRefreshRateX100,
                 draft.bitrate, draft.virtualDisplayScale, draft.videoFormat, draft.virtualDisplay,
-                draft.enableHdr, draft.fullRange, draft.enableYuv444, draft.vrr);
+                draft.enableHdr, draft.fullRange, draft.enableYuv444, draft.vrr,
+                draft.upscalingMode, draft.upscalingSharpness);
     }
 
     @Override
@@ -133,8 +137,28 @@ public final class HostStreamSettings extends AppCompatActivity {
                         }).setNegativeButton(android.R.string.cancel, null).show();
                 return true;
             });
+            row("upscaling", R.string.title_upscaling).setOnPreferenceClickListener(pref -> {
+                new MaterialAlertDialogBuilder(activity).setTitle(R.string.title_upscaling)
+                        .setSingleChoiceItems(R.array.upscaling_names, activity.draft.upscalingMode.ordinal(), (dialog, which) -> {
+                            activity.draft.upscalingMode = UpscalingPolicy.Mode.values()[which];
+                            updateSummaries();
+                            dialog.dismiss();
+                        }).setNeutralButton(R.string.help, (dialog, which) ->
+                                new MaterialAlertDialogBuilder(activity).setTitle(R.string.title_upscaling)
+                                        .setMessage(R.string.summary_upscaling).setPositiveButton(android.R.string.ok, null).show())
+                        .setNegativeButton(android.R.string.cancel, null).show();
+                return true;
+            });
+            row("sharpness", R.string.title_upscaling_sharpness).setOnPreferenceClickListener(pref -> {
+                showSharpness();
+                return true;
+            });
             toggle("hdr", R.string.title_enable_hdr, R.string.summary_enable_hdr, activity.draft.enableHdr)
-                    .setOnPreferenceChangeListener((pref, value) -> { activity.draft.enableHdr = (Boolean) value; return true; });
+                    .setOnPreferenceChangeListener((pref, value) -> {
+                        activity.draft.enableHdr = (Boolean) value;
+                        updateSummaries();
+                        return true;
+                    });
             toggle("vrr", R.string.title_vrr, R.string.summary_vrr, activity.draft.vrr)
                     .setOnPreferenceChangeListener((pref, value) -> { activity.draft.vrr = (Boolean) value; return true; });
             toggle("virtual", R.string.title_virtual_display, R.string.summary_virtual_display, activity.draft.virtualDisplay)
@@ -195,6 +219,16 @@ public final class HostStreamSettings extends AppCompatActivity {
                     draft.launchRefreshRateX100 == 0 ? draft.fps * 100 : draft.launchRefreshRateX100) + " Hz");
             findPreference("bitrate").setSummary(HostStreamProfile.formatBitrateMbps(draft.bitrate) + " Mbps");
             findPreference("codec").setSummary(getResources().getStringArray(R.array.host_profile_codecs)[draft.videoFormat.ordinal()]);
+            String upscaling = getResources().getStringArray(R.array.upscaling_names)[draft.upscalingMode.ordinal()];
+            if (draft.upscalingMode != UpscalingPolicy.Mode.OFF) {
+                if (draft.enableHdr) upscaling += "\n" + getString(R.string.upscaling_hdr);
+                else if (draft.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
+                    upscaling += "\n" + getString(R.string.upscaling_pyrowave);
+                }
+            }
+            findPreference("upscaling").setSummary(upscaling);
+            findPreference("sharpness").setSummary(getString(R.string.upscaling_sharpness_value, draft.upscalingSharpness));
+            findPreference("sharpness").setEnabled(draft.upscalingMode == UpscalingPolicy.Mode.FSR1);
             findPreference("scale").setSummary(draft.virtualDisplayScale + "%");
             findPreference("scale").setEnabled(draft.virtualDisplay);
             ((MaterialSwitchPreference) findPreference("hdr")).setChecked(draft.enableHdr);
@@ -226,6 +260,28 @@ public final class HostStreamSettings extends AppCompatActivity {
             container.addView(field);
             form.addView(container);
             return field;
+        }
+
+        private void showSharpness() {
+            LinearLayout form = form();
+            TextView value = new TextView(activity);
+            value.setText(getString(R.string.upscaling_sharpness_value, activity.draft.upscalingSharpness));
+            value.setTextSize(24);
+            form.addView(value);
+            Slider slider = new Slider(activity);
+            slider.setContentDescription(getString(R.string.title_upscaling_sharpness));
+            slider.setValueFrom(0);
+            slider.setValueTo(100);
+            slider.setStepSize(1);
+            slider.setValue(activity.draft.upscalingSharpness);
+            slider.addOnChangeListener((view, strength, fromUser) ->
+                    value.setText(getString(R.string.upscaling_sharpness_value, Math.round(strength))));
+            form.addView(slider);
+            new MaterialAlertDialogBuilder(activity).setTitle(R.string.title_upscaling_sharpness).setView(form)
+                    .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                        activity.draft.upscalingSharpness = Math.round(slider.getValue());
+                        updateSummaries();
+                    }).setNegativeButton(android.R.string.cancel, null).show();
         }
 
         private void showResolution() {

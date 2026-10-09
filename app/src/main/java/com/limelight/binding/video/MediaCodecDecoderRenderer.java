@@ -36,6 +36,7 @@ import android.media.MediaCodec.CodecException;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Range;
@@ -73,6 +74,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int initialWidth, initialHeight;
     private int videoFormat;
     private Surface renderTarget;
+    private int renderWidth, renderHeight;
+    private volatile GlesUpscaler upscaler;
+    private volatile UpscalingPolicy upscalingPolicy;
     private volatile boolean stopping;
     private CrashListener crashListener;
     private boolean reportedCrash;
@@ -397,8 +401,130 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return decoderInfo;
     }
 
-    public void setRenderTarget(Surface renderTarget) {
+    public void setRenderTarget(Surface renderTarget, int width, int height) {
         this.renderTarget = renderTarget;
+        renderWidth = width;
+        renderHeight = height;
+    }
+
+    private void setupUpscaling() {
+        Display display = activity.getWindowManager().getDefaultDisplay();
+        float panelHz = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                display.getMode().getRefreshRate() : display.getRefreshRate();
+        upscalingPolicy = new UpscalingPolicy(Math.max(1, Math.min(refreshRate, Math.round(panelHz))));
+        if (prefs.upscalingMode == UpscalingPolicy.Mode.OFF) {
+            upscalingPolicy.fail(UpscalingPolicy.Reason.DISABLED);
+            return;
+        }
+        int[] viewport = UpscalingPolicy.viewport(initialWidth, initialHeight, renderWidth, renderHeight, prefs.stretchVideo);
+        UpscalingPolicy.Reason reason = UpscalingPolicy.unavailableReason(prefs.upscalingMode,
+                initialWidth, initialHeight, viewport[2], viewport[3],
+                Boolean.TRUE.equals(currentHdrMode) || (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0,
+                (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0, true);
+        upscalingPolicy.fail(reason);
+        if (reason == UpscalingPolicy.Reason.NONE) {
+            upscaler = new GlesUpscaler(context, renderTarget, prefs.upscalingMode, initialWidth, initialHeight,
+                    prefs.stretchVideo, prefs.upscalingSharpness, upscalingPolicy);
+            if (upscalingPolicy.getReason() != UpscalingPolicy.Reason.NONE) closeUpscaler();
+        } else {
+            notifyUpscalingFallback();
+        }
+    }
+
+    private void closeUpscaler() {
+        if (upscaler != null) {
+            upscaler.close();
+            upscaler = null;
+            notifyUpscalingFallback();
+        }
+    }
+
+    private void notifyUpscalingFallback() {
+        UpscalingPolicy.Reason reason = upscalingPolicy.getReason();
+        if (reason != UpscalingPolicy.Reason.NONE && reason != UpscalingPolicy.Reason.DISABLED &&
+                reason != UpscalingPolicy.Reason.NO_UPSCALE) {
+            String message = context.getString(R.string.upscaling_fallback, upscalingReason(reason));
+            LimeLog.info(message);
+            activity.runOnUiThread(() -> {
+                if (!stopping) Toast.makeText(context, message, Toast.LENGTH_LONG).show();
+            });
+        }
+    }
+
+    private String upscalingReason(UpscalingPolicy.Reason reason) {
+        switch (reason) {
+            case HDR: return context.getString(R.string.upscaling_hdr);
+            case PYROWAVE: return context.getString(R.string.upscaling_pyrowave);
+            case NO_UPSCALE: return context.getString(R.string.upscaling_native);
+            case UNSUPPORTED: return context.getString(R.string.upscaling_unsupported);
+            case GPU_ERROR: return context.getString(R.string.upscaling_gpu_error);
+            case SLOW: return context.getString(R.string.upscaling_slow);
+            case DROPPED: return context.getString(R.string.upscaling_dropped);
+            case SIZE_CHANGED: return context.getString(R.string.upscaling_size_changed);
+            default: return "";
+        }
+    }
+
+    private String upscalingStats() {
+        boolean active = upscaler != null;
+        String mode = active ? context.getResources().getStringArray(R.array.upscaling_names)[prefs.upscalingMode.ordinal()] :
+                context.getString(R.string.upscaling_direct);
+        float addedMs = upscalingPolicy == null ? -1 : upscalingPolicy.getAddedMs();
+        String text = context.getString(R.string.perf_overlay_upscaling, mode, metric(active ? addedMs : 0, " ms"));
+        if (active) text += '\n' + context.getString(R.string.upscaling_timing_estimate);
+        else if (addedMs >= 0) text += '\n' + context.getString(R.string.upscaling_last_timing, metric(addedMs, " ms"));
+        if (upscalingPolicy != null) {
+            String reason = upscalingReason(upscalingPolicy.getReason());
+            if (!reason.isEmpty()) text += '\n' + reason;
+        }
+        return text;
+    }
+
+    private void checkUpscaling() {
+        GlesUpscaler current = upscaler;
+        if (current == null || stopping) return;
+        current.checkHealth();
+        if (upscalingPolicy.getReason() != UpscalingPolicy.Reason.NONE) {
+            synchronized (codecRecoveryMonitor) {
+                if (stopping) return;
+                codecRecoveryAttempts = 0;
+                if (!codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESTART)) {
+                    codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+                }
+            }
+        }
+    }
+
+    private void releaseOutputFrame(int index, long presentationTimeNs) {
+        GlesUpscaler current = upscaler;
+        if (current != null && upscalingPolicy.getReason() != UpscalingPolicy.Reason.NONE) {
+            videoDecoder.releaseOutputBuffer(index, false);
+        } else {
+            videoDecoder.releaseOutputBuffer(index, current == null ? presentationTimeNs : current.releaseFrame(presentationTimeNs));
+        }
+    }
+
+    private void checkUpscalingOutputFormat() {
+        if (upscaler == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && outputFormat.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
+            int transfer = outputFormat.getInteger(MediaFormat.KEY_COLOR_TRANSFER);
+            if (transfer == MediaFormat.COLOR_TRANSFER_ST2084 || transfer == MediaFormat.COLOR_TRANSFER_HLG) {
+                upscalingPolicy.fail(UpscalingPolicy.Reason.HDR);
+            }
+        }
+        if (outputFormat.containsKey(MediaFormat.KEY_COLOR_FORMAT) &&
+                outputFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT) == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010) {
+            upscalingPolicy.fail(UpscalingPolicy.Reason.HDR);
+        }
+        int width = outputFormat.getInteger(MediaFormat.KEY_WIDTH);
+        int height = outputFormat.getInteger(MediaFormat.KEY_HEIGHT);
+        if (outputFormat.containsKey("crop-right") && outputFormat.containsKey("crop-left")) {
+            width = outputFormat.getInteger("crop-right") - outputFormat.getInteger("crop-left") + 1;
+        }
+        if (outputFormat.containsKey("crop-bottom") && outputFormat.containsKey("crop-top")) {
+            height = outputFormat.getInteger("crop-bottom") - outputFormat.getInteger("crop-top") + 1;
+        }
+        if (width != initialWidth || height != initialHeight) upscalingPolicy.fail(UpscalingPolicy.Reason.SIZE_CHANGED);
     }
 
     public MediaCodecDecoderRenderer(Activity activity, PreferenceConfiguration prefs,
@@ -720,7 +846,23 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         LimeLog.info("Configuring with format: "+format);
 
-        videoDecoder.configure(format, renderTarget, null, 0);
+        if (upscaler != null) {
+            if (Boolean.TRUE.equals(currentHdrMode)) upscalingPolicy.fail(UpscalingPolicy.Reason.HDR);
+            if (upscalingPolicy.getReason() != UpscalingPolicy.Reason.NONE) closeUpscaler();
+        }
+        try {
+            videoDecoder.configure(format, upscaler == null ? renderTarget : upscaler.getInputSurface(), null, 0);
+            videoDecoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            videoDecoder.start();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            if (upscaler == null) throw e;
+            LimeLog.warning("Decoder rejected upscaling surface: " + e);
+            upscalingPolicy.fail(UpscalingPolicy.Reason.GPU_ERROR);
+            videoDecoder.reset();
+            closeUpscaler();
+            configureAndStartDecoder(format);
+            return;
+        }
 
         configuredFormat = format;
 
@@ -730,10 +872,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         spsBuffers.clear();
         ppsBuffers.clear();
 
-        videoDecoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT);
-
-        // Start the decoder
-        videoDecoder.start();
         setFrameRenderedListener();
 
         // Vendor parameters are applied at start; only echoed values confirm acceptance.
@@ -891,7 +1029,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private void setFrameRenderedListener() {
-        if (latencyHandler != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        // MediaCodec's callback on the GPU path refers to the intermediate texture, not the display.
+        if (upscaler == null && latencyHandler != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             videoDecoder.setOnFrameRenderedListener(new MediaCodec.OnFrameRenderedListener() {
                 @Override
                 public void onFrameRendered(MediaCodec mediaCodec, long presentationTimeUs, long renderTimeNanos) {
@@ -915,6 +1054,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             this.refreshRate = redrawRate;
 
             if ((format & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                setupUpscaling();
                 result = pyroWaveRenderer.getFormat() == format ? 0 : -1;
                 if (result == 0 && currentHdrMode != null) {
                     pyroWaveRenderer.setHdrMode(currentHdrMode, currentHdrMetadata);
@@ -923,6 +1063,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             } else {
                 // RTSP may reject an incompatible PyroWave bitstream after surface preparation.
                 pyroWaveRenderer.cleanup();
+                setupUpscaling();
                 result = initializeDecoder(false);
             }
         }
@@ -999,6 +1140,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
             // This is the final thread to quiesce, so let's perform the codec recovery now.
             if (codecRecoveryThreadQuiescedFlags == CR_FLAG_ALL) {
+                if (upscaler != null) {
+                    // A flush can strand frames in the texture queue. Restart onto direct output.
+                    upscalingPolicy.fail(UpscalingPolicy.Reason.GPU_ERROR);
+                    codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+                }
                 // Input and output buffers are invalidated by stop() and reset().
                 nextInputBuffer = null;
                 nextInputBufferIndex = -1;
@@ -1289,8 +1435,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             if (nextOutputBuffer != null) {
                 try {
                     frameLatencyStats.onOutputReleased(nextOutputBuffer, System.nanoTime(), true,
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
-                    videoDecoder.releaseOutputBuffer(nextOutputBuffer, frameTimeNanos);
+                            upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+                    releaseOutputFrame(nextOutputBuffer, frameTimeNanos);
 
                     lastRenderedFrameTimeNanos = frameTimeNanos;
                     activeWindowVideoStats.totalFramesRendered++;
@@ -1363,7 +1509,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     while ((outIndex = videoDecoder.dequeueOutputBuffer(info, 0)) >= 0) {
                                         frameLatencyStats.onDecoderOutput(outIndex, info.presentationTimeUs, System.nanoTime());
                                         frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), false,
-                                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+                                                upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                         videoDecoder.releaseOutputBuffer(lastIndex, false);
                                         performanceHints.reportWorkDuration(System.nanoTime() - workStartNs, refreshRate);
                                         workStartNs = System.nanoTime();
@@ -1374,17 +1520,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     }
 
                                     frameLatencyStats.onOutputReleased(lastIndex, System.nanoTime(), true,
-                                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+                                            upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                     if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS ||
                                             prefs.framePacing == PreferenceConfiguration.FRAME_PACING_CAP_FPS) {
                                         // In max smoothness or cap FPS mode, we want to never drop frames
                                         // Use a PTS that will cause this frame to never be dropped
-                                        videoDecoder.releaseOutputBuffer(lastIndex, 0);
+                                        releaseOutputFrame(lastIndex, 0);
                                     }
                                     else {
                                         // Use a PTS that will cause this frame to be dropped if another comes in within
                                         // the same V-sync period
-                                        videoDecoder.releaseOutputBuffer(lastIndex,
+                                        releaseOutputFrame(lastIndex,
                                                 prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY && prefs.codecLowLatency ?
                                                         nextVsyncTimeNs() : System.nanoTime());
                                     }
@@ -1405,7 +1551,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                         Integer droppedIndex = outputBufferQueue.poll();
                                         if (droppedIndex != null) {
                                             frameLatencyStats.onOutputReleased(droppedIndex, System.nanoTime(), false,
-                                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
+                                                    upscaler == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
                                             videoDecoder.releaseOutputBuffer(droppedIndex, false);
                                         }
                                     }
@@ -1421,6 +1567,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                         LimeLog.info("Output format changed");
                                         outputFormat = videoDecoder.getOutputFormat();
                                         LimeLog.info("New output format: " + outputFormat);
+                                        checkUpscalingOutputFormat();
                                         break;
                                     default:
                                         break;
@@ -1432,6 +1579,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             if (workStartNs != 0) {
                                 performanceHints.reportWorkDuration(System.nanoTime() - workStartNs, refreshRate);
                             }
+                            checkUpscaling();
                             doCodecRecoveryIfRequired(CR_FLAG_RENDER_THREAD);
                         }
                     }
@@ -1523,6 +1671,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public void prepareForStop() {
         // Let the decoding code know to ignore codec exceptions now
         stopping = true;
+        if (prefs.upscalingMode != UpscalingPolicy.Mode.OFF && Looper.myLooper() == Looper.getMainLooper()) {
+            // stop() repeats this on the shutdown worker, away from EGL startup/recovery on the UI.
+            return;
+        }
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             // Vulkan teardown and HDR transitions may wait on the GPU; keep the UI off that lock.
             return;
@@ -1595,6 +1747,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             videoDecoder.release();
             videoDecoder = null;
         }
+        closeUpscaler();
         if (latencyHandler != null) {
             latencyHandler.post(new Runnable() {
                 @Override
@@ -1646,6 +1799,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 boolean previousMode = currentHdrMode != null ? currentHdrMode :
                         (getActiveVideoFormat() & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0;
                 currentHdrMode = enabled;
+                if (enabled && upscaler != null) upscalingPolicy.fail(UpscalingPolicy.Reason.HDR);
                 if (previousMode == enabled && Arrays.equals(currentHdrMetadata, metadata)) {
                     return;
                 }
@@ -1807,6 +1961,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
                             this.decodeTimeMs, gpuUs));
                 }
+                decode.append('\n').append(upscalingStats());
                 decode.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(video.toString(), network, decode.toString(),
                         PerformanceOverlay.compactText(context, frameRates[2], (int)(rttInfo >> 32),

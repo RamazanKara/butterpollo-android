@@ -555,6 +555,19 @@ public class StreamSettings extends AppCompatActivity {
                 } else {
                     continue;
                 }
+                if (PreferenceConfiguration.UPSCALING_SHARPNESS_PREF_STRING.equals(pref.getKey())) {
+                    pref.setEnabled("fsr1".equals(getPreferenceManager().getSharedPreferences()
+                            .getString(PreferenceConfiguration.UPSCALING_PREF_STRING, "off")));
+                }
+                if (PreferenceConfiguration.UPSCALING_PREF_STRING.equals(pref.getKey()) &&
+                        !"off".equals(((ListPreference) pref).getValue())) {
+                    SharedPreferences settings = getPreferenceManager().getSharedPreferences();
+                    if (settings.getBoolean("checkbox_enable_hdr", false)) {
+                        value = value + "\n" + getString(R.string.upscaling_hdr);
+                    } else if ("forcepyrowave".equals(settings.getString("video_format", "auto"))) {
+                        value = value + "\n" + getString(R.string.upscaling_pyrowave);
+                    }
+                }
                 if (value != null) {
                     pref.setSummary(pref instanceof ListPreference ? value.toString().replace("%", "%%") : value);
                 }

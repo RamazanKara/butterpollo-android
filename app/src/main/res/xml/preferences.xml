@@ -37,6 +37,22 @@
             android:entryValues="@array/video_format_values"
             android:summary="@string/summary_video_format"
             android:defaultValue="auto" />
+        <com.limelight.preferences.MaterialListPreference
+            android:key="upscaling_mode"
+            android:title="@string/title_upscaling"
+            android:summary="@string/summary_upscaling"
+            android:entries="@array/upscaling_names"
+            android:entryValues="@array/upscaling_values"
+            android:defaultValue="off" />
+        <com.limelight.preferences.SeekBarPreference
+            android:key="upscaling_sharpness"
+            android:title="@string/title_upscaling_sharpness"
+            android:dialogMessage="@string/summary_upscaling_sharpness"
+            android:defaultValue="50"
+            seekbar:min="0"
+            android:max="100"
+            seekbar:step="1"
+            android:text="%" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_enable_hdr"
             android:title="@string/title_enable_hdr"

@@ -1,6 +1,7 @@
 package com.limelight.preferences;
 
 import org.junit.Test;
+import com.limelight.binding.video.UpscalingPolicy;
 
 import static org.junit.Assert.*;
 
@@ -21,6 +22,41 @@ public class HostStreamProfileTest {
         enabled.applyTo(config);
         assertTrue(config.vrr);
         assertEquals(legacy + ",true", enabled.serialize());
+    }
+
+    @Test
+    public void oldProfilesInheritUpscalingAndNewProfilesOverrideBothControls() {
+        String legacy = "1920,1080,5994,45500,100,AUTO,false,false,false,false,true";
+        PreferenceConfiguration config = new PreferenceConfiguration();
+        assertEquals(UpscalingPolicy.Mode.OFF, config.upscalingMode);
+        assertEquals(50, config.upscalingSharpness);
+        config.upscalingMode = UpscalingPolicy.Mode.FSR1;
+        config.upscalingSharpness = 70;
+        HostStreamProfile.deserialize(legacy).applyTo(config);
+        assertEquals(UpscalingPolicy.Mode.FSR1, config.upscalingMode);
+        assertEquals(70, config.upscalingSharpness);
+        for (UpscalingPolicy.Mode mode : UpscalingPolicy.Mode.values()) {
+            for (int sharpness : new int[] {0, 50, 100}) {
+                String value = legacy + "," + mode.name() + "," + sharpness;
+                HostStreamProfile restored = HostStreamProfile.deserialize(value);
+                assertEquals(value, restored.serialize());
+                restored.applyTo(config);
+                assertEquals(mode, config.upscalingMode);
+                assertEquals(sharpness, config.upscalingSharpness);
+                assertTrue(config.vrr);
+            }
+        }
+    }
+
+    @Test
+    public void invalidUpscalingProfilesAreRejectedAndNullableLegacyVrrIsPreserved() {
+        String prefix = "1280,720,6000,10000,100,AUTO,false,false,false,false,";
+        HostStreamProfile inheritedVrr = HostStreamProfile.deserialize(prefix + ",FSR1,50");
+        assertNull(inheritedVrr.vrr);
+        assertEquals(prefix + ",FSR1,50", inheritedVrr.serialize());
+        for (String suffix : new String[] {"true,FSR1,-1", "true,FSR1,101", "true,FSR1", "true,unknown,50"}) {
+            assertThrows(IllegalArgumentException.class, () -> HostStreamProfile.deserialize(prefix + suffix));
+        }
     }
 
     @Test

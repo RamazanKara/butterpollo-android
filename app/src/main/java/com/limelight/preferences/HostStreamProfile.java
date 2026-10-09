@@ -1,6 +1,7 @@
 package com.limelight.preferences;
 
 import android.content.Context;
+import com.limelight.binding.video.UpscalingPolicy;
 
 import java.math.BigDecimal;
 
@@ -14,6 +15,8 @@ public final class HostStreamProfile {
     public final boolean virtualDisplay, hdr, fullRange, yuv444;
     // Older profiles inherit VRR from the global settings.
     public final Boolean vrr;
+    public final UpscalingPolicy.Mode upscalingMode;
+    public final Integer upscalingSharpness;
 
     public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
                              PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
@@ -24,6 +27,14 @@ public final class HostStreamProfile {
     public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
                              PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
                              boolean hdr, boolean fullRange, boolean yuv444, Boolean vrr) {
+        this(width, height, refreshRateX100, bitrate, renderScale, codec, virtualDisplay, hdr, fullRange, yuv444,
+                vrr, null, null);
+    }
+
+    public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
+                             PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
+                             boolean hdr, boolean fullRange, boolean yuv444, Boolean vrr,
+                             UpscalingPolicy.Mode upscalingMode, Integer upscalingSharpness) {
         requireRange(width, 64, 16384);
         requireRange(height, 64, 16384);
         requireRange(refreshRateX100, 100, 100000);
@@ -40,6 +51,12 @@ public final class HostStreamProfile {
         this.fullRange = fullRange;
         this.yuv444 = yuv444;
         this.vrr = vrr;
+        if ((upscalingMode == null) != (upscalingSharpness == null)) {
+            throw new IllegalArgumentException("Incomplete upscaling profile");
+        }
+        if (upscalingSharpness != null) requireRange(upscalingSharpness, 0, 100);
+        this.upscalingMode = upscalingMode;
+        this.upscalingSharpness = upscalingSharpness;
     }
 
     static int requireRange(int value, int min, int max) {
@@ -91,6 +108,10 @@ public final class HostStreamProfile {
         if (vrr != null) {
             config.vrr = vrr;
         }
+        if (upscalingMode != null) {
+            config.upscalingMode = upscalingMode;
+            config.upscalingSharpness = upscalingSharpness;
+        }
         if (hdr || codec == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
             config.useTextureView = false;
         }
@@ -99,12 +120,13 @@ public final class HostStreamProfile {
     String serialize() {
         return width + "," + height + "," + refreshRateX100 + "," + bitrate + "," + renderScale +
                 "," + codec.name() + "," + virtualDisplay + "," + hdr + "," + fullRange + "," + yuv444 +
-                (vrr == null ? "" : "," + vrr);
+                (upscalingMode == null ? (vrr == null ? "" : "," + vrr) :
+                        "," + (vrr == null ? "" : vrr) + "," + upscalingMode.name() + "," + upscalingSharpness);
     }
 
     static HostStreamProfile deserialize(String value) {
         String[] fields = value.split(",", -1);
-        if (fields.length != 10 && fields.length != 11) {
+        if (fields.length != 10 && fields.length != 11 && fields.length != 13) {
             throw new IllegalArgumentException("Invalid host profile");
         }
         return new HostStreamProfile(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]),
@@ -112,7 +134,9 @@ public final class HostStreamProfile {
                 PreferenceConfiguration.FormatOption.valueOf(fields[5]),
                 Boolean.parseBoolean(fields[6]), Boolean.parseBoolean(fields[7]),
                 Boolean.parseBoolean(fields[8]), Boolean.parseBoolean(fields[9]),
-                fields.length == 11 ? Boolean.parseBoolean(fields[10]) : null);
+                fields.length >= 11 && !fields[10].isEmpty() ? Boolean.parseBoolean(fields[10]) : null,
+                fields.length == 13 ? UpscalingPolicy.Mode.valueOf(fields[11]) : null,
+                fields.length == 13 ? Integer.parseInt(fields[12]) : null);
     }
 
     static HostStreamProfile load(Context context, String hostUuid) {

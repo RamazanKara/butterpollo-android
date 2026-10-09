@@ -8,6 +8,7 @@ import android.preference.PreferenceManager;
 import android.view.Display;
 
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.binding.video.UpscalingPolicy;
 
 public class PreferenceConfiguration {
     public enum FormatOption {
@@ -84,6 +85,8 @@ public class PreferenceConfiguration {
     private static final String VIRTUAL_DISPLAY_SCALE_PREF_STRING = "seekbar_virtual_display_scale";
     private static final String YUV444_PREF_STRING = "checkbox_yuv444";
     private static final String VRR_PREF_STRING = "checkbox_vrr";
+    static final String UPSCALING_PREF_STRING = "upscaling_mode";
+    static final String UPSCALING_SHARPNESS_PREF_STRING = "upscaling_sharpness";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -180,6 +183,8 @@ public class PreferenceConfiguration {
     public boolean dropLateFrames, useTextureView, unbatchedInput, networkPriority;
     public boolean virtualDisplay, enableYuv444, vrr;
     public int virtualDisplayScale;
+    public UpscalingPolicy.Mode upscalingMode = UpscalingPolicy.Mode.OFF;
+    public int upscalingSharpness = 50;
 
     public static boolean isNativeResolution(int width, int height) {
         // It's not a native resolution if it matches an existing resolution option
@@ -671,6 +676,8 @@ public class PreferenceConfiguration {
         config.virtualDisplayScale = Math.max(50, Math.min(200, prefs.getInt(VIRTUAL_DISPLAY_SCALE_PREF_STRING, 100)));
         config.enableYuv444 = prefs.getBoolean(YUV444_PREF_STRING, false);
         config.vrr = prefs.getBoolean(VRR_PREF_STRING, false);
+        config.upscalingMode = UpscalingPolicy.Mode.fromPreference(prefs.getString(UPSCALING_PREF_STRING, "off"));
+        config.upscalingSharpness = Math.max(0, Math.min(100, prefs.getInt(UPSCALING_SHARPNESS_PREF_STRING, 50)));
         if (config.vrr) {
             // VRR streams arrive at the game's own cadence: show each frame as soon as it is
             // decoded; Game votes for ARR where supported, or the highest refresh rate otherwise.

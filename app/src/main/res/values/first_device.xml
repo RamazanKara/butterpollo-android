@@ -12,7 +12,7 @@
     <string name="stream_restore_help">The previous stream was interrupted. Open your PC and resume the game to reconnect.</string>
     <string name="stream_presets">Presets</string>
     <string name="stream_presets_summary">Apply Balanced, Low latency, Best quality or Battery saver settings.</string>
-    <string name="stream_presets_help">Sets bitrate, frame rate, variable refresh and frame pacing together. Low latency keeps your codec; Auto prefers low-latency AV1, then HEVC, then H.264. Except Battery saver, presets use the screen’s maximum refresh rate (up to 1000 FPS). Per-PC video profiles override global video values; VRR always requests the screen’s maximum rate. Resolution and HDR stay as you set them.</string>
+    <string name="stream_presets_help">Sets bitrate, frame rate, variable refresh and frame pacing together. Best quality enables FSR 1.0 upscaling; other presets keep it Off. Low latency keeps your codec; Auto prefers low-latency AV1, then HEVC, then H.264. Except Battery saver, presets use the screen’s maximum refresh rate (up to 1000 FPS). Per-PC video profiles override global video values; VRR always requests the screen’s maximum rate. Resolution and HDR stay as you set them.</string>
     <string name="stream_preset_applied">Preset applied. Per-PC video profiles still take priority.</string>
     <string-array name="stream_preset_descriptions">
         <item>Balanced · Auto codec, 15 Mbps, screen maximum FPS, VRR off, balanced pacing</item>

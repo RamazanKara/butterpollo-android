@@ -33,6 +33,8 @@ public enum StreamPreset {
                 Integer.toString(fps(panelMaxHz)).equals(preferences.getString("list_fps", "60")) &&
                 preferences.getBoolean("checkbox_vrr", false) == vrr &&
                 pacing.equals(preferences.getString("frame_pacing", "latency")) &&
+                (this == BEST_QUALITY ? "fsr1" : "off").equals(preferences.getString(
+                        PreferenceConfiguration.UPSCALING_PREF_STRING, "off")) &&
                 !preferences.getBoolean("checkbox_drop_late_frames", false) &&
                 preferences.getBoolean("checkbox_reduce_refresh_rate", false) == (this == BATTERY_SAVER) &&
                 preferences.getBoolean("checkbox_codec_performance", true) == (this != BATTERY_SAVER) &&
@@ -48,6 +50,7 @@ public enum StreamPreset {
                 .putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrate)
                 .putString(PreferenceConfiguration.FPS_PREF_STRING, Integer.toString(fps(panelMaxHz)))
                 .putBoolean("checkbox_vrr", vrr)
+                .putString(PreferenceConfiguration.UPSCALING_PREF_STRING, this == BEST_QUALITY ? "fsr1" : "off")
                 .putString(PreferenceConfiguration.FRAME_PACING_PREF_STRING, pacing)
                 .putBoolean("checkbox_drop_late_frames", false)
                 .putBoolean("checkbox_reduce_refresh_rate", this == BATTERY_SAVER)
