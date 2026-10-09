@@ -60,7 +60,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     private String lastRawApplist;
     private int lastRunningAppId;
     private boolean suspendGridUpdates;
-    private boolean inForeground;
+    private volatile boolean inForeground;
     private boolean showHiddenApps;
     private HashSet<Integer> hiddenAppIds = new HashSet<>();
 
@@ -78,18 +78,22 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
     public final static String NEW_PAIR_EXTRA = "NewPair";
     public final static String SHOW_HIDDEN_APPS_EXTRA = "ShowHiddenApps";
 
-    private ComputerManagerService.ComputerManagerBinder managerBinder;
+    private volatile ComputerManagerService.ComputerManagerBinder managerBinder;
+    private boolean managerServiceBound;
+    private Thread serviceWaitThread;
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
             final ComputerManagerService.ComputerManagerBinder localBinder =
                     ((ComputerManagerService.ComputerManagerBinder)binder);
 
             // Wait in a separate thread to avoid stalling the UI
-            new Thread() {
+            serviceWaitThread = new Thread() {
                 @Override
                 public void run() {
                     // Wait for the binder to be ready
-                    localBinder.waitForReady();
+                    if (!localBinder.waitForReady() || isFinishing() || isDestroyed()) {
+                        return;
+                    }
 
                     // Get the computer object
                     computer = localBinder.getComputer(uuidString);
@@ -102,8 +106,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     shortcutHelper.createAppViewShortcut(computer, true, getIntent().getBooleanExtra(NEW_PAIR_EXTRA, false));
                     shortcutHelper.reportComputerShortcutUsed(computer);
 
+                    final AppGridAdapter adapter;
                     try {
-                        appGridAdapter = new AppGridAdapter(AppView.this,
+                        adapter = new AppGridAdapter(AppView.this,
                                 PreferenceConfiguration.readPreferences(AppView.this),
                                 computer, localBinder.getUniqueId(),
                                 showHiddenApps);
@@ -113,27 +118,20 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                         return;
                     }
 
-                    appGridAdapter.updateHiddenApps(hiddenAppIds, true);
-
-                    // Now make the binder visible. We must do this after appGridAdapter
-                    // is set to prevent us from reaching updateUiWithServerinfo() and
-                    // touching the appGridAdapter prior to initialization.
-                    managerBinder = localBinder;
-
-                    // Load the app grid with cached data (if possible).
-                    // This must be done _before_ startComputerUpdates()
-                    // so the initial serverinfo response can update the running
-                    // icon.
-                    populateAppGridWithCache();
-
-                    // Start updates
-                    startComputerUpdates();
-
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if (isFinishing() || isChangingConfigurations()) {
+                            if (!managerServiceBound || isFinishing() || isDestroyed()) {
+                                adapter.cancelQueuedOperations();
                                 return;
+                            }
+                            appGridAdapter = adapter;
+                            appGridAdapter.updateHiddenApps(hiddenAppIds, true);
+                            managerBinder = localBinder;
+                            populateAppGridWithCache();
+                            startComputerUpdates();
+                            if (!inForeground) {
+                                appGridAdapter.cancelQueuedOperations();
                             }
 
                             // Despite my best efforts to catch all conditions that could
@@ -149,7 +147,8 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                         }
                     });
                 }
-            }.start();
+            };
+            serviceWaitThread.start();
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -188,7 +187,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             @Override
             public void notifyComputerUpdated(final ComputerDetails details) {
                 // Do nothing if updates are suspended
-                if (suspendGridUpdates) {
+                if (suspendGridUpdates || !inForeground || isFinishing() || isDestroyed()) {
                     return;
                 }
 
@@ -202,6 +201,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     AppView.this.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            if (!inForeground || isFinishing() || isDestroyed()) {
+                                return;
+                            }
                             // Display a toast to the user and quit the activity
                             Toast.makeText(AppView.this, getResources().getText(R.string.lost_connection), Toast.LENGTH_SHORT).show();
                             finish();
@@ -216,6 +218,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
                     AppView.this.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            if (!inForeground || isFinishing() || isDestroyed()) {
+                                return;
+                            }
                             // Disable shortcuts referencing this PC for now
                             shortcutHelper.disableComputerShortcut(details,
                                     getResources().getString(R.string.scut_not_paired));
@@ -303,6 +308,10 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
 
         showHiddenApps = getIntent().getBooleanExtra(SHOW_HIDDEN_APPS_EXTRA, false);
         uuidString = getIntent().getStringExtra(UUID_EXTRA);
+        if (uuidString == null || uuidString.isEmpty()) {
+            finish();
+            return;
+        }
 
         SharedPreferences hiddenAppsPrefs = getSharedPreferences(HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE);
         for (String hiddenAppIdStr : hiddenAppsPrefs.getStringSet(uuidString, new HashSet<String>())) {
@@ -316,7 +325,7 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         label.setText(computerName);
 
         // Bind to the computer manager service
-        bindService(new Intent(this, ComputerManagerService.class), serviceConnection,
+        managerServiceBound = bindService(new Intent(this, ComputerManagerService.class), serviceConnection,
                 Service.BIND_AUTO_CREATE);
     }
 
@@ -363,11 +372,16 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         super.onDestroy();
 
         SpinnerDialog.closeDialogs(this);
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(AppView.this);
 
-        if (managerBinder != null) {
-            unbindService(serviceConnection);
+        if (serviceWaitThread != null) {
+            serviceWaitThread.interrupt();
         }
+        if (managerServiceBound) {
+            unbindService(serviceConnection);
+            managerServiceBound = false;
+        }
+        managerBinder = null;
     }
 
     @Override
@@ -514,6 +528,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         AppView.this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
                 boolean updated = false;
 
                     // Look through our current app list to tag the running app
@@ -552,6 +569,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         AppView.this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
                 boolean updated = false;
 
                 // First handle app updates and additions

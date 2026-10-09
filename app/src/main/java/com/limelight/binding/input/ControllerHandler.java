@@ -26,7 +26,6 @@ import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
-import android.util.SparseArray;
 import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.KeyEvent;
@@ -53,6 +52,7 @@ import org.cgutman.shieldcontrollerextensions.SceManager;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ControllerHandler implements InputManager.InputDeviceListener, UsbDriverListener {
 
@@ -108,8 +108,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     private final Vector2d inputVector = new Vector2d();
 
-    private final SparseArray<InputDeviceContext> inputDeviceContexts = new SparseArray<>();
-    private final SparseArray<UsbDeviceContext> usbDeviceContexts = new SparseArray<>();
+    private final ConcurrentHashMap<Integer, InputDeviceContext> inputDeviceContexts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, UsbDeviceContext> usbDeviceContexts = new ConcurrentHashMap<>();
 
     private final NvConnection conn;
     private final Activity activityContext;
@@ -237,6 +237,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     @Override
     public void onInputDeviceRemoved(int deviceId) {
+        LimeLog.info("Bluetooth or Android controller detached");
         InputDeviceContext context = inputDeviceContexts.get(deviceId);
         if (context != null) {
             LimeLog.info("Removed controller: "+context.name+" ("+deviceId+")");
@@ -280,18 +281,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // Unregister our input device callbacks
         inputManager.unregisterInputDeviceListener(this);
 
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+        for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
             deviceContext.destroy();
         }
 
-        SparseArray<UsbDeviceContext> stoppedUsbContexts = usbDeviceContexts.clone();
-        for (int i = 0; i < stoppedUsbContexts.size(); i++) {
-            UsbDeviceContext deviceContext = stoppedUsbContexts.valueAt(i);
+        for (UsbDeviceContext deviceContext : usbDeviceContexts.values()) {
             deviceContext.device.stop();
             deviceContext.destroy();
         }
 
+        usbDeviceContexts.clear();
+        inputDeviceContexts.clear();
+        defaultContext.destroy();
         deviceVibrator.cancel();
     }
 
@@ -300,18 +301,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             stop();
         }
 
+        mainThreadHandler.removeCallbacksAndMessages(null);
+        backgroundThreadHandler.removeCallbacksAndMessages(null);
         sceManager.stop();
         backgroundHandlerThread.quit();
     }
 
     public void disableSensors() {
         sensorsEnabled = false;
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+        for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
             deviceContext.disableSensors();
         }
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext context : usbDeviceContexts.values()) {
             if (context.assignedControllerNumber && (context.device.getCapabilities() & MoonBridge.LI_CCAP_GYRO) != 0) {
                 conn.sendControllerMotionEvent((byte)context.controllerNumber, MoonBridge.LI_MOTION_TYPE_GYRO, 0, 0, 0);
             }
@@ -325,8 +326,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         sensorsEnabled = true;
 
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+        for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
             deviceContext.enableSensors();
         }
     }
@@ -1238,8 +1238,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // In order to properly handle controllers that are split into multiple devices,
         // we must aggregate all controllers with the same controller number into a single
         // device before we send it.
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            GenericControllerContext context = inputDeviceContexts.valueAt(i);
+        for (GenericControllerContext context : inputDeviceContexts.values()) {
             if (context.assignedControllerNumber &&
                     context.controllerNumber == controllerNumber &&
                     context.mouseEmulationActive == originalContext.mouseEmulationActive) {
@@ -1252,8 +1251,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 rightStickY |= maxByMagnitude(rightStickY, context.rightStickY);
             }
         }
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            GenericControllerContext context = usbDeviceContexts.valueAt(i);
+        for (GenericControllerContext context : usbDeviceContexts.values()) {
             if (context.assignedControllerNumber &&
                     context.controllerNumber == controllerNumber &&
                     context.mouseEmulationActive == originalContext.mouseEmulationActive) {
@@ -2070,8 +2068,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return;
         }
 
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+        for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
 
             if (deviceContext.controllerNumber == controllerNumber) {
                 foundMatchingDevice = true;
@@ -2104,8 +2101,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             }
         }
 
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext deviceContext = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext deviceContext : usbDeviceContexts.values()) {
 
             if (deviceContext.controllerNumber == controllerNumber) {
                 foundMatchingDevice = vibrated = true;
@@ -2144,8 +2140,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            for (int i = 0; i < inputDeviceContexts.size(); i++) {
-                InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+            for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
 
                 if (deviceContext.controllerNumber == controllerNumber) {
                     deviceContext.leftTriggerMotor = leftTrigger;
@@ -2160,8 +2155,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             }
         }
 
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext deviceContext = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext deviceContext : usbDeviceContexts.values()) {
 
             if (deviceContext.controllerNumber == controllerNumber) {
                 deviceContext.device.rumbleTriggers(leftTrigger, rightTrigger);
@@ -2174,8 +2168,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (stopped) {
             return;
         }
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext context : usbDeviceContexts.values()) {
             if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
                 context.device.setAdaptiveTriggers(eventFlags, typeLeft, typeRight, left, right);
             }
@@ -2267,12 +2260,16 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     }
 
     public void handleSetMotionEventState(final short controllerNumber, final byte motionType, short reportRateHz) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            final short rate = reportRateHz;
+            mainThreadHandler.post(() -> handleSetMotionEventState(controllerNumber, motionType, rate));
+            return;
+        }
         if (stopped) {
             return;
         }
 
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext context : usbDeviceContexts.values()) {
             if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
                 context.device.setMotionEventState(motionType, prefConfig.gamepadMotionSensors ? reportRateHz : 0);
             }
@@ -2281,8 +2278,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // Report rate is restricted to <= 200 Hz without the HIGH_SAMPLING_RATE_SENSORS permission
         reportRateHz = (short) Math.min(200, reportRateHz);
 
-        for (int i = 0; i < inputDeviceContexts.size(); i++) {
-            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+        for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
 
             if (deviceContext.controllerNumber == controllerNumber) {
                 // Store the desired report rate even if we don't have sensors. In some cases,
@@ -2298,7 +2294,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                         break;
                 }
 
-                backgroundThreadHandler.removeCallbacks(deviceContext.enableSensorRunnable);
+                mainThreadHandler.removeCallbacks(deviceContext.enableSensorRunnable);
 
                 SensorManager sm = deviceContext.sensorManager;
                 if (sm == null) {
@@ -2343,16 +2339,14 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return;
         }
 
-        for (int i = 0; i < usbDeviceContexts.size(); i++) {
-            UsbDeviceContext context = usbDeviceContexts.valueAt(i);
+        for (UsbDeviceContext context : usbDeviceContexts.values()) {
             if (context.assignedControllerNumber && context.controllerNumber == controllerNumber) {
                 context.device.setLed(r, g, b);
             }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            for (int i = 0; i < inputDeviceContexts.size(); i++) {
-                InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+            for (InputDeviceContext deviceContext : inputDeviceContexts.values()) {
 
                 // Ignore input devices without an RGB LED
                 if (deviceContext.controllerNumber == controllerNumber && deviceContext.hasRgbLed) {
@@ -3101,19 +3095,29 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         public long startDownTime = 0;
 
+        private boolean destroyed;
+
         public final Runnable batteryStateUpdateRunnable = new Runnable() {
             @Override
             public void run() {
-                sendControllerBatteryPacket(InputDeviceContext.this);
+                synchronized (InputDeviceContext.this) {
+                    if (destroyed || stopped) {
+                        return;
+                    }
+                    sendControllerBatteryPacket(InputDeviceContext.this);
 
-                // Requeue the callback
-                backgroundThreadHandler.postDelayed(this, BATTERY_RECHECK_INTERVAL_MS);
+                    // Requeue the callback
+                    backgroundThreadHandler.postDelayed(this, BATTERY_RECHECK_INTERVAL_MS);
+                }
             }
         };
 
         public final Runnable enableSensorRunnable = new Runnable() {
             @Override
             public void run() {
+                if (destroyed || stopped) {
+                    return;
+                }
                 // Turn back on any sensors that should be reporting but are currently unregistered
                 if (accelReportRateHz != 0 && accelListener == null) {
                     handleSetMotionEventState(controllerNumber, MoonBridge.LI_MOTION_TYPE_ACCEL, accelReportRateHz);
@@ -3128,32 +3132,42 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             @TargetApi(Build.VERSION_CODES.S)
             @Override
             public void run() {
-                LightState lightState = new LightState.Builder().setColor(ledArgbValue).build();
-
-                // Set the RGB value for each RGB-controllable LED on the device
-                boolean hasRgbLight = false;
-                LightsRequest.Builder lightsRequestBuilder = new LightsRequest.Builder();
-                for (Light light : inputDevice.getLightsManager().getLights()) {
-                    if (light.hasRgbControl()) {
-                        lightsRequestBuilder.addLight(light, lightState);
-                        hasRgbLight = true;
+                synchronized (InputDeviceContext.this) {
+                    if (destroyed || stopped) {
+                        return;
                     }
-                }
+                    try {
+                        LightState lightState = new LightState.Builder().setColor(ledArgbValue).build();
 
-                if (hasRgbLight) {
-                    // Create a new light session if one doesn't already exist
-                    if (lightsSession == null) {
-                        lightsSession = inputDevice.getLightsManager().openSession();
+                        // Set the RGB value for each RGB-controllable LED on the device
+                        boolean hasRgbLight = false;
+                        LightsRequest.Builder lightsRequestBuilder = new LightsRequest.Builder();
+                        for (Light light : inputDevice.getLightsManager().getLights()) {
+                            if (light.hasRgbControl()) {
+                                lightsRequestBuilder.addLight(light, lightState);
+                                hasRgbLight = true;
+                            }
+                        }
+
+                        if (hasRgbLight) {
+                            // Create a new light session if one doesn't already exist
+                            if (lightsSession == null) {
+                                lightsSession = inputDevice.getLightsManager().openSession();
+                            }
+
+                            // Apply the LED changes
+                            lightsSession.requestLights(lightsRequestBuilder.build());
+                        }
+                    } catch (RuntimeException e) {
+                        LimeLog.warning("Controller lights unavailable after detach");
                     }
-
-                    // Apply the LED changes
-                    lightsSession.requestLights(lightsRequestBuilder.build());
                 }
             }
         };
 
         @Override
-        public void destroy() {
+        public synchronized void destroy() {
+            destroyed = true;
             super.destroy();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && vibratorManager != null) {
@@ -3163,7 +3177,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 vibrator.cancel();
             }
 
-            backgroundThreadHandler.removeCallbacks(enableSensorRunnable);
+            mainThreadHandler.removeCallbacks(enableSensorRunnable);
             backgroundThreadHandler.removeCallbacks(setLedStateRunnable);
 
             if (gyroListener != null) {
@@ -3310,19 +3324,22 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         public void migrateContext(InputDeviceContext oldContext) {
-            // Take ownership of the sensor and light sessions
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                this.lightsSession = oldContext.lightsSession;
-                oldContext.lightsSession = null;
-            }
-            this.ledArgbValue = oldContext.ledArgbValue;
-            this.gyroReportRateHz = oldContext.gyroReportRateHz;
-            this.accelReportRateHz = oldContext.accelReportRateHz;
+            synchronized (oldContext) {
+                // Take ownership of the sensor and light sessions
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    this.lightsSession = oldContext.lightsSession;
+                    oldContext.lightsSession = null;
+                }
+                this.ledArgbValue = oldContext.ledArgbValue;
+                this.gyroReportRateHz = oldContext.gyroReportRateHz;
+                this.accelReportRateHz = oldContext.accelReportRateHz;
 
-            // Don't release the controller number, because we will carry it over if it is present.
-            // We also want to make sure the change is invisible to the host PC to avoid an add/remove
-            // cycle for the gamepad which may break some games.
-            oldContext.destroy();
+                // Don't release the controller number, because we will carry it over if it is present.
+                // We also want to make sure the change is invisible to the host PC to avoid an add/remove
+                // cycle for the gamepad which may break some games.
+                oldContext.destroy();
+
+            }
 
             // Copy over existing controller number state
             this.assignedControllerNumber = oldContext.assignedControllerNumber;
@@ -3352,7 +3369,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         public void disableSensors() {
             // Stop any pending enablement
-            backgroundThreadHandler.removeCallbacks(enableSensorRunnable);
+            mainThreadHandler.removeCallbacks(enableSensorRunnable);
 
             // Unregister all sensor listeners
             if (gyroListener != null) {
@@ -3374,7 +3391,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // We allow 1 second for the input device to settle before re-enabling sensors.
             // Pointer capture can cause the input device to change, which can cause
             // InputDeviceSensorManager to crash due to missing null checks on the InputDevice.
-            backgroundThreadHandler.postDelayed(enableSensorRunnable, 1000);
+            mainThreadHandler.postDelayed(enableSensorRunnable, 1000);
         }
     }
 

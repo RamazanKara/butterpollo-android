@@ -11,9 +11,11 @@ Status: **Done** = implemented in this app, **Partial** = works with a stated li
 **Gap** = missing. Nothing here is certified on a real phone yet; see the checklist in
 BUTTERPOLLO_PARITY.md.
 
-Client usability pass (2026-10-09): JDK 17 assemble, unit tests and lint passed with
-`--no-daemon --max-workers=2`: 460 tests, no failures/errors/skips; lint 0 errors, 180 warnings.
-No phone, host, adb or emulator was used. The 360/393 dp rendering checklist remains open.
+First-device robustness pass (2026-10-09, `bp-jobD`): JDK 17 assembly, unit tests and lint passed
+with `--no-daemon --max-workers=2`: **470 tests**, no failures/errors/skips; **lint 0 errors,
+180 warnings**. All four Android ABIs are in the debug APK. The final run used a 1.5 GiB heap and
+two active processors. No host, phone, controller, adb or emulator was used; rendering, runtime
+lifecycle and real network/controller checks remain open in the device checklist.
 
 ## Priority features
 
@@ -34,8 +36,8 @@ No phone, host, adb or emulator was used. The 360/393 dp rendering checklist rem
 
 | Host feature | Android status | Gap and next step |
 | --- | --- | --- |
-| Discovery, manual add, IPv6, Wake-on-LAN | Done: all active IPv4 interface broadcasts, global broadcast and resolved host addresses; deduplicated destinations and three sends per destination | JUnit covers packet bytes, invalid MACs, alternate-port bounds, multiple subnets, partial failure and retry. Routers/NIC power policy and actual wake remain hardware checks. |
-| PIN and one-time-PIN pairing, device identity | Done | — |
+| Discovery, manual add, IPv6, Wake-on-LAN | Done: discovery empty-state actions and in-app wake setup help; all active IPv4 interface broadcasts, global broadcast and resolved host addresses; deduplicated destinations and three sends per destination | JUnit covers packet bytes, invalid MACs, alternate-port bounds, multiple subnets, partial failure and retry. Routers/NIC power policy and actual wake remain hardware checks. |
+| PIN and one-time-PIN pairing, device identity | Done: cancellable pairing, fresh-PIN retry and plain-language network/PIN fixes | Check wrong/expired PINs, cancellation, backgrounding and retry on hardware. |
 | Device permissions (view/launch/input/clipboard/commands) | Done: shown and refreshed before actions | — |
 | App list, UUIDs, order, artwork versions | Done | Host reuses the numeric ID as artwork token (host side). |
 | Launch, resume, quit, reconnect without quitting | Done | — |
@@ -50,6 +52,11 @@ No phone, host, adb or emulator was used. The 360/393 dp rendering checklist rem
 | HDR on the host's virtual display (`VirtualDisplayHDRCapable`) | Host always reports true; HDR request is enough | — |
 | Library sync, Lossless Scaling, RTSS, Playnite, updates, logs | Host-side; work with ordinary launches | Admin stays in the host's web console. |
 | PiP controls | Done in code: local Disconnect action, session-scoped immutable intent and bounded portrait/ultrawide ratios | Unit-tested ratio bounds and active media-role action gating. Check system controls/lifecycle on Android. |
+| Activity/Service lifecycle | Source audit complete; targeted fixes for pending bindings, stopped discovery/polling, queued dialogs, process restoration, PiP, controller detach and stream callbacks | All device scenarios remain open; this is not a crash/leak certification. See the lifecycle checklist. |
+| Report a problem | Done: Settings → Support shares a bounded, redacted text event log through an unexported FileProvider | Current process only; fixed event text, app version and API level. No addresses, names, PINs, raw host replies or free-text exception details. Verify share targets on the phone. |
+| Test your connection | Done: long-press any PC for latency, jitter, probe loss and optional existing host bandwidth download | Ten timed server-info requests (2 s deadline each); loss means failed HTTP probes, not UDP packet loss. Throughput requires a paired supporting host. |
+| Streaming presets and help | Done: Balanced, Low latency, Best quality and Battery saver; grouped settings retain help alongside current values | Preset values and writes are unit-tested. Existing per-PC video profiles still take priority; measure power, heat and responsiveness on hardware. |
+| Performance overlay | Done: compact/expanded modes, persistent size preference and Copy stats line in the stream menu | RTT variation and lost video frames are labeled separately; validate legibility, clipboard and PiP on hardware. |
 | Settings search | Done in code: title/description/category search over device-filtered settings; results open the original setting | Unit-tested Unicode, accent/case, multi-word and literal matching. Check search, Back, rotation and focus on emulator. |
 | Material 3 / accessibility / large text | Client pass complete: remaining explicit dialogs/progress indicators, controller mapping and Help navigation; role descriptions, 48 dp form/OSC settings targets and growing role/status text | Every Activity layout and dialog audited. Native preference dialogs retain the matching platform palette/shape for persistence. No Robolectric/screenshot suite exists; 360/393 dp, large fonts and TalkBack checks are listed in BUTTERPOLLO_PARITY.md. |
 | Frontends (ES-DE, Daijisho, Pegasus) | Done: `.art` files, ES-DE export | Smoke test: prompt 4. |

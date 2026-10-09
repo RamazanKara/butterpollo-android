@@ -205,7 +205,62 @@ their existing three-finger keyboard gesture.
 
 ### Current verification scope and real-device checklist
 
-Usability-pass validation on Windows/JDK 17: `:app:assembleNonRootDebug`,
+First-device robustness pass (2026-10-09, `bp-jobD`): source review covered every production
+Activity and Service listed in the manifest. No host code, dependency, commit or push was changed.
+
+Final Windows/JDK 17 validation passed: `:app:assembleNonRootDebug`,
+`:app:testNonRootDebugUnitTest`, `:app:lintNonRootDebug`, with `--no-daemon --max-workers=2`,
+a 1.5 GiB heap and two active processors. **470 tests** passed (10 added), zero failures/errors/skips;
+**lint: 0 errors, 180 warnings**. New tests cover incomplete launches, preset values and preference
+writes, report redaction/bounds, connection measurement math and probe deadlines/cancellation.
+The APK includes all four ABIs. No adb, emulator, real device, controller or host was used.
+
+| Lifecycle owner | Review and changes |
+| --- | --- |
+| `Game` | Reject incomplete launch data before acquiring resources; restored Activities return to the library for an explicit resume. Guard late stream/PiP callbacks, release only held Wi-Fi locks, track pending USB bindings, clear delayed callbacks, stop on surface loss and finish after background connection failure. Existing native stop/start serialization and reconnect ordering remain in use. |
+| `PcView`, `AppView`, `ShortcutTrampoline` | Unbind even before service connection; interrupt readiness waits; ignore expired UI work; keep worker-local binder references. Pairing cancels HTTP work when leaving and cannot navigate after cancellation. App-list polling start is idempotent. |
+| `AddComputerManually` | Stop its worker without joining network I/O on the UI thread; retain its binder for in-flight work and reject results after interruption. |
+| `HelpActivity` | Handle missing URLs and destroy its WebView and loading dialog. |
+| `StreamSettings`, `ControllerMappingActivity` | Reviewed configuration restoration, preference listeners, button input and dialog ownership. Settings retain descriptions for resolution/FPS/bitrate and add preset, overlay and support actions; mapping uses the existing null-device checks. |
+| `ComputerManagerService`, `DiscoveryService` | Cancel readiness waits at destruction; snapshot listeners before calling them; stop discovery and polling on teardown and unbind pending discovery connections. mDNS tolerates absent Wi-Fi/denied multicast locks; NSD ignores stale updates and lets idle callback threads exit. |
+| `UsbDriverService`, `ControllerHandler` | Ignore incomplete/detached USB events, cancel delayed attachment work, pair permission completion with pending requests and stop on unbind. Snapshot listeners; serialize USB arrival/removal with the UI; concurrent controller maps tolerate detach during host feedback. Stop battery/sensor callbacks and prevent light sessions reopening after detach. |
+| Shared dialogs | Dismissal is terminal even before a queued dialog is shown; cleanup is scoped to its Activity and tolerates missing views. |
+
+The new connection-test screen reuses server-info requests and the host bandwidth probe. It shows
+mean request latency, mean absolute variation between adjacent successful requests, and failed-request
+percentage. These are HTTP measurements, **not UDP packet loss**. Missing samples remain unavailable;
+unsupported bandwidth tests do not prevent latency testing. The test is cancellable on leaving.
+The report shares at most 200 fixed-text events from the current process; raw diagnostics and all
+host/user-supplied text are excluded. It does not preserve a prior process's crash log.
+
+First-device checklist additions (all **not yet verified on hardware**):
+
+- Cold launch with no hosts: use Add PC and Pairing help, then try guest Wi-Fi/VPN/network loss.
+  Pair with ordinary PIN and one-time PIN; check incorrect/expired PIN, host busy, timeout,
+  cancellation, Home/Back and retry. Rotate during PIN entry and pairing; cancelled work must not
+  open an app list or another dialog later.
+- Start and immediately stop a stream repeatedly; rotate and change window size while starting,
+  streaming and disconnecting. Enter/exit PiP, disconnect through PiP and dismiss the PiP window.
+  Check that audio, Wi-Fi locks, input capture, discovery and controller feedback stop afterward.
+- Kill the client process during a stream using device system controls, then reopen it and resume
+  explicitly. Disconnect Wi-Fi, reconnect and use Reconnect. Back must return to a usable library
+  without a stale stream, spinner or duplicate session.
+- Attach/detach USB DualSense during startup, gameplay, rumble and trigger effects; deny/cancel USB
+  permission and unplug while permission is pending. Repeat Bluetooth connect/disconnect with gyro,
+  lightbar and rumble active. Verify no stuck input or effects and no accumulating callbacks.
+- Long-press a PC → Test your connection: test healthy, unreachable, unpaired and older hosts;
+  interrupt Wi-Fi, cancel, leave, rotate and retry. Confirm unavailable values, HTTP loss labeling
+  and bandwidth support handling. Follow Wake-on-LAN help and verify actual wake from sleep.
+- Apply all four presets, reopen settings and start a stream. Check codec/bitrate/FPS/VRR/pacing,
+  battery-performance switches and per-PC profile precedence. Review every help line at large font
+  sizes on a narrow phone; settings values and descriptions must remain visible.
+- Switch compact/expanded overlay, copy the stats line, paste it into a local text app and return;
+  repeat with adaptive bitrate and PiP. Check text readability and controller/touch input afterward.
+- After a failed pairing/stream, Settings → Report a problem: inspect the shared text file for the
+  expected event order and confirm that no address (IPv4/IPv6/hostname/MAC), PIN, passphrase or raw
+  response appears. Cancel sharing, return to the app and repeat with another share target.
+
+Earlier usability-pass validation on Windows/JDK 17: `:app:assembleNonRootDebug`,
 `:app:testNonRootDebugUnitTest` and `:app:lintNonRootDebug` passed with
 `--no-daemon --max-workers=2`, a 1.5 GiB heap and two active processors. JUnit passed **460 tests**
 (28 added), with zero failures, errors or skips; lint reported **0 errors and 180 warnings**.

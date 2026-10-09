@@ -224,6 +224,16 @@ public class StreamSettings extends AppCompatActivity {
         outState.putString("search", searchQuery);
     }
 
+    @Override
+    protected void onDestroy() {
+        Dialog.closeDialogs(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && backCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((OnBackInvokedCallback) backCallback);
+            backCallback = null;
+        }
+        super.onDestroy();
+    }
+
     private void exportLatencyCsv() {
         if (!new File(getFilesDir(), MediaCodecDecoderRenderer.LATENCY_CSV_NAME).isFile()) {
             Toast.makeText(this, R.string.latency_csv_empty, Toast.LENGTH_LONG).show();
@@ -407,6 +417,28 @@ public class StreamSettings extends AppCompatActivity {
                 HelpLauncher.launchTroubleshooting(getActivity());
                 return true;
             });
+            findPreference("report_problem").setOnPreferenceClickListener(preference -> {
+                com.limelight.utils.ProblemReport.show(getActivity());
+                return true;
+            });
+            findPreference("wol_help").setOnPreferenceClickListener(preference -> {
+                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.wol_help_title)
+                        .setMessage(R.string.wol_help_text).setPositiveButton(android.R.string.ok, null).show();
+                return true;
+            });
+            findPreference("stream_presets").setOnPreferenceClickListener(preference -> {
+                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_presets)
+                        .setItems(R.array.stream_preset_descriptions, (dialog, which) -> {
+                            StreamPreset.values()[which].apply(PreferenceManager.getDefaultSharedPreferences(getActivity()));
+                            updateSummaries();
+                            Toast.makeText(getActivity(), R.string.stream_preset_applied, Toast.LENGTH_LONG).show();
+                        })
+                        .setNeutralButton(R.string.help, (dialog, which) ->
+                                new MaterialAlertDialogBuilder(getActivity()).setTitle(R.string.stream_presets)
+                                        .setMessage(R.string.stream_presets_help).setPositiveButton(android.R.string.ok, null).show())
+                        .setNegativeButton(android.R.string.cancel, null).show();
+                return true;
+            });
             findPreference("reset_all").setOnPreferenceClickListener(preference -> {
                 new MaterialAlertDialogBuilder(getActivity())
                         .setTitle(R.string.dialog_reset_settings_title)
@@ -512,7 +544,6 @@ public class StreamSettings extends AppCompatActivity {
                 (prefs, key) -> updateValueSummaries(getPreferenceScreen());
 
         // Show the current value of list and slider settings above their description.
-        // Resolution, frame rate and bitrate are self-explanatory, so they show only the value.
         private void updateValueSummaries(PreferenceGroup group) {
             for (int i = 0; i < group.getPreferenceCount(); i++) {
                 Preference pref = group.getPreference(i);
@@ -541,10 +572,7 @@ public class StreamSettings extends AppCompatActivity {
                 }
                 CharSequence description = descriptions.get(key);
                 String summary = value.toString();
-                if (description != null &&
-                        !key.equals(PreferenceConfiguration.RESOLUTION_PREF_STRING) &&
-                        !key.equals(PreferenceConfiguration.FPS_PREF_STRING) &&
-                        !key.equals(PreferenceConfiguration.BITRATE_PREF_STRING)) {
+                if (description != null) {
                     summary += "\n" + description;
                 }
 

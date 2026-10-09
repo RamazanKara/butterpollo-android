@@ -45,7 +45,10 @@ public class ShortcutTrampoline extends Activity {
     private ComputerDetails computer;
     private SpinnerDialog blockingLoadSpinner;
 
-    private ComputerManagerService.ComputerManagerBinder managerBinder;
+    private volatile ComputerManagerService.ComputerManagerBinder managerBinder;
+    private boolean managerServiceBound;
+    private Thread serviceWaitThread;
+    private volatile boolean stopped;
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -53,17 +56,19 @@ public class ShortcutTrampoline extends Activity {
                     ((ComputerManagerService.ComputerManagerBinder)binder);
 
             // Wait in a separate thread to avoid stalling the UI
-            new Thread() {
+            serviceWaitThread = new Thread() {
                 @Override
                 public void run() {
                     // Wait for the binder to be ready
-                    localBinder.waitForReady();
+                    if (!localBinder.waitForReady() || stopped || isFinishing() || isDestroyed()) {
+                        return;
+                    }
 
                     // Now make the binder visible
                     managerBinder = localBinder;
 
                     // Get the computer object
-                    computer = managerBinder.getComputer(uuidString);
+                    computer = localBinder.getComputer(uuidString);
 
                     if (computer == null) {
                         Dialog.displayDialog(ShortcutTrampoline.this,
@@ -76,21 +81,27 @@ public class ShortcutTrampoline extends Activity {
                             blockingLoadSpinner = null;
                         }
 
-                        if (managerBinder != null) {
-                            unbindService(serviceConnection);
+                        runOnUiThread(() -> {
+                            if (managerServiceBound) {
+                                unbindService(serviceConnection);
+                                managerServiceBound = false;
+                            }
                             managerBinder = null;
-                        }
+                        });
 
                         return;
                     }
 
                     // Force CMS to repoll this machine
-                    managerBinder.invalidateStateForComputer(computer.uuid);
+                    localBinder.invalidateStateForComputer(computer.uuid);
 
                     // Start polling
-                    managerBinder.startPolling(new ComputerManagerListener() {
+                    localBinder.startPolling(new ComputerManagerListener() {
                         @Override
                         public void notifyComputerUpdated(final ComputerDetails details) {
+                            if (stopped) {
+                                return;
+                            }
                             // Don't care about other computers
                             if (!details.uuid.equalsIgnoreCase(uuidString)) {
                                 return;
@@ -104,7 +115,7 @@ public class ShortcutTrampoline extends Activity {
 
                                     // If we sent at least one WoL packet, reset the computer state
                                     // to force ComputerManager to poll it again.
-                                    managerBinder.invalidateStateForComputer(computer.uuid);
+                                    localBinder.invalidateStateForComputer(computer.uuid);
                                     return;
                                 } catch (IOException e) {
                                     // If we got an exception, we couldn't send a single WoL packet,
@@ -125,7 +136,7 @@ public class ShortcutTrampoline extends Activity {
 
                                         // If the managerBinder was destroyed before this callback,
                                         // just finish the activity.
-                                        if (managerBinder == null) {
+                                        if (managerBinder == null || isFinishing() || isDestroyed()) {
                                             finish();
                                             return;
                                         }
@@ -220,8 +231,12 @@ public class ShortcutTrampoline extends Activity {
                             }
                         }
                     });
+                    if (stopped) {
+                        localBinder.stopPolling();
+                    }
                 }
-            }.start();
+            };
+            serviceWaitThread.start();
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -388,7 +403,7 @@ public class ShortcutTrampoline extends Activity {
         }
 
         // Bind to the computer manager service
-        bindService(new Intent(this, ComputerManagerService.class), serviceConnection,
+        managerServiceBound = bindService(new Intent(this, ComputerManagerService.class), serviceConnection,
                 Service.BIND_AUTO_CREATE);
 
         blockingLoadSpinner = SpinnerDialog.displayDialog(this, getResources().getString(R.string.conn_establishing_title),
@@ -451,20 +466,27 @@ public class ShortcutTrampoline extends Activity {
     @Override
     protected void onStop() {
         super.onStop();
+        stopped = true;
 
         if (blockingLoadSpinner != null) {
             blockingLoadSpinner.dismiss();
             blockingLoadSpinner = null;
         }
 
-        Dialog.closeDialogs();
+        Dialog.closeDialogs(ShortcutTrampoline.this);
 
         if (managerBinder != null) {
             managerBinder.stopPolling();
-            unbindService(serviceConnection);
             managerBinder = null;
         }
 
+        if (serviceWaitThread != null) {
+            serviceWaitThread.interrupt();
+        }
+        if (managerServiceBound) {
+            unbindService(serviceConnection);
+            managerServiceBound = false;
+        }
         finish();
     }
 }

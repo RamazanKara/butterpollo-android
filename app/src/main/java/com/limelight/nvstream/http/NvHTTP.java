@@ -564,6 +564,14 @@ public class NvHTTP {
         return details.pyroWaveBandwidthProbeBytes * 8000.0 / Math.max(1, System.nanoTime() - startedNs);
     }
 
+    public double probeServerLatency() throws IOException, XmlPullParserException {
+        OkHttpClient client = httpClientShortConnectTimeout.newBuilder()
+                .callTimeout(2, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build();
+        long startedNs = System.nanoTime();
+        getServerVersion(openHttpConnectionToString(client, baseUrlHttp, "serverinfo"));
+        return (System.nanoTime() - startedNs) / 1000000.0;
+    }
+
     static void readBandwidthProbe(ResponseBody response, int expectedBytes, IntConsumer progress) throws IOException {
         if (expectedBytes <= 0 || expectedBytes > PYROWAVE_BANDWIDTH_PROBE_BYTES ||
                 (response.contentLength() != -1 && response.contentLength() != expectedBytes)) {
