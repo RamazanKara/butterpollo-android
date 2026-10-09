@@ -1,6 +1,5 @@
 package com.limelight.binding.input.driver;
 
-import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -16,6 +15,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.view.InputDevice;
 import android.widget.Toast;
+
+import androidx.core.content.ContextCompat;
 
 import com.limelight.LimeLog;
 import com.limelight.R;
@@ -367,7 +368,6 @@ public class UsbDriverService extends Service implements UsbDriverListener {
                 ((!kernelSupportsXbox360W() || claimAllAvailable) && Xbox360WirelessDongle.canClaimDevice(device)));
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void start() {
         if (started || usbManager == null || (!prefConfig.usbDriver && !prefConfig.usbDualSense)) {
             return;
@@ -380,12 +380,7 @@ public class UsbDriverService extends Service implements UsbDriverListener {
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         filter.addAction(ACTION_USB_PERMISSION);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED);
-        }
-        else {
-            registerReceiver(receiver, filter);
-        }
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
 
         // Enumerate existing devices
         for (UsbDevice dev : usbManager.getDeviceList().values()) {

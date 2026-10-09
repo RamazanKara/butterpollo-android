@@ -16,6 +16,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
@@ -873,7 +874,7 @@ public class NvConnection {
 
     public void sendUtf8Text(final String text) {
         if (canSendInput()) {
-            MoonBridge.sendUtf8Text(text);
+            MoonBridge.sendUtf8Text(text.getBytes(StandardCharsets.UTF_8));
         }
     }
 

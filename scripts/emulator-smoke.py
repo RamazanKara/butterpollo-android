@@ -378,12 +378,12 @@ def main():
             hints = "Phone performance hints"
             tap(hints, scroll=True)
             prefs(f"{PACKAGE}_preferences", lambda root: any(
-                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
-                "Phone performance hints were not on by default or could not be disabled")
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "true" for n in root),
+                "Phone performance hints were not off by default or could not be enabled")
             tap(hints)
             prefs(f"{PACKAGE}_preferences", lambda root: any(
-                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "true" for n in root),
-                "Phone performance hints could not be enabled")
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
+                "Phone performance hints could not be disabled")
             overlay = "Show performance overlay"
             tap(overlay, scroll=True)
             screenshot("13-latency-settings")
@@ -445,33 +445,34 @@ def main():
                 screenshot(shot)
                 tap("android:id/button1")
                 find(HOST_NAME)
-            # 786 px at 320 dpi gives a 393 dp phone viewport.
-            adb("shell", "wm", "size", "786x1704")
-            adb("shell", "wm", "density", "320")
-            adb("shell", "wm", "user-rotation", "lock", "0")
-            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
-            for rotation, suffix in ((0, ""), (1, "-landscape")):
-                adb("shell", "wm", "user-rotation", "lock", str(rotation))
-                time.sleep(1)
-                node = find(f"{PACKAGE}:id/performanceOverlay")
-                assert node.get("text") == "● 119.9 FPS · 13 ms · 0.1% loss", node.attrib
-                width, height = screenshot("overlay-compact" + suffix)
-                assert (width < height) == (rotation == 0), "Overlay did not rotate"
-                x1, y1, x2, y2 = bounds(node)
-                assert 0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height, node.attrib
-                assert y2 - y1 < 80, "Compact overlay is not one small line"
-                x, y = str((x1 + x2) // 2), str((y1 + y2) // 2)
-                adb("shell", "input", "swipe", x, y, x, y, "1000")
-                node = find(f"{PACKAGE}:id/performanceOverlay")
-                text = node.get("text", "")
-                for section in ("Video\n", "\n\nNetwork\n", "\n\nDecode\n", "\n\nHost\n"):
-                    assert section in text, node.attrib
-                assert "FEATURE_LowLatency: true" in text, node.attrib
-                assert "Queue wait (enqueue → input)" in text, node.attrib
-                screenshot("overlay-advanced" + suffix)
-                x1, y1, x2, y2 = bounds(node)
-                x, y = str(x1 + 20), str(y1 + 20)
-                adb("shell", "input", "swipe", x, y, x, y, "1000")
+            if DEBUGGABLE:
+                # 786 px at 320 dpi gives a 393 dp phone viewport.
+                adb("shell", "wm", "size", "786x1704")
+                adb("shell", "wm", "density", "320")
+                adb("shell", "wm", "user-rotation", "lock", "0")
+                adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.LatencyOverlaySmokeActivity")
+                for rotation, suffix in ((0, ""), (1, "-landscape")):
+                    adb("shell", "wm", "user-rotation", "lock", str(rotation))
+                    time.sleep(1)
+                    node = find(f"{PACKAGE}:id/performanceOverlay")
+                    assert node.get("text") == "● 119.9 FPS · 13 ms · 0.1% loss", node.attrib
+                    width, height = screenshot("overlay-compact" + suffix)
+                    assert (width < height) == (rotation == 0), "Overlay did not rotate"
+                    x1, y1, x2, y2 = bounds(node)
+                    assert 0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height, node.attrib
+                    assert y2 - y1 < 80, "Compact overlay is not one small line"
+                    x, y = str((x1 + x2) // 2), str((y1 + y2) // 2)
+                    adb("shell", "input", "swipe", x, y, x, y, "1000")
+                    node = find(f"{PACKAGE}:id/performanceOverlay")
+                    text = node.get("text", "")
+                    for section in ("Video\n", "\n\nNetwork\n", "\n\nDecode\n", "\n\nHost\n"):
+                        assert section in text, node.attrib
+                    assert "FEATURE_LowLatency: true" in text, node.attrib
+                    assert "Queue wait (enqueue → input)" in text, node.attrib
+                    screenshot("overlay-advanced" + suffix)
+                    x1, y1, x2, y2 = bounds(node)
+                    x, y = str(x1 + 20), str(y1 + 20)
+                    adb("shell", "input", "swipe", x, y, x, y, "1000")
             crashes = adb("logcat", "-b", "crash", "-d")
             LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
             LOGS.joinpath("crashes.txt").write_text(crashes, encoding="utf-8")

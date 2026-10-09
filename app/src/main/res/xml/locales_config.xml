@@ -26,4 +26,8 @@
     <locale android:name="eo"/>
     <locale android:name="lv"/>
     <locale android:name="ta"/>
+    <locale android:name="bg"/>
+    <locale android:name="pl"/>
+    <locale android:name="pt"/>
+    <locale android:name="tr"/>
 </locale-config>

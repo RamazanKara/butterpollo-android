@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -43,7 +44,7 @@ public class EvdevCaptureProvider extends InputCaptureProvider {
 
             // Bind a local listening socket for evdevreader to connect to
             try {
-                servSock = new ServerSocket(0, 1);
+                servSock = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             } catch (IOException e) {
                 e.printStackTrace();
                 return;

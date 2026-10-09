@@ -35,8 +35,8 @@ public class EvdevReader {
         readAll(input, bb);
         packetLength = bb.getInt();
 
-        if (packetLength < EvdevEvent.EVDEV_MIN_EVENT_SIZE) {
-            LimeLog.warning("Short read: "+packetLength);
+        if (packetLength != EvdevEvent.EVDEV_MIN_EVENT_SIZE && packetLength != EvdevEvent.EVDEV_MAX_EVENT_SIZE) {
+            LimeLog.warning("Invalid event size: "+packetLength);
             return null;
         }
 

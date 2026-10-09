@@ -224,6 +224,7 @@ public class ShortcutTrampoline extends Activity {
                                         if (managerBinder != null) {
                                             managerBinder.stopPolling();
                                             unbindService(serviceConnection);
+                                            managerServiceBound = false;
                                             managerBinder = null;
                                         }
                                     }

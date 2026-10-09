@@ -3,11 +3,14 @@ package com.limelight.utils;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -75,6 +78,40 @@ public class FrontendEntryTest {
         } catch (IOException expected) {
             // expected
         }
+    }
+
+    @Test
+    public void rejectsAnOversizedLineBeforeReadingTheRestOfIt() {
+        Reader source = new Reader() {
+            private int read;
+
+            @Override
+            public int read(char[] buffer, int offset, int length) {
+                assertTrue("Read beyond the entry size limit", read + length <= FrontendEntry.MAX_CHARS + 1);
+                Arrays.fill(buffer, offset, offset + length, '#');
+                read += length;
+                return length;
+            }
+
+            @Override
+            public void close() { }
+        };
+        assertThrows(IOException.class, () -> FrontendEntry.parse(source));
+    }
+
+    @Test
+    public void acceptsABomBeforeAnExportedCommentOrBlankLine() throws IOException {
+        assertEquals("Desk", parse("\uFEFF" + FrontendEntry.serialize(null, "Desk", null, "Game", 42))
+                .get(FrontendEntry.KEY_HOST_NAME));
+        assertEquals("Desk", parse("\uFEFF\r\n[host_name] Desk\r\n")
+                .get(FrontendEntry.KEY_HOST_NAME));
+    }
+
+    @Test
+    public void acceptsAnEntryAtTheCharacterLimitWithoutAFinalNewline() throws IOException {
+        String entry = "[host_name] Desk";
+        assertEquals("Desk", parse(entry + " ".repeat(FrontendEntry.MAX_CHARS - entry.length()))
+                .get(FrontendEntry.KEY_HOST_NAME));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.limelight.utils;
 
 import java.io.BufferedReader;
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.HashMap;
@@ -58,22 +59,26 @@ public final class FrontendEntry {
      * handed to us by "Open with" never starts a stream.
      */
     public static Map<String, String> parse(Reader source) throws IOException {
-        BufferedReader reader = new BufferedReader(source);
-        Map<String, String> values = new HashMap<>();
-        int total = 0;
-        String line;
-        while ((line = reader.readLine()) != null) {
-            total += line.length() + 1;
-            if (total > MAX_CHARS) {
+        char[] contents = new char[MAX_CHARS + 1];
+        int length = 0;
+        int count;
+        while ((count = source.read(contents, length, contents.length - length)) != -1) {
+            length += count;
+            if (length > MAX_CHARS) {
                 throw new IOException("Entry file is too large");
             }
+        }
+        BufferedReader reader = new BufferedReader(new CharArrayReader(contents, 0, length));
+        Map<String, String> values = new HashMap<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
             line = line.trim();
+            // Desktop editors may prefix the first line with a UTF-8 byte order mark.
+            if (line.startsWith("\uFEFF")) {
+                line = line.substring(1).trim();
+            }
             if (line.isEmpty() || line.startsWith("#")) {
                 continue;
-            }
-            // A UTF-8 byte order mark from desktop editors precedes the first key
-            if (line.charAt(0) == '\uFEFF') {
-                line = line.substring(1).trim();
             }
             int close = line.indexOf(']');
             if (!line.startsWith("[") || close < 2) {

@@ -113,10 +113,13 @@ Java_com_limelight_nvstream_jni_MoonBridge_sendMouseHighResHScroll(JNIEnv *env, 
 }
 
 JNIEXPORT void JNICALL
-Java_com_limelight_nvstream_jni_MoonBridge_sendUtf8Text(JNIEnv *env, jclass clazz, jstring text) {
-    const char* utf8Text = (*env)->GetStringUTFChars(env, text, NULL);
-    LiSendUtf8TextEvent(utf8Text, strlen(utf8Text));
-    (*env)->ReleaseStringUTFChars(env, text, utf8Text);
+Java_com_limelight_nvstream_jni_MoonBridge_sendUtf8Text(JNIEnv *env, jclass clazz, jbyteArray text) {
+    jbyte* utf8Text = (*env)->GetByteArrayElements(env, text, NULL);
+    if (utf8Text == NULL) {
+        return;
+    }
+    LiSendUtf8TextEvent((const char*)utf8Text, (*env)->GetArrayLength(env, text));
+    (*env)->ReleaseByteArrayElements(env, text, utf8Text, JNI_ABORT);
 }
 
 JNIEXPORT void JNICALL
