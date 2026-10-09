@@ -95,7 +95,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
     BridgeArCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArCleanup", "()V");
-    BridgeArPlaySampleMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArPlaySample", "([S)V");
+    BridgeArPlaySampleMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArPlaySample", "([SI)V");
     BridgeClStageStartingMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClStageStarting", "(I)V");
     BridgeClStageCompleteMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClStageComplete", "(I)V");
     BridgeClStageFailedMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClStageFailed", "(II)V");
@@ -166,10 +166,18 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
 
     // Increase the size of our frame data buffer if our frame won't fit
     if ((*env)->GetArrayLength(env, DecodedFrameBuffer) < decodeUnit->fullLength) {
-        (*env)->DeleteGlobalRef(env, DecodedFrameBuffer);
         jbyteArray frameBuffer = (*env)->NewByteArray(env, decodeUnit->fullLength);
+        if (frameBuffer == NULL) {
+            (*JVM)->DetachCurrentThread(JVM);
+            return DR_OK;
+        }
+        (*env)->DeleteGlobalRef(env, DecodedFrameBuffer);
         DecodedFrameBuffer = (*env)->NewGlobalRef(env, frameBuffer);
         (*env)->DeleteLocalRef(env, frameBuffer);
+        if (DecodedFrameBuffer == NULL) {
+            (*JVM)->DetachCurrentThread(JVM);
+            return DR_OK;
+        }
     }
 
     PLENTRY currentEntry;
@@ -285,7 +293,8 @@ void BridgeArDecodeAndPlaySample(char* sampleData, int sampleLength) {
         // We must release the array elements before making further JNI calls
         (*env)->ReleasePrimitiveArrayCritical(env, DecodedAudioBuffer, decodedData, 0);
 
-        (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeArPlaySampleMethod, DecodedAudioBuffer);
+        (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeArPlaySampleMethod,
+                                   DecodedAudioBuffer, decodeLen * OpusConfig.channelCount);
         if ((*env)->ExceptionCheck(env)) {
             // We will crash here
             (*JVM)->DetachCurrentThread(JVM);
@@ -364,6 +373,10 @@ void BridgeClSetHdrMode(bool enabled) {
     // Check if HDR metadata was provided
     if (enabled && LiGetHdrMetadata(&hdrMetadata)) {
         hdrMetadataByteArray = (*env)->NewByteArray(env, sizeof(SS_HDR_METADATA));
+        if (hdrMetadataByteArray == NULL) {
+            (*JVM)->DetachCurrentThread(JVM);
+            return;
+        }
         (*env)->SetByteArrayRegion(env, hdrMetadataByteArray, 0, sizeof(SS_HDR_METADATA), (jbyte*)&hdrMetadata);
     }
 

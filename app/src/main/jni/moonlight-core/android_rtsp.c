@@ -1024,15 +1024,15 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         // Create a client that can use 1 outgoing connection and 1 channel
         client = enet_host_create(RemoteAddr.ss_family, NULL, 1, 1, 0, 0);
         if (client == NULL) {
-            return -1;
+            ret = -1;
+            goto Exit;
         }
 
         // Connect to the host
         peer = enet_host_connect(client, &address, 1, 0);
         if (peer == NULL) {
-            enet_host_destroy(client);
-            client = NULL;
-            return -1;
+            ret = -1;
+            goto Exit;
         }
 
         // Wait for the connect to complete
@@ -1041,9 +1041,8 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP: Failed to connect to UDP port %u: error %d\n", RtspPortNumber, LastSocketFail());
             enet_peer_reset(peer);
             peer = NULL;
-            enet_host_destroy(client);
-            client = NULL;
-            return -1;
+            ret = -1;
+            goto Exit;
         }
 
         // Ensure the connect verify ACK is sent immediately
@@ -1064,6 +1063,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP OPTIONS request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1084,12 +1084,14 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP DESCRIBE request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
         if (!response.payload) {
             Limelog("RTSP DESCRIBE no content in response\n");
             ret = -1;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1172,6 +1174,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         // Parse the Opus surround parameters out of the RTSP DESCRIBE response.
         ret = parseOpusConfigurations(&response);
         if (ret != 0) {
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1198,6 +1201,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP SETUP streamid=audio request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1225,7 +1229,12 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         // which is not the case for the video stream.
         extern bool AndroidInputOnly;
         if (!AndroidInputOnly) {
-            notifyAudioPortNegotiationComplete();
+            ret = notifyAudioPortNegotiationComplete();
+            if (ret != 0) {
+                Limelog("Audio port initialization failed: %d\n", ret);
+                freeMessage(&response);
+                goto Exit;
+            }
         }
 
         sessionId = getOptionContent(response.options, "Session");
@@ -1233,6 +1242,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         if (sessionId == NULL) {
             Limelog("RTSP SETUP streamid=audio is missing session attribute\n");
             ret = -1;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1245,6 +1255,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         if (sessionToken == NULL || sessionToken[0] == '\0') {
             Limelog("RTSP SETUP streamid=audio has malformed session attribute\n");
             ret = -1;
+            freeMessage(&response);
             goto Exit;
         }
       
@@ -1252,6 +1263,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         if (sessionIdString == NULL) {
             Limelog("Failed to duplicate session ID string\n");
             ret = -1;
+            freeMessage(&response);
             goto Exit;
         }
       
@@ -1278,6 +1290,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP SETUP streamid=video request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1320,6 +1333,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP SETUP streamid=control request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1361,6 +1375,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP ANNOUNCE request failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1382,6 +1397,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             Limelog("RTSP PLAY failed: %d\n",
                 response.message.response.statusCode);
             ret = response.message.response.statusCode;
+            freeMessage(&response);
             goto Exit;
         }
 
@@ -1402,6 +1418,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
                 Limelog("RTSP PLAY streamid=video failed: %d\n",
                     response.message.response.statusCode);
                 ret = response.message.response.statusCode;
+                freeMessage(&response);
                 goto Exit;
             }
 
@@ -1422,6 +1439,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
                 Limelog("RTSP PLAY streamid=audio failed: %d\n",
                     response.message.response.statusCode);
                 ret = response.message.response.statusCode;
+                freeMessage(&response);
                 goto Exit;
             }
 

@@ -11,7 +11,7 @@ class VideoStats {
     int framesLost;
     char minHostProcessingLatency;
     char maxHostProcessingLatency;
-    int totalHostProcessingLatency;
+    long totalHostProcessingLatency;
     int framesWithHostProcessingLatency;
     long measurementStartTimestamp;
 
@@ -24,7 +24,7 @@ class VideoStats {
 
         if (this.minHostProcessingLatency == 0) {
             this.minHostProcessingLatency = other.minHostProcessingLatency;
-        } else {
+        } else if (other.minHostProcessingLatency != 0) {
             this.minHostProcessingLatency = (char) Math.min(this.minHostProcessingLatency, other.minHostProcessingLatency);
         }
         this.maxHostProcessingLatency = (char) Math.max(this.maxHostProcessingLatency, other.maxHostProcessingLatency);

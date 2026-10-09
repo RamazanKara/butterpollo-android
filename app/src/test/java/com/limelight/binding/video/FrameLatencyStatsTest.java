@@ -14,6 +14,19 @@ import static org.junit.Assert.*;
 
 public class FrameLatencyStatsTest {
     @Test
+    public void maximumStreamRateRetainsFramesUntilCallbackTimeout() {
+        FrameLatencyStats stats = new FrameLatencyStats();
+        for (int i = 0; i < 5000; i++) {
+            long timeNs = 1000000000L + i * 1000000L;
+            stats.onDecoderInput(i, i, timeNs, timeNs, timeNs, (char) 0);
+            stats.onDecoderOutput(0, i, timeNs);
+            stats.onOutputReleased(0, timeNs, true, true);
+        }
+        stats.expire(11000000000L);
+        assertEquals(5000, stats.getPresentDrops());
+    }
+
+    @Test
     public void timingSplitExcludesPacketAssemblyAndKeepsFractionalMilliseconds() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 123, 1000000, 15000000, 20000000, (char) 0);
@@ -185,15 +198,18 @@ public class FrameLatencyStatsTest {
     @Test
     public void stalledDecoderAndCsvWriterKeepTrackingBounded() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
-        for (int i = 0; i < 7000; i++) {
+        for (int i = 0; i < 15000; i++) {
             stats.onDecoderInput(i, i, 100, 100, 200, (char) 0);
         }
+        StringWriter overflowCsv = new StringWriter();
+        stats.writeCsv(overflowCsv);
+        assertEquals(4096, overflowCsv.toString().split("\n").length);
+        assertTrue(overflowCsv.toString().contains("tracking_overflow"));
         stats.discardPending("stream_ended");
-        assertEquals(7000 - 4096, stats.getCsvRowsLost());
+        assertEquals(15000 - 2 * 4096, stats.getCsvRowsLost());
         StringWriter csv = new StringWriter();
         stats.writeCsv(csv);
         assertEquals(4096, csv.toString().split("\n").length);
-        assertTrue(csv.toString().contains("tracking_overflow"));
         assertTrue(csv.toString().contains("stream_ended"));
     }
 

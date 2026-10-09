@@ -385,7 +385,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     LimeLog.info("Using non-whitelisted AV1 decoder to meet performance point");
                 }
                 // Use AV1 if the H.264 decoder is unable to meet the performance point and we have no HEVC decoder
-                else if (hevcDecoder == null && decoderCanMeetPerformancePointWithAv1AndNotAvc(decoderInfo, avcDecoder, prefs)) {
+                else if (hevcDecoder == null && avcDecoder != null && decoderCanMeetPerformancePointWithAv1AndNotAvc(decoderInfo, avcDecoder, prefs)) {
                     LimeLog.info("Using non-whitelisted AV1 decoder to meet performance point");
                 }
                 else {
@@ -490,7 +490,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         LimeLog.info("Requesting "+optimalSlicesPerFrame+" slices per frame");
 
         if (consecutiveCrashCount % 2 == 1) {
-            refFrameInvalidationAvc = refFrameInvalidationHevc = false;
+            refFrameInvalidationAvc = refFrameInvalidationHevc = refFrameInvalidationAv1 = false;
             LimeLog.warning("Disabling RFI due to previous crash");
         }
     }

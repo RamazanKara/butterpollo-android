@@ -1382,6 +1382,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                     else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_AV1) != 0) {
                         message += "AV1";
                     }
+                    else if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+                        message += "PyroWave";
+                    }
                     else {
                         message += "UNKNOWN";
                     }

@@ -395,6 +395,7 @@ namespace {
 
         int submit(const uint8_t *data, size_t length, int64_t ptsUs) {
             completedDecodeNs = 0;
+            framePresented = false;
             lastGpuDecodeUs = 0;
             if (failed) return SUBMIT_ERROR;
             pyrowave_decoder_clear(decoder);
@@ -1292,8 +1293,9 @@ namespace {
                 presentInfo.pNext = &presentTimes;
             }
             const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
-            if (displayTimingSupported && (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR)) {
-                if (pendingPresents.size() == 2048) pendingPresents.pop_front();
+            framePresented = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
+            if (displayTimingSupported && framePresented) {
+                if (pendingPresents.size() == 8192) pendingPresents.pop_front();
                 pendingPresents.emplace_back(presentTime.presentID, ptsUs);
             }
             const uint64_t frameEnd = nowUs();
@@ -1445,6 +1447,7 @@ namespace {
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
+        bool framePresented = false;
         bool displayTimingSupported = false;
         std::vector<jlong> renderedFrames;
 
@@ -1685,6 +1688,11 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEn
     if (env->ExceptionCheck()) return SUBMIT_ERROR;
     int result = renderer->submit(frame.data(), frame.size(), ptsUs);
     return result == SUBMIT_OK ? jlong(renderer->completedDecodeNs) : (result == SUBMIT_ERROR ? -1 : 0);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeWasFramePresented(JNIEnv *, jclass, jlong handle) {
+    return reinterpret_cast<Renderer *>(handle)->framePresented ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL

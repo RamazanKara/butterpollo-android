@@ -95,7 +95,7 @@ public final class PyroWaveDecoderRenderer {
         }
         if (outputNs > 0) {
             stats.onDecoderOutput(0, ptsUs, outputNs);
-            stats.onOutputReleased(0, System.nanoTime(), true, true);
+            stats.onOutputReleased(0, System.nanoTime(), nativeWasFramePresented(handle), true);
         }
         // Keep output registration and polling under the same lock: a present can already be ready.
         if (!nativePollRenderedFrames(handle, stats) && outputNs > 0) {
@@ -138,6 +138,7 @@ public final class PyroWaveDecoderRenderer {
     private static native long nativeCreate(Surface surface, int width, int height, int fps, float displayRefreshRate,
                                            boolean chroma444, boolean tenBit, boolean fullRange);
     private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
+    private static native boolean nativeWasFramePresented(long handle);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
     private static native String nativeGetPresentMode(long handle);

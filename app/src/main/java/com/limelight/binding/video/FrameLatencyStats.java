@@ -12,7 +12,8 @@ import java.util.Locale;
 
 class FrameLatencyStats {
     static final int WINDOW_SIZE = 600;
-    private static final int MAX_PENDING = 2048;
+    // Cover the five-second callback timeout at the maximum 1000 FPS stream rate.
+    private static final int MAX_PENDING = 8192;
     private static final int MAX_COMPLETED = 4096;
     private static final long CALLBACK_TIMEOUT_NS = 5000000000L;
     private static final long FPS_WINDOW_NS = 2000000000L;

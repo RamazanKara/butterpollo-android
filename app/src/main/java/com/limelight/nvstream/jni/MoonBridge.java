@@ -270,9 +270,9 @@ public class MoonBridge {
         }
     }
 
-    public static void bridgeArPlaySample(short[] pcmData) {
+    public static void bridgeArPlaySample(short[] pcmData, int length) {
         if (audioRenderer != null) {
-            audioRenderer.playDecodedAudio(pcmData);
+            audioRenderer.playDecodedAudio(pcmData, length);
         }
     }
 
