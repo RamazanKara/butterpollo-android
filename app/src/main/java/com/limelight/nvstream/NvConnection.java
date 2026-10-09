@@ -813,14 +813,18 @@ public class NvConnection {
     public void sendMouseButtonDown(final byte mouseButton)
     {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton));
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseButton(MouseButtonPacket.PRESS_EVENT, mouseButton);
+            });
         }
     }
     
     public void sendMouseButtonUp(final byte mouseButton)
     {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseButton(MouseButtonPacket.RELEASE_EVENT, mouseButton));
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseButton(MouseButtonPacket.RELEASE_EVENT, mouseButton);
+            });
         }
     }
     
@@ -843,31 +847,41 @@ public class NvConnection {
 
     public void sendKeyboardInput(final short keyMap, final byte keyDirection, final byte modifier, final byte flags) {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags));
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendKeyboardInput(keyMap, keyDirection, modifier, flags);
+            });
         }
     }
     
     public void sendMouseScroll(final byte scrollClicks) {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResScroll((short)(scrollClicks * 120))); // WHEEL_DELTA
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseHighResScroll((short)(scrollClicks * 120)); // WHEEL_DELTA
+            });
         }
     }
 
     public void sendMouseHScroll(final byte scrollClicks) {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResHScroll((short)(scrollClicks * 120))); // WHEEL_DELTA
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseHighResHScroll((short)(scrollClicks * 120)); // WHEEL_DELTA
+            });
         }
     }
 
     public void sendMouseHighResScroll(final short scrollAmount) {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResScroll(scrollAmount));
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseHighResScroll(scrollAmount);
+            });
         }
     }
 
     public void sendMouseHighResHScroll(final short scrollAmount) {
         if (canSendInput()) {
-            inputBatcher.boundary(() -> MoonBridge.sendMouseHighResHScroll(scrollAmount));
+            inputBatcher.boundary(() -> {
+                if (canSendInput()) MoonBridge.sendMouseHighResHScroll(scrollAmount);
+            });
         }
     }
 

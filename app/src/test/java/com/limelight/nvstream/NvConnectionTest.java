@@ -33,6 +33,44 @@ public class NvConnectionTest {
     }
 
     @Test
+    public void inputWaitingForABatchCannotSendAfterStop() throws Exception {
+        java.util.List<java.util.function.Consumer<NvConnection>> events = java.util.List.of(
+                c -> c.sendMouseButtonDown((byte) 1),
+                c -> c.sendMouseButtonUp((byte) 1),
+                c -> c.sendKeyboardInput((short) 65, (byte) 3, (byte) 0, (byte) 0),
+                c -> c.sendMouseScroll((byte) 1),
+                c -> c.sendMouseHScroll((byte) 1),
+                c -> c.sendMouseHighResScroll((short) 120),
+                c -> c.sendMouseHighResHScroll((short) 120));
+        for (java.util.function.Consumer<NvConnection> event : events) {
+            NvConnection connection = connection();
+            java.lang.reflect.Field field = NvConnection.class.getDeclaredField("inputBatcher");
+            field.setAccessible(true);
+            Object batcher = field.get(connection);
+            java.util.concurrent.atomic.AtomicReference<Throwable> failure = new java.util.concurrent.atomic.AtomicReference<>();
+            Thread input = new Thread(() -> {
+                try {
+                    event.accept(connection);
+                } catch (Throwable e) {
+                    failure.set(e);
+                }
+            });
+            synchronized (batcher) {
+                input.start();
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+                while (input.getState() != Thread.State.BLOCKED && input.isAlive() && System.nanoTime() < deadline) {
+                    Thread.sleep(1);
+                }
+                assertEquals(Thread.State.BLOCKED, input.getState());
+                connection.stop();
+            }
+            input.join(2000);
+            assertFalse(input.isAlive());
+            assertNull("Stopped input reached JNI: " + failure.get(), failure.get());
+        }
+    }
+
+    @Test
     public void stoppingBeforeStartIsIdempotentAndDoesNotReleaseAnotherConnectionsPermit() throws Exception {
         java.util.concurrent.Semaphore semaphore = connectionSemaphore();
         assertTrue(semaphore.tryAcquire());

@@ -1564,19 +1564,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     // Add this buffer
                                     outputBufferQueue.add(lastIndex);
                                 }
-                            } else {
-                                switch (outIndex) {
-                                    case MediaCodec.INFO_TRY_AGAIN_LATER:
-                                        break;
-                                    case MediaCodec.INFO_OUTPUT_FORMAT_CHANGED:
-                                        LimeLog.info("Output format changed");
-                                        outputFormat = videoDecoder.getOutputFormat();
-                                        LimeLog.info("New output format: " + outputFormat);
-                                        checkUpscalingOutputFormat();
-                                        break;
-                                    default:
-                                        break;
-                                }
+                            }
+                            if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                                LimeLog.info("Output format changed");
+                                outputFormat = videoDecoder.getOutputFormat();
+                                LimeLog.info("New output format: " + outputFormat);
+                                checkUpscalingOutputFormat();
                             }
                         } catch (IllegalStateException e) {
                             handleDecoderException(e);
