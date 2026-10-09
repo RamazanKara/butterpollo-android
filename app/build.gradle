@@ -89,8 +89,12 @@ android {
         coreLibraryDesugaringEnabled true
     }
 
+    androidResources {
+        localeFilters += ['en', 'de']
+    }
+
     lint {
-        disable 'MissingTranslation'
+        enable 'MissingTranslation'
         lintConfig file('lint.xml')
     }
 
