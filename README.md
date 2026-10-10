@@ -5,7 +5,7 @@
 <p align="center">Stream your PC games and desktop to Android, with ultra-low latency and the controls you love.</p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" width="720" alt="Rubylight demo: open your game library, tap a game to start your stream, and keep the performance overlay in view.">
+  <img src="docs/assets/demo.gif" width="360" alt="Rubylight demo: open your game library, tap a game to start your stream, keep the performance overlay in view, and keep the stream floating in picture-in-picture.">
 </p>
 
 <p align="center"><a href="https://github.com/RamazanKara/rubylight-android/releases">Watch the full demo →</a></p>
@@ -17,13 +17,13 @@
 <p align="center">
   <img src="docs/assets/shots/pc-list.png" width="160" alt="Computers list showing online, offline and unpaired PCs">
   <img src="docs/assets/shots/library.png" width="160" alt="Game library with cover art and a running game">
-  <img src="docs/assets/shots/overlay.png" width="160" alt="Stream with the advanced performance overlay open">
-  <img src="docs/assets/shots/presets.png" width="160" alt="Stream settings with Balanced, Low latency, Best quality and Battery saver presets">
+  <img src="docs/assets/shots/stream.png" width="257" alt="Landscape stream with the compact one-line performance overlay">
+  <img src="docs/assets/shots/pip.png" width="160" alt="The stream floating over the home screen in a picture-in-picture window">
 </p>
 
 ## Features
 
-- **React instantly** with ultra-low latency streaming and low-latency decoding.
+- **React instantly** with ultra-low latency streaming and decoding.
 - **See every detail** with AV1, HEVC and H.264 video, plus HDR10.
 - **Keep motion fluid** with high refresh rates and VRR frame pacing.
 - **Sharpen your stream** with client-side FSR and Snapdragon GSR upscaling.
@@ -36,8 +36,8 @@
 
 1. **Set up your PC:** start the [Rubylight host](https://github.com/RamazanKara/Rubylight) and add your games.
 2. **Install on Android:** [download the APK](https://github.com/RamazanKara/rubylight-android/releases/latest) and open it.
-3. **Connect and pair:** select your PC on the same network and enter Android's PIN in the host's **Devices** page.
-4. **Start your stream:** enable the device's permissions, open your library and tap a game.
+3. **Connect and pair:** select your PC on the same network and enter the PIN shown on your phone in the host's **Devices** page.
+4. **Start your stream:** allow permissions, open your library and tap a game.
 
 ## Docs
 
