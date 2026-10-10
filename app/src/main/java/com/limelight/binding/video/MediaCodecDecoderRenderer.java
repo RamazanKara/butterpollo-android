@@ -202,6 +202,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return decodeTimeMs;
     }
 
+    public LatencyProbe getLatencyProbe() {
+        return frameLatencyStats.latencyProbe;
+    }
+
     /** ThermalMonitor level from the last stats window. */
     public int getThermalLevel() {
         return thermalLevel;

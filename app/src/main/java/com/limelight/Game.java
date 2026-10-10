@@ -15,6 +15,7 @@ import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.video.CrashListener;
+import com.limelight.binding.video.LatencyProbe;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
@@ -156,7 +157,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
     private SpinnerDialog spinner;
     private boolean displayedFailureDialog = false;
     private boolean connecting = false;
-    private boolean connected = false;
+    private volatile boolean connected = false;
     private boolean autoEnterPip = false;
     private com.limelight.ui.AdaptiveLayout adaptiveLayout;
     private boolean surfaceCreated = false;
@@ -1566,7 +1567,53 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         addStreamAction(sheet, !compactPerformanceOverlay ? R.drawable.ic_check : R.drawable.ic_remote_monitor,
                 R.string.overlay_advanced, () -> { if (compactPerformanceOverlay) togglePerformanceOverlayMode(); });
         addStreamAction(sheet, R.drawable.ic_clipboard, R.string.overlay_copy, this::copyPerformanceStats);
+        if (conn.canSendInput()) {
+            addStreamAction(sheet, R.drawable.ic_network, R.string.latency_test, this::runLatencyTest);
+        }
         showStreamDialog(sheet);
+    }
+
+    private boolean latencyTestRunning;
+
+    // Nudges the host mouse back and forth on a still screen and times each nudge until its frame is shown.
+    private void runLatencyTest() {
+        if (latencyTestRunning || !connected) return;
+        latencyTestRunning = true;
+        Toast.makeText(this, R.string.latency_test_running, Toast.LENGTH_LONG).show();
+        LatencyProbe probe = decoderRenderer.getLatencyProbe();
+        NvConnection connection = conn;
+        new Thread(() -> {
+            final int probes = 15;
+            long[] samples = new long[probes];
+            int count = 0;
+            short step = 8;
+            long giveUpNs = System.nanoTime() + 20_000_000_000L;
+            try {
+                while (count < probes && connected && System.nanoTime() < giveUpNs) {
+                    if (!probe.isIdle(System.nanoTime())) {
+                        Thread.sleep(10);
+                        continue;
+                    }
+                    probe.arm(System.nanoTime());
+                    connection.sendMouseMove(step, (short) 0);
+                    step = (short) -step;
+                    long ns = probe.await(500);
+                    if (ns > 0) samples[count++] = ns;
+                }
+            } catch (InterruptedException ignored) {
+            }
+            int measured = count;
+            float[] result = LatencyProbe.summarize(samples, measured);
+            runOnUiThread(() -> {
+                latencyTestRunning = false;
+                if (!foreground || !connected || isFinishing()) return;
+                String message = result == null || measured < 5 ? getString(R.string.latency_test_failed) :
+                        getString(R.string.latency_test_result, result[1], result[0], result[2], measured);
+                LimeLog.info("Latency test: " + message);
+                showStreamDialog(new MaterialAlertDialogBuilder(this).setTitle(R.string.latency_test)
+                        .setMessage(message).setPositiveButton(android.R.string.ok, null).create());
+            });
+        }, "Latency test").start();
     }
 
     private void showBitrateMenu() {

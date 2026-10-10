@@ -73,9 +73,12 @@ class FrameLatencyStats {
         String status;
     }
 
+    final LatencyProbe latencyProbe = new LatencyProbe();
+
     synchronized void onFrameReceived(long receiveNs) {
         if (fpsStartNs == 0) fpsStartNs = receiveNs;
         recordFrameTime(0, receiveNs);
+        latencyProbe.onFrameReceived(receiveNs);
     }
 
     synchronized void onDecoderInput(int frameNumber, long ptsUs, long receiveNs, long enqueueNs,
@@ -143,6 +146,8 @@ class FrameLatencyStats {
             if (!render) {
                 finish(frame, "dropped");
             } else if (!hasRenderCallback) {
+                // Without render callbacks the release is the closest moment to the screen.
+                latencyProbe.onFrameRendered(frame.receiveNs, releaseNs);
                 finish(frame, "render_unavailable");
             }
         }
@@ -157,6 +162,7 @@ class FrameLatencyStats {
                 recordFrameTime(2, renderNs);
                 addSample(2, frame.outputNs, renderNs);
                 addSample(3, frame.receiveNs, renderNs);
+                latencyProbe.onFrameRendered(frame.receiveNs, renderNs);
             }
             finish(frame, valid ? "rendered" : "invalid_render_time");
         }
