@@ -47,6 +47,8 @@ jobs:
         run: |
           g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o /tmp/pyrowave-frame-test
           /tmp/pyrowave-frame-test
+          gcc -std=c11 -O2 app/src/test/native/control_negotiation_test.c -o /tmp/control-negotiation-test
+          /tmp/control-negotiation-test
       - uses: actions/upload-artifact@v7
         with:
           name: butterpollo-debug

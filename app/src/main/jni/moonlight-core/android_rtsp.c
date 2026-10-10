@@ -1,6 +1,7 @@
 #include "Limelight-internal.h"
 #include "Rtsp.h"
 #include "pyrowave_protocol.h"
+#include "control_negotiation.h"
 
 int PyroWaveRecordsSupported;
 int PyroWaveRecordsEnabled;
@@ -1174,6 +1175,24 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             EncryptionFeaturesRequested = 0;
         }
         EncryptionFeaturesEnabled = 0;
+
+        // Rubylight 2.2.0+ hosts list the extra control messages they accept.
+        {
+            uint16_t controlMessages[RL_MAX_CONTROL_MESSAGES];
+            int controlMessageCount = rlParseControlMessages(response.payload, controlMessages,
+                                                             RL_MAX_CONTROL_MESSAGES);
+            setHostControlMessages(controlMessages, controlMessageCount);
+            if (controlMessageCount > 0) {
+                char list[RL_MAX_CONTROL_MESSAGES * 7 + 1];
+                size_t used = 0;
+                list[0] = 0;
+                for (int i = 0; i < controlMessageCount && used + 8 <= sizeof(list); i++) {
+                    used += (size_t)snprintf(list + used, sizeof(list) - used, "%s0x%04x",
+                                             i ? "," : "", controlMessages[i]);
+                }
+                Limelog("Host control messages: %s\n", list);
+            }
+        }
 
         // Parse the Opus surround parameters out of the RTSP DESCRIBE response.
         ret = parseOpusConfigurations(&response);

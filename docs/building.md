@@ -45,11 +45,13 @@ bash gradlew --no-daemon --max-workers=2 :app:assembleNonRootDebug :app:lintNonR
 
 The JVM suite includes Robolectric tests. Reports go to `app/build/reports/tests/testNonRootDebugUnitTest/index.html` and `app/build/reports/lint-results-nonRootDebug.html`. A failed lint/test task is a failed check even when assembly succeeds.
 
-The existing CI also runs a standalone native parser/negotiation test on Linux:
+The existing CI also runs standalone native parser/negotiation tests on Linux:
 
 ```sh
 g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o /tmp/pyrowave-frame-test
 /tmp/pyrowave-frame-test
+gcc -std=c11 -O2 app/src/test/native/control_negotiation_test.c -o /tmp/control-negotiation-test
+/tmp/control-negotiation-test
 ```
 
 These commands match [the Android workflow](../.github/workflows/android.yml). The optional [emulator smoke script](../scripts/emulator-smoke.py) requires an already configured Android SDK, Python and its expected AVD.

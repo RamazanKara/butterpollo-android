@@ -80,3 +80,37 @@ Java_com_limelight_nvstream_jni_MoonBridge_getPhaseLockLeadUs(JNIEnv *env, jclas
     (void)env; (void)clazz;
     return atomic_load(&phaseLockLastLeadUs);
 }
+
+// Control messages the host named in its DESCRIBE answer (a=x-rl-control, Rubylight 2.2.0+).
+// Written on the connection thread before the control stream starts, read from Java threads.
+#include "control_negotiation.h"
+
+static uint16_t hostControlMessages[RL_MAX_CONTROL_MESSAGES];
+static atomic_int hostControlMessageCount;
+
+void resetHostControlMessages(void) {
+    atomic_store(&hostControlMessageCount, 0);
+}
+
+void setHostControlMessages(const uint16_t* ids, int count) {
+    atomic_store(&hostControlMessageCount, 0);
+    if (count > RL_MAX_CONTROL_MESSAGES) count = RL_MAX_CONTROL_MESSAGES;
+    if (count < 0) count = 0;
+    memcpy(hostControlMessages, ids, (size_t)count * sizeof(ids[0]));
+    atomic_store(&hostControlMessageCount, count);
+}
+
+bool hostSupportsControlMessage(uint16_t messageType) {
+    int count = atomic_load(&hostControlMessageCount);
+    for (int i = 0; i < count; i++) {
+        if (hostControlMessages[i] == messageType) return true;
+    }
+    return false;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_hostSupportsControlMessage(JNIEnv *env, jclass clazz, jint messageType) {
+    (void)env; (void)clazz;
+    if (messageType < 0 || messageType > 0xFFFF) return JNI_FALSE;
+    return hostSupportsControlMessage((uint16_t)messageType) ? JNI_TRUE : JNI_FALSE;
+}

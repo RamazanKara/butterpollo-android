@@ -461,4 +461,8 @@ public class MoonBridge {
     // Early edge of the last phase-lock report in microseconds before the latch, or
     // Integer.MIN_VALUE before the first one.
     public static native int getPhaseLockLeadUs();
+
+    // Whether this connection's host named the control message in its DESCRIBE answer
+    // (a=x-rl-control, Rubylight 2.2.0+). False before the RTSP handshake and for other hosts.
+    public static native boolean hostSupportsControlMessage(int messageType);
 }
