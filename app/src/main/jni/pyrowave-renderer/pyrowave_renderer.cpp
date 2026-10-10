@@ -1331,12 +1331,34 @@ namespace {
             vk.CmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 3, barriers);
         }
 
+        // Records the decode's finish time if the GPU is already done with it. Polled while the
+        // CPU prepares the draw, so a late wait does not inflate the measured decode time.
+        void stampDecodeIfDone() {
+            if (decodeStamped || vk.WaitForFences(device, 1, &decodeFence, VK_TRUE, 0) != VK_SUCCESS) return;
+            timespec completed;
+            clock_gettime(CLOCK_MONOTONIC, &completed);
+            completedDecodeNs = uint64_t(completed.tv_sec) * 1000000000ULL + completed.tv_nsec;
+            decodeStamped = true;
+        }
+
+        // Waits for the submitted decode and records when it finished.
+        bool finishDecode() {
+            if (!check(vk.WaitForFences(device, 1, &decodeFence, VK_TRUE, FENCE_TIMEOUT_NS), "decode fence")) return false;
+            stampDecodeIfDone();
+            decodeStamped = false;
+            queriesPending = queryPool != VK_NULL_HANDLE;
+            readTimestamps();
+            return true;
+        }
+
         bool present(bool display = true, int64_t ptsUs = 0) {
             const uint64_t frameStart = nowUs();
 
             // One frame in flight: after this wait the previous frame's sampling of the
-            // planes is finished, so decoding may overwrite them.
-            if (!check(vk.WaitForFences(device, 1, &frameFence, VK_TRUE, FENCE_TIMEOUT_NS), "frame fence")) {
+            // planes is finished, so decoding may overwrite them. The decode fence is normally
+            // signaled already; it only matters after a frame that failed midway.
+            const VkFence inFlight[] = {frameFence, decodeFence};
+            if (!check(vk.WaitForFences(device, 2, inFlight, VK_TRUE, FENCE_TIMEOUT_NS), "frame fence")) {
                 return false;
             }
             const uint64_t afterFence = nowUs();
@@ -1385,32 +1407,32 @@ namespace {
             VkSubmitInfo decodeSubmit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
             decodeSubmit.commandBufferCount = 1;
             decodeSubmit.pCommandBuffers = &decodeCommandBuffer;
+            decodeStamped = false;
             if (!check(vk.ResetFences(device, 1, &decodeFence), "reset decode fence")) return false;
             if (!check(vk.QueueSubmit(queue, 1, &decodeSubmit, decodeFence), "vkQueueSubmit(decode)")) {
                 return false;
             }
 
-            // This also protects command-buffer/query reuse when acquire times out or the surface changes.
-            if (!check(vk.WaitForFences(device, 1, &decodeFence, VK_TRUE, FENCE_TIMEOUT_NS), "decode fence")) return false;
-            timespec completed;
-            clock_gettime(CLOCK_MONOTONIC, &completed);
-            completedDecodeNs = uint64_t(completed.tv_sec) * 1000000000ULL + completed.tv_nsec;
-            queriesPending = queryPool != VK_NULL_HANDLE;
-            readTimestamps();
-            if (!display) return true;
+            // The draw is queued right behind the decode instead of after a CPU wait for it, so
+            // the GPU goes straight from one to the other without idling (and clocking down).
+            // Every path waits for the decode before returning, which keeps the decode command
+            // buffer and timestamp queries safe to reuse on the next frame.
+            if (!display) return finishDecode();
 
+            stampDecodeIfDone();
             uint32_t imageIndex = 0;
             const uint64_t beforeAcquire = nowUs();
             auto acquired = vk.AcquireNextImageKHR(device, swapchain, ACQUIRE_TIMEOUT_NS, acquireSemaphore,
                                                    VK_NULL_HANDLE, &imageIndex);
             const uint64_t afterAcquire = nowUs();
             if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
-                return recreateSwapchain();
+                return finishDecode() && recreateSwapchain();
             }
             if (acquired == VK_TIMEOUT || acquired == VK_NOT_READY) {
-                return true;  // Skip presenting this frame; the next one replaces it anyway.
+                return finishDecode();  // Skip presenting this frame; the next one replaces it anyway.
             }
             if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR) {
+                finishDecode();
                 return check(acquired, "vkAcquireNextImageKHR");
             }
 
@@ -1491,6 +1513,7 @@ namespace {
             submitInfo.pCommandBuffers = &commandBuffer;
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &renderDone[imageIndex];
+            stampDecodeIfDone();
             if (!check(vk.ResetFences(device, 1, &frameFence), "reset frame fence")) return false;
             if (!check(vk.QueueSubmit(queue, 1, &submitInfo, frameFence), "vkQueueSubmit")) {
                 return false;
@@ -1519,6 +1542,7 @@ namespace {
                 pendingPresents.emplace_back(presentTime.presentID, ptsUs);
             }
             const uint64_t frameEnd = nowUs();
+            if (!finishDecode()) return false;
 
             stats.frames++;
             stats.fenceWaitUs += afterFence - frameStart;
@@ -1698,6 +1722,7 @@ namespace {
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
+        bool decodeStamped = false;
         uint64_t lastReleaseNs = 0;
         bool displayTimingSupported = false;
         std::vector<jlong> renderedFrames;
