@@ -52,7 +52,7 @@ g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o /tmp/pyrowave-
 /tmp/pyrowave-frame-test
 ```
 
-These commands match [the Android workflow](../.github/workflows/android.yml). The optional [emulator smoke script](../scripts/emulator-smoke.py) requires an already configured Android SDK, Python and its expected AVD; hardware streaming still needs the [device checklist](device-checklist.md). A UI fixture does not verify real pairing, decode quality or controller feedback.
+These commands match [the Android workflow](../.github/workflows/android.yml). The optional [emulator smoke script](../scripts/emulator-smoke.py) requires an already configured Android SDK, Python and its expected AVD.
 
 ### UI smoke captures
 
@@ -88,7 +88,7 @@ The signing hook in [app/build.gradle](../app/build.gradle) reads these four val
 
 Each nonempty environment variable overrides its matching property. Supply all four values using the existing release key. Relative keystore paths resolve from the repository root; use forward slashes in Windows property paths. The properties file and `*.jks`/`*.keystore` files are ignored by Git.
 
-With no signing values, **release APKs and bundles use the debug key**, and Gradle prints a warning. This permits local installation and R8 testing; those artifacts are not production-signed. A partial signing configuration fails the build. Updates must use the installed app's signing identity.
+With no signing values, **release APKs and bundles use the debug key**, and Gradle prints a warning. Use these for local installation and R8 testing, and sign distributed builds with your release key. A partial signing configuration fails the build. Updates must use the installed app's signing identity.
 
 Create a signing key once and retain it for future updates. JDK 17 supplies `keytool`; it prompts for the keystore password:
 

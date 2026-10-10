@@ -255,7 +255,7 @@
     <string name="pyrowave_missing_swapchain">Vulkan display unavailable</string>
     <string name="pyrowave_missing_hdr">Not supported: HDR unavailable</string>
     <string name="pyrowave_check_failed">Not supported: GPU check failed</string>
-    <string name="title_enable_hdr">HDR (experimental)</string>
+    <string name="title_enable_hdr">HDR</string>
     <string name="summary_enable_hdr">Use HDR on supported screens and PCs.</string>
     <string name="title_full_range">Force full-range video</string>
     <string name="summary_full_range">May lose detail in bright or dark areas.</string>
@@ -296,7 +296,7 @@
     <string name="audioconf_71surround">7.1 Surround Sound</string>
 
     <string name="videoformat_auto">Automatic (recommended)</string>
-    <string name="videoformat_av1always">AV1 (experimental)</string>
+    <string name="videoformat_av1always">AV1</string>
     <string name="videoformat_hevcalways">HEVC</string>
     <string name="videoformat_h264always">H.264</string>
 
@@ -346,7 +346,7 @@
     <string name="title_gpu_max_clocks">Max GPU clocks for PyroWave</string>
     <string name="summary_gpu_max_clocks">Keep the Adreno GPU at full speed while streaming PyroWave. Uses more battery.</string>
     <string name="title_pyrowave_front_buffer">Front-buffer rendering for PyroWave</string>
-    <string name="summary_pyrowave_front_buffer">Draw each PyroWave frame straight into the image on screen, skipping Android\'s display queue. Lowest latency; fast motion can show a tear line. Experimental, needs driver support.</string>
+    <string name="summary_pyrowave_front_buffer">Draw each PyroWave frame straight into the image on screen, skipping Android\'s display queue. Lowest latency; fast motion can show a tear line. Needs driver support.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
     <string name="summary_drop_late_frames">Skip frames the screen can no longer show in time.</string>
     <string name="title_texture_view">Compatibility video view</string>
@@ -391,7 +391,7 @@
     <string name="host_launch_permission_denied">Allow this device to launch apps in the host console.</string>
     <string name="category_butterpollo_host">Host display</string>
     <string name="category_latency_diagnostics">Latency diagnostics</string>
-    <string name="videoformat_pyrowave">PyroWave (experimental)</string>
+    <string name="videoformat_pyrowave">PyroWave</string>
     <string name="settings">Settings</string>
     <string name="settings_navigate_up">Navigate up</string>
     <string name="settings_section_video">Stream</string>

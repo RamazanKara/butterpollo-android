@@ -6,11 +6,11 @@ The Rubylight host must grant the relevant input permission to this device. If v
 
 ## Gamepads
 
-Connect a Bluetooth controller in Android's Bluetooth settings or plug a USB controller into the device. **Settings → Controls → Detect controllers** is on by default and supports multiple players; the protocol provides up to 16 controller slots, while games may accept fewer.
+Connect a Bluetooth controller in Android's Bluetooth settings or plug a USB controller into the device. **Settings → Controls → Detect controllers** is on by default and supports multiple players; the protocol provides up to 16 controller slots.
 
-Use **Controller buttons** to press a digital button and choose what it sends, including **Nothing**. Mappings are stored per controller model and apply on the next stream, including the USB drivers. **Reset this controller** restores its default mapping. Analog axes are not remapped by this screen.
+Use **Controller buttons** to press a digital button and choose what it sends, including **Nothing**. Mappings are stored per controller model and apply on the next stream, including the USB drivers. **Reset this controller** restores its default mapping.
 
-**Flip face buttons** swaps A/B and X/Y. Raise the stick deadzone if a stationary stick drifts. **Vibrate device for rumble** supplies phone/tablet feedback when the controller cannot rumble.
+**Flip face buttons** swaps A/B and X/Y. Raise the stick deadzone if a stationary stick drifts. **Vibrate device for rumble** gives you rumble on the phone or tablet when the controller has no motors.
 
 ### DualSense and USB
 
@@ -22,7 +22,7 @@ For direct DualSense or DualSense Edge USB support:
 2. Connect the pad by USB and start a stream.
 3. Allow Android's USB access request. Rubylight can then send host-provided adaptive trigger effects, rumble and lightbar changes and read the pad's input and Edge paddles.
 
-The toggle is off by default. Denying USB access keeps the ordinary Android input path; unplug and reconnect to retry. The host must support the requested feedback. Bluetooth adaptive triggers and USB audio haptics are not implemented by this driver.
+The toggle is off by default. Denying USB access keeps the ordinary Android input path; unplug and reconnect to retry. The host must support the requested feedback.
 
 The separate **USB controller driver** setting supplies Xbox USB support. **Always use the USB driver** prefers that path even if Android already recognizes the controller.
 

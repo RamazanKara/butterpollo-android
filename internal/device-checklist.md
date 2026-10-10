@@ -1,6 +1,6 @@
 # Rubylight device checklist
 
-[Documentation](index.md) · [Parity matrix](PARITY-MATRIX.md)
+[Documentation](../docs/index.md) · [Parity matrix](../docs/PARITY-MATRIX.md)
 
 Record the app build, host version, phone/tablet/TV model, SoC, Android build, controller model/firmware, display mode and network for each run. Attach the relevant copied stats, CSV, host logs and captures. Unchecked items below are a test plan, not claimed results.
 

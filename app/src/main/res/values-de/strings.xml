@@ -223,7 +223,7 @@
     <string name="pyrowave_missing_swapchain">Vulkan-Anzeige nicht verfügbar</string>
     <string name="pyrowave_missing_hdr">HDR nicht verfügbar</string>
     <string name="pyrowave_check_failed">GPU-Prüfung fehlgeschlagen</string>
-    <string name="title_enable_hdr">HDR (experimentell)</string>
+    <string name="title_enable_hdr">HDR</string>
     <string name="summary_enable_hdr">Nutze HDR auf unterstützten Displays und PCs.</string>
     <string name="title_full_range">Vollen Farbbereich erzwingen</string>
     <string name="summary_full_range">Kann Details in hellen und dunklen Bereichen verlieren.</string>
@@ -254,7 +254,7 @@
     <string name="audioconf_51surround">5.1-Surround</string>
     <string name="audioconf_71surround">7.1-Surround</string>
     <string name="videoformat_auto">Automatisch (empfohlen)</string>
-    <string name="videoformat_av1always">AV1 (experimentell)</string>
+    <string name="videoformat_av1always">AV1</string>
     <string name="videoformat_hevcalways">HEVC</string>
     <string name="videoformat_h264always">H.264</string>
     <string name="title_frame_pacing">Frame-Pacing</string>
@@ -302,7 +302,7 @@
     <string name="title_gpu_max_clocks">Volle GPU-Leistung für PyroWave</string>
     <string name="summary_gpu_max_clocks">Hält die Adreno-GPU beim PyroWave-Streamen auf vollem Takt. Braucht mehr Akku.</string>
     <string name="title_pyrowave_front_buffer">Front-Buffer-Rendering für PyroWave</string>
-    <string name="summary_pyrowave_front_buffer">Zeichnet jedes PyroWave-Bild direkt ins Bild auf dem Display und umgeht Androids Anzeigewarteschlange. Geringste Latenz; bei schnellen Bewegungen kann eine Trennlinie sichtbar sein. Experimentell, braucht Treiberunterstützung.</string>
+    <string name="summary_pyrowave_front_buffer">Zeichnet jedes PyroWave-Bild direkt ins Bild auf dem Display und umgeht Androids Anzeigewarteschlange. Geringste Latenz; bei schnellen Bewegungen kann eine Trennlinie sichtbar sein. Braucht Treiberunterstützung.</string>
     <string name="title_drop_late_frames">Nur neueste Frames behalten</string>
     <string name="summary_drop_late_frames">Überspringt Frames, die nicht mehr rechtzeitig auf den Bildschirm kommen.</string>
     <string name="title_texture_view">Alternative Videoanzeige</string>
@@ -347,7 +347,7 @@
     <string name="host_launch_permission_denied">Erlaube App-Starts für dieses Gerät in der Host-Webkonsole.</string>
     <string name="category_butterpollo_host">Host-Display</string>
     <string name="category_latency_diagnostics">Latenzmessung</string>
-    <string name="videoformat_pyrowave">PyroWave (experimentell)</string>
+    <string name="videoformat_pyrowave">PyroWave</string>
     <string name="settings">Einstellungen</string>
     <string name="settings_navigate_up">Zurück</string>
     <string name="settings_section_video">Stream</string>

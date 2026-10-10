@@ -455,7 +455,7 @@ def main():
                 n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "81000" for n in root),
                 "Bitrate was not stored in kbps")
             tap("Video codec", scroll=True)
-            tap("PyroWave (experimental)")
+            tap("PyroWave")
             tap("Video codec")
             tap("android:id/button3")
             help_text = " ".join(n.get("text", "") for n in tree().iter("node"))

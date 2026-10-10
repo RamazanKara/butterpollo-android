@@ -29,6 +29,6 @@
         <item>Prefer AV1</item>
         <item>Prefer HEVC</item>
         <item>H.264</item>
-        <item>PyroWave (experimental)</item>
+        <item>PyroWave</item>
     </string-array>
 </resources>

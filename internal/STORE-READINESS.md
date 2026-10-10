@@ -7,7 +7,7 @@ first Play upload needs. Updated 2026-10-10.
 
 | Item | Where |
 | --- | --- |
-| Minified (R8) release APK and AAB, signing hook with debug-key fallback | `app/build.gradle`, [building](building.md#release-signing), `scripts/build-release.*` |
+| Minified (R8) release APK and AAB, signing hook with debug-key fallback | `app/build.gradle`, [building](../docs/building.md#release-signing), `scripts/build-release.*` |
 | Version 0.4.0, shown in Settings > App | `app/build.gradle` |
 | Target SDK 36, 16 KB page-size alignment for native libraries | `app/build.gradle`, `app/src/main/jni` |
 | Crash and abnormal-exit capture, local only, shared only by the user | Settings > Support > Report a problem |
@@ -15,7 +15,7 @@ first Play upload needs. Updated 2026-10-10.
 | Store title, short and full description, 0.4.0 changelog (EN and DE) | `fastlane/metadata/android/{en-US,de}` |
 | Icon 512 px, feature graphic 1024x500, TV banner | `fastlane/metadata/android/en-US/images` |
 | Phone screenshots (1080x1920 and 1920x1080, from demo-mode captures) | `fastlane/metadata/android/en-US/images/phoneScreenshots`, made by `scripts/store/store-screenshots.py` |
-| Privacy policy | [PRIVACY.md](PRIVACY.md), published at `https://ramazankara.github.io/rubylight-android/privacy.html` |
+| Privacy policy | [PRIVACY.md](../docs/PRIVACY.md), published at `https://ramazankara.github.io/rubylight-android/privacy.html` |
 | Draft answers for Data safety and content rating | [PLAY-DATA-SAFETY.md](PLAY-DATA-SAFETY.md) |
 
 Store screenshots: the demo mode plays a local sample video and its performance overlay shows
@@ -25,7 +25,7 @@ illustrative values. Regenerate the stills with `scripts/demo/capture-stills.ps1
 ## Owner steps in the Play Console
 
 1. Create the Play developer account and the app entry (free, no ads, no in-app purchases).
-2. Create the upload key once and keep it safe (see [release signing](building.md#release-signing)),
+2. Create the upload key once and keep it safe (see [release signing](../docs/building.md#release-signing)),
    then build with `keystore.properties` or the `BP_KEYSTORE*` variables. Enroll in Play App Signing.
 3. Upload `app-nonRoot-release.aab` with `mapping.txt` and native debug symbols from the same build.
 4. Fill in Data safety and the content rating questionnaire from the draft. The draft's open point

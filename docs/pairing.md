@@ -8,7 +8,7 @@ Pair each Android installation with the Rubylight host before opening its librar
 
 Keep the host running and awake on the same network. Select its discovered card, or choose **Add PC** and enter a hostname, IPv4 address or IPv6 address. A custom HTTP port can be supplied as `hostname:port` or `[IPv6-address]:port`; this is the streaming service's HTTP port, not the web console's port.
 
-Discovery may not cross guest networks, VLANs or VPNs. Manual entry needs a working route to the PC; it does not bypass a firewall.
+On guest networks, VLANs or VPNs, add the PC manually by its address. Manual entry works over any route that reaches the PC through its firewall.
 
 ## PIN flow
 
@@ -28,7 +28,7 @@ This reverses the ordinary flow: you enter the host's PIN on Android. Generate a
 
 ## Per-device permissions
 
-Permissions are set on the Rubylight host's **Devices** page, separately for each paired installation. Android shows the permissions reported by the host and checks them before protected actions. It does not grant itself access.
+Permissions are set on the Rubylight host's **Devices** page, separately for each paired installation. Android shows the permissions reported by the host and checks them before protected actions. The host stays in charge of every permission.
 
 | Permission | What it allows |
 | --- | --- |
@@ -46,7 +46,7 @@ Permissions are set on the Rubylight host's **Devices** page, separately for eac
 
 Grant list, view, launch and the relevant input permissions for normal play. A view-only device can display video without controlling it. **Remote Monitor** is a view-only role; **Input-only** sends controls without starting video/audio decoders. These entries depend on what the host exposes.
 
-During a stream, **Host commands** provides host status and device-permission information. A sent command has no execution-result acknowledgement. Host application restrictions can further limit an action.
+During a stream, **Host commands** provides host status and device-permission information. Host application restrictions can further limit an action.
 
 ## Identity, updates and removal
 

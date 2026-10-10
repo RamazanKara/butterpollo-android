@@ -1,6 +1,6 @@
 # Rubylight Android parity — client gap follow-up
 
-> The current one-page status against the host's `main` is [PARITY-MATRIX.md](PARITY-MATRIX.md).
+> The current one-page status against the host's `main` is [PARITY-MATRIX.md](../docs/PARITY-MATRIX.md).
 > This file keeps the detailed evidence and the real-device checklist.
 
 Client usability follow-up on 2026-10-09 adds Android 15 Surface cadence hints and tests the

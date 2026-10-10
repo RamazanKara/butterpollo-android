@@ -14,7 +14,7 @@ You need an Android device running Android 5.0 or newer, the Rubylight host runn
 
 The fresh global video setup is 1280 × 720 at 60 FPS, 10 Mbps and Automatic codec selection. Try a first stream with these values before raising resolution or frame rate. A saved PC profile takes priority over the global setup.
 
-The skippable first-launch pairing guide is also available from the **?** button. The screenshots in the guides are saved UI-test captures; their loopback addresses are fixture data, not addresses to enter for your PC.
+The skippable first-launch pairing guide is also available from the **?** button. The guide screenshots show an example address; enter your own PC's address.
 
 ## Your PC library
 
@@ -28,7 +28,7 @@ Press Android **Back** or **Ctrl+Alt+Shift+M** to open the menu. Use **Keyboard*
 
 **Disconnect** ends this device's connection and leaves the PC app running. Select the same app to resume. **Quit app** asks the host to end the app and requires permission and confirmation.
 
-Clipboard transfer is plain text, explicitly initiated in the foreground, and needs an active session plus the corresponding host permission. Host commands use the host's configured commands and encrypted server-command transport; sending a command does not confirm its execution. Reconnect, device permissions and host frame-limiter status are under **Host commands**.
+Clipboard transfer is plain text, explicitly initiated in the foreground, and needs an active session plus the corresponding host permission. Host commands use the host's configured commands and encrypted server-command transport. Reconnect, device permissions and host frame-limiter status are under **Host commands**.
 
 ## Next
 

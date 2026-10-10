@@ -20,7 +20,7 @@ The Android package ID remains `com.butterpollo.client` so existing installation
 
 ## Can I stream outside my home network?
 
-Yes, when your Android device can reach the host's streaming services. Establish local pairing first, then configure a routed connection such as your own VPN. Discovery may not cross that route, so add the reachable host address manually. Network and host policy determine access.
+Yes, when your Android device can reach the host's streaming services. Establish local pairing first, then configure a routed connection such as your own VPN. Add the host's reachable address manually for that route.
 
 ## Where do I set device permissions?
 

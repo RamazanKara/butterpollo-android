@@ -18,18 +18,18 @@ Follow the [PIN flow](pairing.md#pin-flow). Start on the same local network with
 | Video works but controls do not | Missing input permission or a view-only role. | Grant the required controller/mouse/keyboard/touch/pen permission. Open a normal game instead of Remote Monitor. |
 | Clipboard or commands missing | Independent permissions or host capabilities are absent. | Grant Send clipboard, Read clipboard or Server commands as appropriate. Commands must be configured on the host. |
 
-The client uses the host's advertised ports and custom-port offsets. Check the actual host configuration instead of opening a copied port list. A failed public Internet connectivity check does not prove that local streaming is blocked.
+The client uses the host's advertised ports and custom-port offsets. Check the actual host configuration instead of opening a copied port list. Local streaming works independently of the public Internet connectivity check.
 
 ## Video, sound and latency
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Black/flickering image or misplaced video | Decoder or surface-path issue. | Try H.264 at 720p/60 with HDR/upscaling off. For conventional SDR, try **Advanced → Compatibility video view**. It is disabled for HDR/PyroWave. |
-| Decoder crash | Codec, resolution or driver combination is unstable. | Try another codec and lower resolution/FPS. After repeated decoder crashes Rubylight may reset stream settings; check the PC override too. |
+| Decoder crash | Codec, resolution or driver combination is unstable. | Try another codec and lower resolution/FPS. After repeated decoder crashes Rubylight resets stream settings to safe values; check the PC override too. |
 | Network loss or stutter | Bitrate exceeds a stable link budget, or traffic is bursty. | Lower bitrate; wire the PC; move closer to the access point. Try **Automatic bitrate** on a supporting host. |
 | High Queue wait | Decoder input buffers or the submission thread are backed up. | Lower resolution/FPS and compare with Phone performance hints off. |
 | High Decode time | Decoder/driver scheduling or decoding is slow. | Compare H.264, HEVC and AV1, then reduce resolution/FPS or disable HDR/4:4:4. |
-| Healthy decode but low shown FPS | Presentation, pacing, callback availability or display policy. | Compare Lowest latency/VRR and a rate the screen supports. Check power-saving modes. Shown FPS may be unavailable on some output paths. |
+| Healthy decode but low shown FPS | Presentation, pacing, callback availability or display policy. | Compare Lowest latency/VRR and a rate the screen supports. Check power-saving modes. |
 | High Host processing | PC capture/encoder/game workload. | Reduce the host workload and compare host logs; Android decoder settings cannot remove host processing time. |
 | HDR is washed out or absent | HDR capability, metadata or range mismatch. | Verify HDR on the host display and Android screen; return full-range override to Off and inspect the negotiated codec/HDR mode. |
 | Upscaler reports direct output | HDR/10-bit/PyroWave, no size increase, unsupported GPU path or a runtime fallback. | Read the fallback reason. Compare a lower-resolution SDR stream; reconnect after an overload fallback. |

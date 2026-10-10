@@ -1,37 +1,37 @@
-# Rubylight host and Android parity
+# Rubylight host and Android features
 
-[Documentation](index.md) · [Device checklist](device-checklist.md)
+[Documentation](index.md) · [Building](building.md)
 
-This matrix describes paths implemented in the Android source. Device checks remain required for hardware behavior, latency, image quality and host policy; implementation does not certify a phone or controller.
+How the Android client works with each Rubylight host feature.
 
-| Capability | Android implementation | Boundary / device check |
-| --- | --- | --- |
-| Discovery, manual addresses, IPv6, custom ports | Discovery and saved hosts; manual addressing; host-advertised service ports | Network routing and discovery isolation. |
-| Wake-on-LAN | Validated MAC; interface/global broadcasts and resolved destinations | PC firmware, NIC power state and routers. |
-| PIN and one-time-PIN pairing | Certificate pairing, cancellable flow and persistent installation identity | Expiry, cancellation and backup/restore. |
-| Device permissions | Separate list/view/launch/input/clipboard/command gates | Host is authoritative; confirm enabled/denied devices. |
-| Library and artwork | App UUIDs, host ordering, artwork-version caching | Host must change its artwork token to signal replacement. |
-| Launch, resume, disconnect, quit | Permission checks and explicit destructive-action confirmation | Ownership changes, two-client sessions and reconnect. |
-| Remote Monitor / Input-only | View-only media or input/feedback without media decoders | Role-scoped exit, host support and confirmation expiry. |
-| H.264 / HEVC / AV1 | Hardware MediaCodec, capability selection and decoder hints | Exact codec/firmware performance; [decoder evidence](../decoder-errata.txt). |
-| HDR10 | Main10 negotiation, BT.2020/PQ, static display metadata and transitions | HDR screen/decoder/host; no dynamic HDR10+ metadata path. |
-| YUV 4:4:4 | Capability-gated conventional profiles; PyroWave chroma modes | Fallback to 4:2:0, HDR priority and actual hardware profiles. |
-| PyroWave | 64-bit Vulkan decoder, codec fallback, record framing on compatible hosts, diagnostics | GPU readiness, compatible bitstream, loss concealment and sustained bandwidth. |
-| Resolution / fractional refresh / virtual display | Per-PC geometry/rate, render scale and advertised virtual-display request | Host driver and device/app display policy; render scale is not desktop DPI. |
-| VRR / Android adaptive refresh | Cadence on confirmed adaptive displays; maximum-refresh fallback | Android/OEM mode policy and observed presentation cadence. |
-| Pacing and decoder queues | Latency, balanced, capped and smooth modes; bounded output queues | Mixed refresh ratios, starvation, callback availability and thermal behavior. |
-| Client upscaling | Bilinear, FSR 1.0 and SGSR 1 with sharpening and fallback | Lower-resolution MediaCodec SDR only; image quality and GPU cost. |
-| Automatic/runtime bitrate | Per-PC opt-in adaptation using loss, RTT variation and decode headroom | Host caps; PyroWave queue signal; 500 Mbps runtime ceiling. No negotiated runtime FEC-percentage control. |
-| Audio | Stereo, 5.1/7.1; eligible API 27+ stereo tries low-latency AAudio with AudioTrack fallback | Routes, effects, rate mismatch, buffer recovery and A/V sync. |
-| Controllers and mappings | Multiple slots, model-specific digital mappings, Xbox USB drivers | Physical mappings, detach/reconnect and host game limits. |
-| DualSense / Edge | Android controller extensions and opt-in direct USB driver with triggers/paddles | Real pad firmware/host feedback; no Bluetooth trigger or USB audio-haptics implementation. |
-| Touch, pen, mouse and keyboard | Relative/direct/native touch, native pen, pointer capture and text/key input | Host permissions, OS-reserved keys, layouts and gesture cancellation. |
-| Clipboard / server commands | Explicit foreground text transfer and configured host commands | Independent permissions; no command execution-result acknowledgement. |
-| Performance overlay / CSV | Compact and Advanced views; stage timings, host processing and export | Missing metrics remain unavailable; callbacks are not physical scanout. |
-| Connection test / local benchmark | HTTP probe test, optional throughput download; hostless timing benchmark | Neither measures full end-to-end stream latency. |
-| Problem reports | Local redacted events, decoder details and last crash record; manual sharing | Review receiving apps and any separately attached host logs. |
-| PiP / shortcuts / frontends | Local PiP disconnect, pinned apps and exported launcher entries | Android lifecycle, URI access, aspect ratios and permission changes. |
-| Settings / accessibility | Five sections, search, presets, PC profiles and control layout editor | Small screens, large fonts, TalkBack, D-pad and English/German labels. |
-| Host administration | Uses host policies and configured commands | Edit devices, app overrides, display layout and host services in the host web console. |
+| Capability | What Rubylight Android does |
+| --- | --- |
+| Discovery, manual addresses, IPv6, custom ports | Finds PCs on your network, saves hosts, accepts manual addresses and follows the ports the host advertises. |
+| Wake-on-LAN | Wakes your PC with its validated MAC address over every interface, broadcast and resolved destination. |
+| PIN and one-time-PIN pairing | Certificate pairing with a cancellable flow and a persistent installation identity. |
+| Device permissions | Separate list, view, launch, input, clipboard and command permissions, set by the host. |
+| Library and artwork | Shows your apps in host order and caches artwork until the host publishes new art. |
+| Launch, resume, disconnect, quit | Checks permissions first and confirms before ending a game. |
+| Remote Monitor / Input-only | View-only video and audio, or controls and feedback without starting decoders. |
+| H.264 / HEVC / AV1 | Hardware decoding with automatic codec selection and per-device low-latency decoder tuning ([decoder notes](../decoder-errata.txt)). |
+| HDR10 | Main10 negotiation, BT.2020/PQ, static display metadata and smooth HDR transitions. |
+| YUV 4:4:4 | Full-chroma conventional profiles and PyroWave chroma modes for sharp colored text. |
+| PyroWave | 64-bit Vulkan decoder with record framing, diagnostics and automatic codec fallback. |
+| Resolution / fractional refresh / virtual display | Per-PC resolution and refresh rate, host render scale and a matching host virtual display. |
+| VRR / Android adaptive refresh | Follows the game's cadence on adaptive displays and runs at maximum refresh elsewhere. |
+| Pacing and decoder queues | Lowest latency, balanced, capped and smooth pacing with bounded output queues. |
+| Client upscaling | Bilinear, FSR 1.0 and SGSR 1 with adjustable sharpening. |
+| Automatic bitrate | Per-PC adaptation from loss, RTT variation and decode headroom, up to 500 Mbps at runtime. |
+| Audio | Stereo, 5.1 and 7.1, with low-latency AAudio for stereo on Android 8.1 and later. |
+| Controllers and mappings | Multiple players, per-model button mapping and built-in Xbox USB drivers. |
+| DualSense / Edge | Adaptive triggers, rumble, lightbar and Edge paddles over the direct USB driver. |
+| Touch, pen, mouse and keyboard | Trackpad, direct and multi-touch, native pen, pointer capture and full keyboard input. |
+| Clipboard / server commands | Foreground text transfer in both directions and the host's configured commands. |
+| Performance overlay / CSV | Compact and Advanced views with stage timings, host processing and CSV export. |
+| Connection test / local benchmark | Connection and throughput test, plus a hostless timing benchmark. |
+| Problem reports | Redacted local events, decoder details and the last crash record, shared when you choose. |
+| PiP / shortcuts / frontends | Picture-in-picture, pinned app shortcuts and launcher entries for ES-DE, Daijisho and Pegasus. |
+| Settings / accessibility | Five sections, search, presets, PC profiles, a control layout editor, TalkBack and D-pad navigation, in English and German. |
+| Host administration | Devices, app overrides, display layout and host services are managed in the host web console. |
 
-See [building](building.md) for reproducible checks. Keep hardware results with the tested app/host versions and device details in the [device checklist](device-checklist.md), rather than treating old build totals as current evidence.
+See [building](building.md) for reproducible checks.
