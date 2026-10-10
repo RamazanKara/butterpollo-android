@@ -1,4 +1,5 @@
 Rubylight 0.4.0
 Stream from your PC with low latency. Connects to Rubylight hosts and other stream hosts.
 Choose stream presets and per-PC settings. View latency in the compact overlay. Adjust controls in the stream menu and map controller buttons.
+Talk to your games and friends: send your microphone to the PC, encrypted, with a mute in the stream menu.
 Fresh Rubylight branding and clearer privacy information.

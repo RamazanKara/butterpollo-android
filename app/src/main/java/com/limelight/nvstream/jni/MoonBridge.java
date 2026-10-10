@@ -379,7 +379,7 @@ public class MoonBridge {
                                               int videoCapabilities,
                                               int colorSpace, int colorRange,
                                               boolean unbatchedInput, boolean networkPriority, String rustHostVersion,
-                                              boolean inputOnly, boolean remoteMonitor);
+                                              boolean inputOnly, boolean remoteMonitor, boolean enableMic);
 
     public static native void stopConnection();
 
@@ -459,4 +459,16 @@ public class MoonBridge {
     // Early edge of the last phase-lock report in microseconds before the latch, or
     // Integer.MIN_VALUE before the first one.
     public static native int getPhaseLockLeadUs();
+
+    // Microphone state for this session (android_microphone.h).
+    public static final int MIC_STATE_OFF = 0;
+    public static final int MIC_STATE_NOT_OFFERED = 1;
+    public static final int MIC_STATE_UNAVAILABLE = 2;
+    public static final int MIC_STATE_READY = 3;
+
+    public static native int getMicrophoneState();
+
+    // Encodes one frame of 48 kHz mono PCM as Opus and sends it to the host. Returns the
+    // datagram length, or a negative value when the frame was not sent.
+    public static native int sendMicrophonePcm(short[] pcm, int samples);
 }

@@ -36,6 +36,7 @@ from collection. See [Google's Data safety guidance](https://support.google.com/
 | Location | No device location permission or location inference in the app. Confirm whether public network operators infer location from IP addresses. |
 | Other personal info, financial info, health, contacts, calendar, browsing history | No collection implemented by Rubylight itself. Streamed desktop content and user-requested clipboard text are handled by the user's chosen host. |
 | Photos, videos, audio, files, installed apps | Host media, app lists and artwork are received for local display. No upload of the Android device's media library or installed-app inventory. Optional exported logs are user-controlled files. |
+| Audio: voice or sound recordings | Optional, off by default: with **Send microphone to the PC** on and `RECORD_AUDIO` granted, microphone audio is encrypted (AES-128-CBC under the per-launch key) and sent only to the user's PC during a stream; nothing is stored or sent elsewhere. Draft: optional collection for app functionality, transferred to the user's own host, not shared with the publisher. Confirm the answer before submitting. |
 | Android backup / transfer | Saved hosts and eligible files may leave the device through Android. Preferences and client pairing credentials are excluded. Confirm the platform-backup treatment in the final form. |
 
 No advertising, marketing, sale of data or automatic analytics SDK was found

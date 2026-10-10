@@ -23,7 +23,10 @@ model, decoder settings, timing measurements and crash details.
 ## Network connections
 
 Stream content, input and clipboard transfers are between your device and the
-PC you connect to. Pairing exchanges identity information with that PC. Host
+PC you connect to. When you turn on **Send microphone to the PC**, Rubylight asks
+for microphone access and, during a stream, sends your microphone, encrypted, to
+that PC only. It is not recorded or stored on your device, and it stops when you
+mute it in the stream menu or the stream ends. Pairing exchanges identity information with that PC. Host
 discovery also uses your local network.
 
 The current app also makes public network checks. It can contact
