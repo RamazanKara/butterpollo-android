@@ -29,6 +29,11 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 };
 #endif
 
+// PyroWave SDK 1.0 uses the Vulkan 1.4 name; NDK 29 only has the KHR one.
+#ifndef VK_VERSION_1_4
+typedef VkQueueGlobalPriorityKHR VkQueueGlobalPriority;
+#endif
+
 #include <pyrowave/pyrowave.h>
 
 #include <android/log.h>

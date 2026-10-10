@@ -761,8 +761,8 @@ foreach ($abi in @('arm64-v8a', 'x86_64')) {
 ```
 
 Both libraries have 16 KiB ELF LOAD alignment and only Android system-library imports. This run's
-stripped SHA-256 hashes are `7b32cb6af70584821d55fb70b1b12376bdc53d5c7d19f039eef2abdde3984999`
-(ARM64) and `1978dac82d8722c6baf9be240c31bbd739409672c31c234a51cc6f9c1e833f00` (x86-64).
+stripped SHA-256 hashes are `70ec4fe3f2c9f603991544063d02b1d3ba66bafc54addc65732dcee570610448`
+(ARM64) and `d427ba0211dc2299a4266fbcd22d27d4e0c0bcb626bddb2a9cc43fdd94576b5b` (x86-64).
 To regenerate `shaders_spv.h`, compile each `shaders/fullscreen.vert`, `shaders/planar_csc.frag` and
 `shaders/sgsr.frag` with NDK `shader-tools/windows-x86_64/glslc.exe -O --target-env=vulkan1.3 -mfmt=c`, and put
 those initializer lists in `static const uint32_t fullscreen_vert_spv[]` / `planar_csc_frag_spv[]` / `sgsr_frag_spv[]`.
