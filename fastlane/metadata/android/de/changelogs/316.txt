@@ -1,4 +1,4 @@
 Rubylight 0.4.0
-Streame deinen PC mit geringer Latenz. Für Rubylight-Hosts entwickelt, auch mit anderen Stream-Hosts nutzbar.
+Streame deinen PC mit geringer Latenz. Verbindet sich mit Rubylight-Hosts und anderen Stream-Hosts.
 Wähle Voreinstellungen und eigene Einstellungen pro PC. Behalte die Latenz im kompakten Overlay im Blick. Passe die Steuerung im Stream-Menü an und belege Controller-Tasten neu.
 Neues Rubylight-Design und klare Datenschutzinformationen.

@@ -14,7 +14,7 @@ Stream your PC games and desktop to the Android screen you want to use. Rubyligh
 | Launch games from ES-DE, Daijisho or Pegasus | [Frontends](FRONTENDS.md) |
 | Find a short answer | [FAQ](faq.md) |
 
-Development references: [host parity matrix](PARITY-MATRIX.md), [detailed parity audit](BUTTERPOLLO_PARITY.md), [device checklist](device-checklist.md) and [documentation checks](building.md#documentation-checks).
+Development references: [host parity matrix](PARITY-MATRIX.md), [detailed parity audit](BUTTERPOLLO_PARITY.md), [device checklist](device-checklist.md), [Play readiness](STORE-READINESS.md) and [documentation checks](building.md#documentation-checks).
 
 [Download Rubylight](../README.md#download) · [Privacy](PRIVACY.md)
 

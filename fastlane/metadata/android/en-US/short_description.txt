@@ -1,1 +1,1 @@
-Stream your PC with low latency. Built for Rubylight hosts.
+Stream your PC to your phone with low latency. Free and open source.

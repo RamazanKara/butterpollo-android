@@ -1,4 +1,4 @@
-Stream from your PC with low latency. Rubylight is built for Rubylight hosts and works with other stream hosts too.
+Stream your PC with low latency. Rubylight connects to Rubylight hosts and other stream hosts.
 
 Bring your desktop and apps to your Android phone, tablet or TV. Pair your PC, open your library and start a stream. Use touch controls, a controller, or a keyboard and mouse.
 

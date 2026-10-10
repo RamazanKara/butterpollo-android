@@ -1,4 +1,4 @@
-Streame deinen PC mit geringer Latenz. Rubylight wurde für Rubylight-Hosts entwickelt und funktioniert auch mit anderen Stream-Hosts.
+Streame deinen PC mit geringer Latenz. Rubylight verbindet sich mit Rubylight-Hosts und anderen Stream-Hosts.
 
 Nutze deinen Desktop und deine Apps auf deinem Android-Smartphone, Tablet oder Fernseher. Kopple deinen PC, öffne deine Bibliothek und starte einen Stream. Steuere alles per Touch, Controller oder mit Tastatur und Maus.
 
