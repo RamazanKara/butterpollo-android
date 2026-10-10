@@ -669,7 +669,9 @@ public class MediaCodecHelper {
             (ok ? confirmed : unconfirmed).add(key + "=" + value);
             if (ok && key.equals(MediaFormat.KEY_LOW_LATENCY)) {
                 android = true;
-            } else if (ok && VendorLowLatencyKeys.isCoreSwitch(key)) {
+            } else if (ok && key.startsWith("vendor.")) {
+                // Any confirmed chip-vendor setting counts, e.g. Snapdragon's output fence on
+                // its dedicated low-latency decoders, which have no separate low-latency switch.
                 vendor = true;
             }
         }
