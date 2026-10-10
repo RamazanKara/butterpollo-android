@@ -2,7 +2,8 @@
 # Builds rubylight-protocol's C ABI for the Android client and refreshes the prebuilt static
 # libraries the app links (app/src/main/jni/protocol/prebuilt/<abi>/librubylight_protocol.a).
 #
-# Needs rustup with the aarch64-linux-android and x86_64-linux-android targets, and llvm-ar
+# Needs rustup with the aarch64-linux-android, armv7-linux-androideabi, i686-linux-android and
+# x86_64-linux-android targets, and llvm-ar
 # and llvm-strip (any LLVM, including the NDK's). The library is no_std and depends only on
 # libc, so no Android linker is involved: only the crate's own object is kept, which makes
 # the committed archives a few tens of kilobytes.
@@ -15,7 +16,8 @@ strip="${LLVM_STRIP:-llvm-strip}"
 
 cargo test --manifest-path "$here/Cargo.toml" --workspace --quiet
 
-for pair in arm64-v8a:aarch64-linux-android x86_64:x86_64-linux-android; do
+for pair in arm64-v8a:aarch64-linux-android armeabi-v7a:armv7-linux-androideabi x86:i686-linux-android \
+        x86_64:x86_64-linux-android; do
     abi="${pair%%:*}"
     target="${pair#*:}"
     cargo build --manifest-path "$here/Cargo.toml" -p rubylight-protocol-ffi --release --target "$target" --quiet

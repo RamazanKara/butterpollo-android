@@ -10,6 +10,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::ffi::c_void;
 use core::slice;
+use rubylight_protocol::phase_lock::{SlackWindow, REPORT_BYTES};
 use rubylight_protocol::pyrowave::{self, Records};
 
 /// Receives one decoder packet; returns false to stop and fail the frame.
@@ -77,6 +78,55 @@ pub unsafe extern "C" fn rp_pyrowave_push_container(
     user: *mut c_void,
 ) -> bool {
     pyrowave::push_container(bytes(data, length), forward(push, user))
+}
+
+/// Creates an empty phase-lock slack window.
+#[no_mangle]
+pub extern "C" fn rp_slack_window_new() -> *mut SlackWindow {
+    Box::into_raw(Box::default())
+}
+
+/// # Safety
+/// `window` comes from `rp_slack_window_new` and is not used afterwards; null is ignored.
+#[no_mangle]
+pub unsafe extern "C" fn rp_slack_window_free(window: *mut SlackWindow) {
+    if !window.is_null() {
+        drop(Box::from_raw(window));
+    }
+}
+
+/// Records one shown frame's slack before the latch and the display refresh period.
+///
+/// # Safety
+/// `window` is live.
+#[no_mangle]
+pub unsafe extern "C" fn rp_slack_window_push(window: *mut SlackWindow, slack_ns: i64, period_ns: i64) {
+    (*window).push(slack_ns, period_ns);
+}
+
+/// Frames recorded since the last report.
+///
+/// # Safety
+/// `window` is live.
+#[no_mangle]
+pub unsafe extern "C" fn rp_slack_window_len(window: *const SlackWindow) -> usize {
+    (*window).len()
+}
+
+/// Summarises and clears the window into the 16-byte report message at `out`. Returns false
+/// (and still clears the window) with fewer than `min_frames` frames.
+///
+/// # Safety
+/// `window` is live and `out` points to `RP_PHASE_REPORT_BYTES` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rp_slack_window_report(window: *mut SlackWindow, min_frames: usize, out: *mut u8) -> bool {
+    match (*window).report(min_frames) {
+        Some(report) => {
+            core::ptr::copy_nonoverlapping(report.encode().as_ptr(), out, REPORT_BYTES);
+            true
+        }
+        None => false,
+    }
 }
 
 #[cfg(not(test))]

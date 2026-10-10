@@ -28,6 +28,21 @@ float rp_pyrowave_records_loss_percent(const RpPyroWaveRecords *records);
 // Validates an ordinary (pre-record) container and feeds its packets to push.
 bool rp_pyrowave_push_container(const uint8_t *data, size_t length, RpPushPacket push, void *user);
 
+// Phase lock (core/src/phase_lock.rs): the client reports how early its frames are ready
+// before the display latch, and the host times its frames to match.
+#define RP_PHASE_REPORT_MESSAGE_TYPE 0x5530
+#define RP_PHASE_REPORT_BYTES 16
+
+typedef struct RpSlackWindow RpSlackWindow;
+
+RpSlackWindow *rp_slack_window_new(void);
+void rp_slack_window_free(RpSlackWindow *window);
+// Records one shown frame: time from ready to the next latch deadline, and the refresh period.
+void rp_slack_window_push(RpSlackWindow *window, int64_t slack_ns, int64_t period_ns);
+size_t rp_slack_window_len(const RpSlackWindow *window);
+// Writes the report message to out and clears the window; false below min_frames frames.
+bool rp_slack_window_report(RpSlackWindow *window, size_t min_frames, uint8_t *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 

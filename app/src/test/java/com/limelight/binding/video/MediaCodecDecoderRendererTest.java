@@ -42,6 +42,19 @@ public class MediaCodecDecoderRendererTest {
     }
 
     @Test
+    public void latchSlackIsTheWaitUntilTheNextDeadline() {
+        long vsyncNs = 1000000000L;
+        long intervalNs = 10000000L;
+        long deadlineNs = 2000000L;
+        // Deadlines fall 2 ms before each vsync: at +8 ms, +18 ms, ...
+        assertEquals(3000000L, MediaCodecDecoderRenderer.latchSlackNs(vsyncNs + 5000000L, vsyncNs, intervalNs, deadlineNs));
+        assertEquals(1L, MediaCodecDecoderRenderer.latchSlackNs(vsyncNs + 7999999L, vsyncNs, intervalNs, deadlineNs));
+        // Just missing a deadline waits almost a whole refresh for the next one.
+        assertEquals(intervalNs, MediaCodecDecoderRenderer.latchSlackNs(vsyncNs + 8000000L, vsyncNs, intervalNs, deadlineNs));
+        assertEquals(-1L, MediaCodecDecoderRenderer.latchSlackNs(vsyncNs, 0, intervalNs, deadlineNs));
+    }
+
+    @Test
     public void delayedChoreographerCallbacksSkipExpiredVsyncs() {
         assertEquals(1060000000L, MediaCodecDecoderRenderer.nextVsyncTimeNs(
                 1059000000L, 1000000000L, 10000000L, 500000L));

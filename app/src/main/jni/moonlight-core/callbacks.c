@@ -8,6 +8,7 @@
 #include <Platform.h>
 #include "latency.h"
 #include "pyrowave_protocol.h"
+#include "phase_lock.h"
 
 #include <opus_multistream.h>
 #include <android/log.h>
@@ -534,6 +535,9 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
     AndroidRemoteMonitor = remoteMonitor;
     const char* rustVersion = rustHostVersion ? (*env)->GetStringUTFChars(env, rustHostVersion, NULL) : NULL;
     PyroWaveRecordsSupported = supportsPyroWaveRecords(rustVersion);
+    // Only Rubylight hosts can use phase-lock reports; they cost others a packet a half-second.
+    resetPhaseLockReports();
+    atomic_store(&PhaseLockReportsEnabled, rustVersion != NULL);
     PyroWaveRecordsEnabled = 0;
     if (rustVersion) (*env)->ReleaseStringUTFChars(env, rustHostVersion, rustVersion);
     atomic_store(&AndroidUnbatchedInput, unbatchedInput);

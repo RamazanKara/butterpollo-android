@@ -60,7 +60,7 @@ endif
 
 LOCAL_LDLIBS := -llog -ldl
 
-LOCAL_STATIC_LIBRARIES := libopus libcrypto cpufeatures
+LOCAL_STATIC_LIBRARIES := libopus libcrypto cpufeatures rubylight-protocol
 LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
 LOCAL_LDFLAGS += -Wl,--wrap=socket -Wl,--wrap=pthread_setname_np
 

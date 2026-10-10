@@ -8,8 +8,12 @@ The wire formats Rubylight's host and clients share, written once in Rust.
 - `tests/differential.sh` compares it with the C++ framing the client used before
   (`tests/frame_reference.h`) on random, lossy and corrupted frames.
 
-Today it holds the client side of PyroWave framing: the packet container and the record
-reassembly that lets a frame with lost packets still decode.
+It holds:
+
+- `pyrowave`: the client side of PyroWave framing, the packet container and the record
+  reassembly that lets a frame with lost packets still decode.
+- `phase_lock`: the client's report of how early frames are ready before its display latch,
+  and the host controller that times frames to land just before it.
 
 ## Building for Android
 
@@ -17,8 +21,8 @@ The app links prebuilt static libraries from `app/src/main/jni/protocol/prebuilt
 normal app build needs no Rust. After changing the crate, refresh them:
 
 ```sh
-rustup target add aarch64-linux-android x86_64-linux-android
-protocol/build-android.sh      # runs the tests, then rebuilds both ABIs
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+protocol/build-android.sh      # runs the tests, then rebuilds all four ABIs
 protocol/tests/differential.sh # optional: 8 seeds x 2000 streams against the old C++
 ```
 

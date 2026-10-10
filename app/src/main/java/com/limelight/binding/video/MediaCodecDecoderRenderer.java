@@ -1497,6 +1497,23 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return vsyncNs + intervals * intervalNs;
     }
 
+    // Phase lock: how long a frame ready at readyNs waits for the next latch deadline.
+    static long latchSlackNs(long readyNs, long vsyncNs, long intervalNs, long presentationDeadlineNs) {
+        if (vsyncNs == 0 || intervalNs <= 0) return -1;
+        return nextVsyncTimeNs(readyNs, vsyncNs, intervalNs, presentationDeadlineNs) - presentationDeadlineNs - readyNs;
+    }
+
+    private void reportPhaseSlack(long readyNs) {
+        // Adaptive refresh has no fixed latch to aim at.
+        if (useArr) return;
+        long slackNs, intervalNs;
+        synchronized (vsyncMonitor) {
+            intervalNs = vsyncIntervalNs;
+            slackNs = latchSlackNs(readyNs, vsyncTimeNs, intervalNs, vsyncPresentationDeadlineNs);
+        }
+        if (slackNs >= 0) MoonBridge.reportFrameSlack(slackNs, intervalNs);
+    }
+
     private long nextVsyncTimeNs() {
         if (useArr) return System.nanoTime();
         synchronized (vsyncMonitor) {
@@ -1518,6 +1535,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     display.getMode().getRefreshRate() : display.getRefreshRate();
             vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
             vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
+        }
+        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
+            // Other modes render from the decoder thread; this callback only tracks vsync.
+            Choreographer.getInstance().postFrameCallback(this);
+            return;
         }
         frameTimeNanos -= activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos();
 
@@ -1559,11 +1581,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private void startChoreographerThread() {
-        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
-            // Not using Choreographer in this pacing mode
-            return;
-        }
-
+        // Every pacing mode tracks vsync for phase-lock reports; only balanced renders here.
         // We use a separate thread to avoid any main thread delays from delaying rendering
         choreographerHandlerThread = new HandlerThread("Video - Choreographer", Process.THREAD_PRIORITY_DEFAULT + Process.THREAD_PRIORITY_MORE_FAVORABLE);
         choreographerHandlerThread.start();
@@ -1631,6 +1649,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                         // drifting phase estimate) holds frames back a whole refresh.
                                         releaseOutputFrame(lastIndex, System.nanoTime());
                                     }
+                                    reportPhaseSlack(System.nanoTime());
 
                                     activeWindowVideoStats.totalFramesRendered++;
                                 }
@@ -2072,6 +2091,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             .append("\nReplaced by a newer frame: before decode ").append(metric(pyroWaveSkippedPercent, "%"))
                             .append(" | before display ").append(metric(waits[2], "%"));
                 }
+                int leadUs = MoonBridge.getPhaseLockLeadUs();
+                if (leadUs != Integer.MIN_VALUE) {
+                    decode.append("\nReady before screen refresh: ").append(metric(leadUs / 1000f, " ms"));
+                }
                 decode.append('\n').append(upscalingStats());
                 decode.append('\n').append(thermalStats());
                 decode.append('\n').append(latencyOverlay);
@@ -2114,6 +2137,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             frameLatencyStats.onFrameReceived(receiveTimeNs);
             if (outputNs > 0) {
                 pyroWaveFailures = 0;
+                reportPhaseSlack(outputNs);
             } else {
                 frameLatencyStats.discard(ptsUs, outputNs < 0 ? "decode_failed" : "invalid_frame");
                 if (outputNs < 0 || ++pyroWaveFailures == 60) {

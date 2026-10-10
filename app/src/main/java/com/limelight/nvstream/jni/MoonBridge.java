@@ -451,4 +451,12 @@ public class MoonBridge {
     public static native boolean guessControllerHasShareButton(int vendorId, int productId);
 
     public static native void init();
+
+    // Phase lock: reports how long a frame waited from ready to the next display latch, so a
+    // Rubylight host can time frames to land just before it.
+    public static native void reportFrameSlack(long slackNs, long periodNs);
+
+    // Early edge of the last phase-lock report in microseconds before the latch, or
+    // Integer.MIN_VALUE before the first one.
+    public static native int getPhaseLockLeadUs();
 }
