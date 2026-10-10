@@ -304,6 +304,8 @@
     <string name="summary_phone_performance_hints">Lass Android die Leistung beim Streamen anpassen.</string>
     <string name="title_gpu_max_clocks">Volle GPU-Leistung für PyroWave</string>
     <string name="summary_gpu_max_clocks">Hält die Adreno-GPU beim PyroWave-Streamen auf vollem Takt. Braucht mehr Akku.</string>
+    <string name="title_pyrowave_front_buffer">Front-Buffer-Rendering für PyroWave</string>
+    <string name="summary_pyrowave_front_buffer">Zeichnet jedes PyroWave-Bild direkt ins Bild auf dem Display und umgeht Androids Anzeigewarteschlange. Geringste Latenz; bei schnellen Bewegungen kann eine Trennlinie sichtbar sein. Experimentell, braucht Treiberunterstützung.</string>
     <string name="title_drop_late_frames">Nur neueste Frames behalten</string>
     <string name="summary_drop_late_frames">Senke die Latenz mit ausgewogenem Frame-Pacing.</string>
     <string name="title_texture_view">Alternative Videoanzeige</string>

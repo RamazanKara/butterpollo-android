@@ -321,6 +321,11 @@
             android:summary="@string/summary_gpu_max_clocks"
             android:defaultValue="false" />
         <com.limelight.preferences.MaterialSwitchPreference
+            android:key="checkbox_pyrowave_front_buffer"
+            android:title="@string/title_pyrowave_front_buffer"
+            android:summary="@string/summary_pyrowave_front_buffer"
+            android:defaultValue="false" />
+        <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_drop_late_frames"
             android:title="@string/title_drop_late_frames"
             android:summary="@string/summary_drop_late_frames"

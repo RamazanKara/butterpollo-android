@@ -775,7 +775,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         for (int choice : choices) {
             if ((formats & choice) != 0 && !stopping &&
                     pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, displayRefreshRate, prefs.fullRange,
-                            prefs.upscalingMode, prefs.upscalingSharpness, context, prefs.gpuMaxClocks) && !stopping) {
+                            prefs.upscalingMode, prefs.upscalingSharpness, context, prefs.gpuMaxClocks,
+                            prefs.pyroWaveFrontBuffer) && !stopping) {
                 LimeLog.info("PyroWave surface initialized before negotiation: " + Integer.toHexString(choice));
                 return (formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) | choice;
             }

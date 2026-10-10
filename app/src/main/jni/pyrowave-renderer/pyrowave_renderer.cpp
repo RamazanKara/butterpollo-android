@@ -397,6 +397,7 @@ namespace {
             case VK_PRESENT_MODE_FIFO_KHR: return "FIFO";
             case VK_PRESENT_MODE_FIFO_LATEST_READY_EXT: return "FIFO_LATEST_READY";
             case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+            case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR: return "FRONT_BUFFER";
             default: return "other";
         }
     }
@@ -428,8 +429,11 @@ namespace {
         }
 
         bool create(ANativeWindow *nativeWindow, int streamWidth, int streamHeight, int frameRate, float displayRefreshRate,
-                    bool fullChroma, bool tenBitOutput, bool fullRangeOutput, int upscale, float sharpness) {
+                    bool fullChroma, bool tenBitOutput, bool fullRangeOutput, int upscale, float sharpness,
+                    bool frontBufferRequested) {
             window = nativeWindow;
+            // Only a request: it holds once instance, device and surface all support a shared image.
+            frontBuffer = frontBufferRequested;
             // SGSR works on display-referred SDR; PQ-encoded HDR keeps the direct path.
             upscaleMode = tenBitOutput || upscale != UPSCALE_SGSR ? UPSCALE_OFF : UPSCALE_SGSR;
             edgeSharpness = sharpness;
@@ -498,11 +502,16 @@ namespace {
             extensions.resize(extensionCount);
             instanceExtensions.assign(std::begin(INSTANCE_EXTENSIONS), std::end(INSTANCE_EXTENSIONS));
             bool colorspace = false;
+            bool surfaceCaps2 = false;
             for (const auto &ext : extensions) {
                 if (!strcmp(ext.extensionName, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME)) colorspace = true;
+                if (!strcmp(ext.extensionName, VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME)) surfaceCaps2 = true;
             }
             if (tenBit && !colorspace) return false;
             if (colorspace) instanceExtensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+            // A prerequisite of VK_KHR_shared_presentable_image.
+            frontBuffer = frontBuffer && surfaceCaps2;
+            if (frontBuffer) instanceExtensions.push_back(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
             instanceInfo.enabledExtensionCount = uint32_t(instanceExtensions.size());
             instanceInfo.ppEnabledExtensionNames = instanceExtensions.data();
             if (!check(vk.CreateInstance(&instanceInfo, nullptr, &instance), "vkCreateInstance")) {
@@ -602,8 +611,10 @@ namespace {
             extensions.resize(extensionCount);
             bool metadata = false;
             bool fifoLatestReadyExtension = false;
+            bool sharedImageExtension = false;
             const char *priorityExtension = nullptr;
             for (const auto &ext : extensions) {
+                if (!strcmp(ext.extensionName, VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME)) sharedImageExtension = true;
                 for (const char *name : GLOBAL_PRIORITY_EXTENSIONS) {
                     if (priorityExtension == nullptr && !strcmp(ext.extensionName, name)) priorityExtension = name;
                 }
@@ -622,6 +633,10 @@ namespace {
                 }
             }
             if (displayTimingSupported) deviceExtensions.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+            LOGI("Front-buffer rendering: %s", !frontBuffer ? "off" :
+                 sharedImageExtension ? "shared presentable images available" : "unsupported by this driver");
+            frontBuffer = frontBuffer && sharedImageExtension;
+            if (frontBuffer) deviceExtensions.push_back(VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME);
             // KHR present_id + present_wait provide no timestamp, and can signal for replaced images.
             // Sampling CLOCK_MONOTONIC after a wait would invent a per-frame presentation time.
             if (tenBit) {
@@ -873,6 +888,17 @@ namespace {
                 } else {
                     presentMode = VK_PRESENT_MODE_FIFO_KHR;
                 }
+                // Front-buffer rendering: one image the display scans out continuously, drawn into
+                // directly. Each frame reaches the panel within its scan instead of waiting for the
+                // compositor's next latch and a full refresh; parts of two frames may show at once.
+                if (frontBuffer &&
+                    std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) != modes.end()) {
+                    fallbackPresentMode = presentMode;
+                    presentMode = VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR;
+                    sharedPresent = true;
+                } else if (frontBuffer) {
+                    LOGI("Front-buffer rendering: this surface offers no shared continuous refresh");
+                }
             }
 
             if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) return false;
@@ -881,6 +907,7 @@ namespace {
             if (caps.maxImageCount > 0) {
                 imageCount = std::min(imageCount, caps.maxImageCount);
             }
+            if (sharedPresent) imageCount = 1;
 
             VkSwapchainCreateInfoKHR info = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
             info.surface = surface;
@@ -905,10 +932,25 @@ namespace {
             info.oldSwapchain = swapchain;
 
             VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
-            if (!check(vk.CreateSwapchainKHR(device, &info, nullptr, &newSwapchain), "vkCreateSwapchainKHR")) {
+            VkResult created = vk.CreateSwapchainKHR(device, &info, nullptr, &newSwapchain);
+            if (created != VK_SUCCESS && sharedPresent && swapchain == VK_NULL_HANDLE) {
+                LOGW("Front-buffer swapchain refused (%d); using the normal swapchain", created);
+                sharedPresent = false;
+                presentMode = fallbackPresentMode;
+                info.presentMode = presentMode;
+                info.minImageCount = imageCount = caps.maxImageCount > 0 ?
+                    std::min(caps.minImageCount + 1, caps.maxImageCount) : caps.minImageCount + 1;
+                created = vk.CreateSwapchainKHR(device, &info, nullptr, &newSwapchain);
+            }
+            if (!check(created, "vkCreateSwapchainKHR")) {
                 return false;
             }
+            sharedAcquired = false;
+            sharedPresented = false;
             if (swapchain == VK_NULL_HANDLE) {
+                // Nothing is queued for the compositor, so no frame gets a presentation time;
+                // a frame counts as shown once its draw is submitted.
+                if (sharedPresent) displayTimingSupported = false;
                 LOGI("Present mode: %s (display %.2f Hz, stream %d fps)",
                      presentModeName(presentMode), displayRefreshRateHz, frameRateHz);
             }
@@ -1025,7 +1067,7 @@ namespace {
             attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachment.finalLayout = sharedPresent ? VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
             VkAttachmentReference colorRef = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
             VkSubpassDescription subpass = {};
             subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -1450,12 +1492,13 @@ namespace {
         // Runs on the present thread, which owns the swapchain.
         bool presentSlot(int index) {
             if (!applyPendingHdr()) return false;
-            uint32_t imageIndex = 0;
+            uint32_t imageIndex = sharedImageIndex;
             const uint64_t beforeAcquire = nowUs();
             // A fence rather than a semaphore: the CPU waits for the display to free an image, so
-            // the GPU queue never holds a draw that blocks the next decode behind it.
-            auto acquired = vk.AcquireNextImageKHR(device, swapchain, ACQUIRE_TIMEOUT_NS, VK_NULL_HANDLE,
-                                                   acquireFence, &imageIndex);
+            // the GPU queue never holds a draw that blocks the next decode behind it. A shared
+            // (front-buffer) image is acquired once and then stays ours.
+            auto acquired = sharedAcquired ? VK_SUCCESS :
+                vk.AcquireNextImageKHR(device, swapchain, ACQUIRE_TIMEOUT_NS, VK_NULL_HANDLE, acquireFence, &imageIndex);
             if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
                 dropSlot(index);
                 return recreateSwapchain();
@@ -1468,8 +1511,14 @@ namespace {
                 dropSlot(index);
                 return check(acquired, "vkAcquireNextImageKHR");
             }
-            if (!check(vk.WaitForFences(device, 1, &acquireFence, VK_TRUE, FENCE_TIMEOUT_NS), "acquire fence") ||
-                !check(vk.ResetFences(device, 1, &acquireFence), "reset acquire fence")) return false;
+            if (!sharedAcquired) {
+                if (!check(vk.WaitForFences(device, 1, &acquireFence, VK_TRUE, FENCE_TIMEOUT_NS), "acquire fence") ||
+                    !check(vk.ResetFences(device, 1, &acquireFence), "reset acquire fence")) return false;
+                if (sharedPresent) {
+                    sharedAcquired = true;
+                    sharedImageIndex = imageIndex;
+                }
+            }
             const uint64_t afterAcquire = nowUs();
 
             // Show the newest frame: one decoded while we waited for the image replaces this one.
@@ -1540,10 +1589,13 @@ namespace {
                 return false;
             }
 
+            // A front buffer is presented once; after that the display keeps scanning it out and
+            // each draw shows up as it lands.
+            const bool presentNow = !sharedPresent || !sharedPresented;
             VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &cmd;
-            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.signalSemaphoreCount = presentNow ? 1 : 0;
             submitInfo.pSignalSemaphores = &renderDone[imageIndex];
             if (!check(vk.ResetFences(device, 1, &slot.drawFence), "reset draw fence")) return false;
             VkPresentInfoKHR presentInfo = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
@@ -1560,13 +1612,14 @@ namespace {
                 presentInfo.pNext = &presentTimes;
             }
             timespec released;
-            VkResult presented;
+            VkResult presented = VK_SUCCESS;
             {
                 std::lock_guard<std::mutex> lock(queueMutex);
                 if (!check(vk.QueueSubmit(queue, 1, &submitInfo, slot.drawFence), "vkQueueSubmit")) return false;
                 clock_gettime(CLOCK_MONOTONIC, &released);
-                presented = vk.QueuePresentKHR(queue, &presentInfo);
+                if (presentNow) presented = vk.QueuePresentKHR(queue, &presentInfo);
             }
+            if (sharedPresent && (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR)) sharedPresented = true;
             const int64_t ptsUs = slot.ptsUs;
             {
                 std::lock_guard<std::mutex> lock(slotMutex);
@@ -1592,7 +1645,9 @@ namespace {
             // SUBOPTIMAL is reported on every present while the display is rotated, because
             // the swapchain leaves rotation to the compositor (IDENTITY pre-transform). Only
             // a changed surface size needs a new swapchain; recreating per frame stalls the GPU.
-            if ((presented == VK_SUBOPTIMAL_KHR || acquired == VK_SUBOPTIMAL_KHR) && surfaceSizeChanged(frameEnd)) {
+            // A front buffer is not presented again, so nothing would report a resize: check it.
+            if ((presented == VK_SUBOPTIMAL_KHR || acquired == VK_SUBOPTIMAL_KHR || sharedPresent) &&
+                surfaceSizeChanged(frameEnd)) {
                 return recreateSwapchain();
             }
             return shown || check(presented, "vkQueuePresentKHR");
@@ -1740,6 +1795,13 @@ namespace {
         VkFormat swapchainFormat = VK_FORMAT_UNDEFINED;
         VkColorSpaceKHR swapchainColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
         VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        // Front-buffer rendering: requested, then active (one shared image scanned out continuously).
+        bool frontBuffer = false;
+        bool sharedPresent = false;
+        VkPresentModeKHR fallbackPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+        bool sharedAcquired = false;
+        bool sharedPresented = false;
+        uint32_t sharedImageIndex = 0;
         VkSwapchainKHR swapchain = VK_NULL_HANDLE;
         VkExtent2D swapchainExtent = {};
         std::vector<VkImage> swapchainImages;
@@ -2066,7 +2128,7 @@ JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *env, jclass, jobject surface,
                                                                       jint width, jint height, jint frameRate, jfloat displayRefreshRate,
                                                                       jboolean chroma444, jboolean tenBit, jboolean fullRange,
-                                                                      jint upscale, jfloat edgeSharpness) {
+                                                                      jint upscale, jfloat edgeSharpness, jboolean frontBuffer) {
     if (surface == nullptr || width < 64 || height < 64 || width > 16384 || height > 16384 || (!chroma444 && ((width & 1) || (height & 1)))) {
         LOGE("PyroWave needs a surface and positive dimensions, even for 4:2:0 (%dx%d)", width, height);
         return 0;
@@ -2077,7 +2139,7 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *en
     }
     auto renderer = std::make_unique<Renderer>();
     if (!renderer->create(window, width, height, frameRate, displayRefreshRate, chroma444, tenBit, fullRange,
-                          upscale, edgeSharpness)) {
+                          upscale, edgeSharpness, frontBuffer)) {
         return 0;  // The renderer releases the window.
     }
     LOGI("PyroWave renderer ready for %dx%d %s", width, height, chroma444 ? "4:4:4" : "4:2:0");
