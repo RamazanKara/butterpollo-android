@@ -68,6 +68,18 @@ public class DisplayCapsReporterTest {
     }
 
     @Test
+    public void anSdrLevelReportedAsTheHdrPeakIsUnknown() {
+        // What a Galaxy Z Fold 7 reports for a panel of about 2,600 nits.
+        DisplayCapsReporter.Caps caps = DisplayCapsReporter.Caps.of(true, 400, 400, 0.0005f);
+        assertEquals(0, caps.maxNits, 0);
+        assertEquals(0, caps.maxAverageNits, 0);
+        assertEquals(0.0005f, caps.minNits, 0);
+        caps = DisplayCapsReporter.Caps.of(true, 500, 400, 0.0005f);
+        assertEquals(500, caps.maxNits, 0);
+        assertEquals(400, caps.maxAverageNits, 0);
+    }
+
+    @Test
     public void averageIsNeverAboveThePeak() {
         DisplayCapsReporter.Caps caps = DisplayCapsReporter.Caps.of(true, 600, 900, 0);
         assertEquals(600, caps.maxNits, 0);

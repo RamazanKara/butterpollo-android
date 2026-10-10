@@ -19,6 +19,12 @@ public final class DisplayFrameRatePolicy {
             maximum = display.getMode().getRefreshRate();
             for (Display.Mode mode : display.getSupportedModes()) {
                 maximum = Math.max(maximum, mode.getRefreshRate());
+                // An LTPO panel resting at a low rate can list its top rate only as an alternative.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    for (float rate : mode.getAlternativeRefreshRates()) {
+                        maximum = Math.max(maximum, rate);
+                    }
+                }
             }
         } else {
             maximum = display.getRefreshRate();

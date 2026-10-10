@@ -435,6 +435,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             prefConfig.fps = com.limelight.binding.video.DisplayFrameRatePolicy.streamFrameRate(panelMaxRefreshRate);
             prefConfig.launchRefreshRateX100 = Math.max(100, Math.min(100000, Math.round(panelMaxRefreshRate * 100)));
         }
+        LimeLog.info("Stream request: " + prefConfig.width + "x" + prefConfig.height + " at " + prefConfig.fps +
+                " fps (resolution " + (prefConfig.fromPcProfile ? "from this PC's stream profile" :
+                prefConfig.resolutionFollowsScreen ? "follows this screen" : "fixed in settings") +
+                (prefConfig.vrr ? ", VRR at the panel's " + panelMaxRefreshRate + " Hz" : "") + ")");
         // Fixed presets keep their size; anything else is the phone's own resolution and follows it.
         nativeResolutionStream = PreferenceConfiguration.isNativeResolution(prefConfig.width, prefConfig.height);
         fpsFollowsDisplay = prefConfig.vrr ||

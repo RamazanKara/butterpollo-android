@@ -382,11 +382,9 @@ def main():
                                 "checkbox_phone_performance_hints", "checkbox_gpu_max_clocks",
                                 "checkbox_drop_late_frames", "checkbox_unbatched_input",
                                 "checkbox_network_priority")
-            # Front-buffer rendering tears, so it stays off until the user turns it on.
-            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "2" and
+            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "3" and
                   pref_value(root, "list_resolution") == native and pref_value(root, "frame_pacing") == "latency" and
-                  all(pref_value(root, key) == "true" for key in latency_switches) and
-                  pref_value(root, "checkbox_pyrowave_front_buffer") == "false",
+                  all(pref_value(root, key) == "true" for key in latency_switches),
                   f"Fresh install is not at native {native} with every latency setting on")
             tap("android:id/button1")
             tap(f"{PACKAGE}:id/discovery_add")

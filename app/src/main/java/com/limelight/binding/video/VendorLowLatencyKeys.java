@@ -61,6 +61,17 @@ final class VendorLowLatencyKeys {
         return keys;
     }
 
+    /** Every known Snapdragon key, set on Qualcomm decoders whether or not they declare it. */
+    static Map<String, Integer> qualcommKeys() {
+        Map<String, Integer> keys = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> known : KNOWN.entrySet()) {
+            if (known.getKey().startsWith("vendor.qti-ext-")) {
+                keys.put(known.getKey(), known.getValue());
+            }
+        }
+        return keys;
+    }
+
     static boolean isKnown(String key) {
         return containsIgnoreCase(KNOWN.keySet(), key);
     }

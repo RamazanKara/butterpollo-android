@@ -32,16 +32,6 @@ public class StreamPresetTest {
     }
 
     @Test
-    public void frontBufferStaysOptInBecauseItTears() {
-        assertFalse(java.util.Arrays.asList(StreamPreset.LATENCY_SWITCHES)
-                .contains(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING));
-        Map<String, Object> values = new HashMap<>();
-        values.put(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING, false);
-        StreamPreset.NATIVE.apply(preferences(values, new int[1]), PHONE, 120);
-        assertEquals(false, values.get(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING));
-    }
-
-    @Test
     public void batterySaverKeepsNativeResolutionAt30Fps() {
         Map<String, Object> values = new HashMap<>();
         StreamPreset.BATTERY_SAVER.apply(preferences(values, new int[1]), PHONE, 144);
@@ -142,7 +132,8 @@ public class StreamPresetTest {
         assertEquals("forceav1", values.get("video_format"));
         assertEquals(true, values.get("checkbox_enable_hdr"));
         assertEquals(true, values.get("checkbox_vrr"));
-        assertEquals(PreferenceConfiguration.NATIVE_DEFAULTS_VERSION, values.get("prefs_version"));
+        assertEquals(PreferenceConfiguration.FOLLOW_SCREEN_VERSION, values.get("prefs_version"));
+        assertEquals(true, values.get(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING));
 
         // Later changes stick.
         values.put("list_resolution", "1920x1080");
@@ -150,6 +141,46 @@ public class StreamPresetTest {
         assertFalse(PreferenceConfiguration.migrateToNativeDefaults(preferences, PHONE, 120));
         assertEquals("1920x1080", values.get("list_resolution"));
         assertEquals(false, values.get("checkbox_unbatched_input"));
+    }
+
+    @Test
+    public void resolutionSavedOnAnotherPanelFollowsTheScreenAfterUpdating() {
+        // A 0.4.0 test.6 to test.8 install: native defaults already applied, at a size from another panel.
+        Map<String, Object> values = new HashMap<>();
+        values.put("prefs_version", PreferenceConfiguration.NATIVE_DEFAULTS_VERSION);
+        values.put("list_resolution", "1920x1080");
+        values.put("checkbox_unbatched_input", false);
+        SharedPreferences preferences = preferences(values, new int[1]);
+        assertTrue(PreferenceConfiguration.migrateToNativeDefaults(preferences, PHONE, 120));
+        assertEquals(PreferenceConfiguration.FOLLOW_SCREEN_VERSION, values.get("prefs_version"));
+        // Only the resolution changes meaning; other choices made since stay.
+        assertEquals(false, values.get("checkbox_unbatched_input"));
+        assertEquals("1920x1080", values.get("list_resolution"));
+        assertEquals(PHONE, PreferenceConfiguration.effectiveResolution(preferences, "1920x1080", PHONE));
+        // The inner screen of a foldable gets its own size at the next stream.
+        assertEquals("2184x1968", PreferenceConfiguration.effectiveResolution(preferences, "1920x1080", "2184x1968"));
+        assertFalse(PreferenceConfiguration.migrateToNativeDefaults(preferences, PHONE, 120));
+    }
+
+    @Test
+    public void aFixedResolutionStaysFixed() {
+        Map<String, Object> values = new HashMap<>();
+        values.put(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, false);
+        SharedPreferences preferences = preferences(values, new int[1]);
+        assertEquals("1920x1080", PreferenceConfiguration.effectiveResolution(preferences, "1920x1080", PHONE));
+        // An unreadable screen keeps the saved size.
+        values.put(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, true);
+        assertEquals("1920x1080", PreferenceConfiguration.effectiveResolution(preferences, "1920x1080", null));
+    }
+
+    @Test
+    public void presetsFollowTheScreen() {
+        for (StreamPreset preset : StreamPreset.values()) {
+            Map<String, Object> values = new HashMap<>();
+            values.put(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, false);
+            preset.apply(preferences(values, new int[1]), PHONE, 120);
+            assertEquals(true, values.get(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING));
+        }
     }
 
     @Test

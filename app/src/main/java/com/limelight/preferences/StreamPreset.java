@@ -11,7 +11,6 @@ public enum StreamPreset {
     BATTERY_SAVER;
 
     // Switches that cut latency. All are on by default, and Native turns them back on.
-    // Front-buffer rendering is not one of them: it tears, so it stays an opt-in.
     static final String[] LATENCY_SWITCHES = {
             "checkbox_codec_low_latency",
             "checkbox_vendor_low_latency",
@@ -61,6 +60,7 @@ public enum StreamPreset {
         String fps = Integer.toString(fps(panelMaxHz));
         SharedPreferences.Editor editor = preferences.edit()
                 .putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, nativeResolution)
+                .putBoolean(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, true)
                 .putString(PreferenceConfiguration.FPS_PREF_STRING, fps)
                 .putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
                         PreferenceConfiguration.getDefaultBitrate(nativeResolution, fps))

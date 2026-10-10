@@ -101,10 +101,11 @@ These tables include every preference, including actions. On/Off choices have no
 | Android low-latency mode<br>`checkbox_codec_low_latency` | On | On; Off | Leave on for supported Android 11+ decoders. Disable when comparing a decoder freeze or artifact. |
 | Chipset low-latency mode<br>`checkbox_vendor_low_latency` | On | On; Off | Leave on for supported chipset decoder keys. Disable to isolate vendor-specific instability. |
 | Decoder performance hints<br>`checkbox_codec_performance` | On | On; Off | Leave on for decoder priority/rate hints on Android 6+. Disable to compare heat or battery use. |
-| Phone performance hints<br>`checkbox_phone_performance_hints` | Off | On; Off | Enable for a measured comparison on Android 12+; compare decode time with it on and off. |
-| Keep only the newest frame<br>`checkbox_drop_late_frames` | Off | On; Off | Enable with Balanced pacing to discard older queued outputs. Favors response over smoothness. |
-| Instant mouse and pen input<br>`checkbox_unbatched_input` | Off | On; Off | Enable to bypass display-rate input batching. High-rate input can increase CPU and network load. |
-| Prioritize stream traffic<br>`checkbox_network_priority` | Off | On; Off | Enable to compare scheduling under load. Requests streaming thread priority on this device. |
+| Phone performance hints<br>`checkbox_phone_performance_hints` | On | On; Off | Enable for a measured comparison on Android 12+; compare decode time with it on and off. |
+| Max GPU clocks for PyroWave<br>`checkbox_gpu_max_clocks` | On | On; Off | Enable to hold the Adreno GPU at full speed for the steadiest PyroWave decode time; uses more battery. |
+| Keep only the newest frame<br>`checkbox_drop_late_frames` | On | On; Off | Enable with Balanced pacing to discard older queued outputs. Favors response over smoothness. |
+| Instant mouse and pen input<br>`checkbox_unbatched_input` | On | On; Off | Enable to bypass display-rate input batching. High-rate input can increase CPU and network load. |
+| Prioritize stream traffic<br>`checkbox_network_priority` | On | On; Off | Enable to compare scheduling under load. Requests streaming thread priority on this device. |
 | Compatibility video view<br>`checkbox_texture_view` | Off | On; Off | Try for black or flickering video or misplaced output. Adds composition work and is disabled for HDR and PyroWave. |
 | Unlock all frame rates<br>`checkbox_unlock_fps` | Off | On; Off | Enable to expose high rates otherwise filtered by display capability; compare shown FPS in the overlay. |
 | Allow lower refresh rate<br>`checkbox_reduce_refresh_rate` | Off | On; Off | Enable to allow a lower screen refresh for power savings. VRR disables it. |
@@ -118,22 +119,21 @@ These tables include every preference, including actions. On/Off choices have no
 
 ## Presets
 
-Presets change only the following global values. Other settings, including resolution, HDR and sharpening, stay as selected. Saved PC profiles take priority. The selected chip says Custom when values do not match a preset.
+Both presets stream at this screen's own resolution and keep the selected codec, HDR and 4:4:4 choices. Saved PC profiles take priority. The selected chip says Custom when values do not match a preset.
 
-| Setting | Balanced | Low latency | Best quality | Battery saver |
-| --- | --- | --- | --- | --- |
-| Video codec | Automatic (recommended) | Keep selected codec | Automatic (recommended) | Automatic (recommended) |
-| Video bitrate | 15 Mbps | 15 Mbps | 40 Mbps | 8 Mbps |
-| Video frame rate | Screen maximum (rounded, 1–1000 FPS) | Screen maximum (rounded, 1–1000 FPS) | Screen maximum (rounded, 1–1000 FPS) | 30 FPS |
-| Variable refresh (VRR) | Off | On | Off | Off |
-| Client-side upscaling | Off | SGSR 1 (Snapdragon Game Super Resolution) | FSR 1.0 | Bilinear |
-| Frame pacing | Balanced | Lowest latency | Balanced | Balanced with FPS limit |
-| Keep only the newest frame | Off | Off | Off | Off |
-| Allow lower refresh rate | Off | Off | Off | On |
-| Decoder performance hints | On | On | On | Off |
-| Phone performance hints | Off | Off | Off | Off |
+| Setting | Native (recommended) | Battery saver |
+| --- | --- | --- |
+| Video resolution | This screen's resolution | This screen's resolution |
+| Video frame rate | Screen maximum (rounded, 1–1000 FPS) | 30 FPS |
+| Video bitrate | Default for that resolution and frame rate | Default for that resolution and frame rate |
+| Variable refresh (VRR) | Off | Off |
+| Client-side upscaling | Off | Off |
+| Frame pacing | Lowest latency | Balanced with FPS limit |
+| Allow lower refresh rate | Off | On |
+| Decoder performance hints | On | Off |
+| Max GPU clocks for PyroWave | On | Off |
 
-Choose Balanced for mixed play, Low latency for fast response, Best quality for a stable high-bandwidth connection, or Battery saver for a 30 FPS target with reduced decoder performance hints.
+Native also turns these back on: Android low-latency mode, Chipset low-latency mode, Phone performance hints, Max GPU clocks for PyroWave, Keep only the newest frame, Instant mouse and pen input, Prioritize stream traffic.
 
 <!-- END GENERATED SETTINGS -->
 

@@ -47,4 +47,15 @@ public class VendorLowLatencyKeysTest {
         assertFalse(VendorLowLatencyKeys.isCoreSwitch("vendor.qti-ext-output-fence.fence_type"));
         assertFalse(VendorLowLatencyKeys.isCoreSwitch("vendor.qti-ext-dec-picture-order.enable"));
     }
+
+    @Test public void snapdragonGetsItsFenceAndLowLatencyKeysEvenWhenUndeclared() {
+        Map<String, Integer> keys = VendorLowLatencyKeys.qualcommKeys();
+        assertEquals(Integer.valueOf(1), keys.get("vendor.qti-ext-dec-low-latency.enable"));
+        assertEquals(Integer.valueOf(1), keys.get("vendor.qti-ext-dec-picture-order.enable"));
+        assertEquals(Integer.valueOf(1), keys.get("vendor.qti-ext-output-sw-fence-enable.value"));
+        assertEquals(Integer.valueOf(1), keys.get("vendor.qti-ext-output-fence.enable"));
+        // 1 is the software fence.
+        assertEquals(Integer.valueOf(1), keys.get("vendor.qti-ext-output-fence.fence_type"));
+        assertEquals(5, keys.size());
+    }
 }

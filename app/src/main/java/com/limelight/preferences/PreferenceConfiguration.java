@@ -35,6 +35,9 @@ public class PreferenceConfiguration {
     static final String BITRATE_PREF_STRING = "seekbar_bitrate_kbps";
     static final String PREFS_VERSION_PREF_STRING = "prefs_version";
     static final int NATIVE_DEFAULTS_VERSION = 2;
+    // From version 3 "native" is the screen a stream starts on, not a size saved earlier.
+    static final int FOLLOW_SCREEN_VERSION = 3;
+    static final String RESOLUTION_FOLLOWS_SCREEN_PREF_STRING = "resolution_follows_screen";
     static final String BITRATE_PREF_OLD_STRING = "seekbar_bitrate";
     private static final String STRETCH_PREF_STRING = "checkbox_stretch_video";
     private static final String SOPS_PREF_STRING = "checkbox_enable_sops";
@@ -83,7 +86,6 @@ public class PreferenceConfiguration {
     private static final String CODEC_PERFORMANCE_PREF_STRING = "checkbox_codec_performance";
     private static final String PHONE_PERFORMANCE_HINTS_PREF_STRING = "checkbox_phone_performance_hints";
     static final String GPU_MAX_CLOCKS_PREF_STRING = "checkbox_gpu_max_clocks";
-    static final String PYROWAVE_FRONT_BUFFER_PREF_STRING = "checkbox_pyrowave_front_buffer";
     private static final String DROP_LATE_FRAMES_PREF_STRING = "checkbox_drop_late_frames";
     private static final String TEXTURE_VIEW_PREF_STRING = "checkbox_texture_view";
     private static final String UNBATCHED_INPUT_PREF_STRING = "checkbox_unbatched_input";
@@ -191,10 +193,11 @@ public class PreferenceConfiguration {
     public boolean codecLowLatency, vendorLowLatency, codecPerformance;
     public boolean phonePerformanceHints;
     public boolean gpuMaxClocks;
-    public boolean pyroWaveFrontBuffer;
     public boolean dropLateFrames, useTextureView, unbatchedInput, networkPriority;
     public boolean virtualDisplay, enableYuv444, vrr;
     public int virtualDisplayScale;
+    // Where the launch values came from, for the stream log.
+    public boolean resolutionFollowsScreen, fromPcProfile;
     public UpscalingPolicy.Mode upscalingMode = UpscalingPolicy.Mode.OFF;
     public int upscalingSharpness = 50;
 
@@ -278,6 +281,10 @@ public class PreferenceConfiguration {
 
     private static int getHeightFromResolutionString(String resString) {
         return Integer.parseInt(resString.split("x")[1]);
+    }
+
+    static String getResolutionText(int width, int height) {
+        return width + "x" + height;
     }
 
     private static String getResolutionString(int width, int height) {
@@ -498,6 +505,8 @@ public class PreferenceConfiguration {
         HostStreamProfile profile = HostStreamProfile.load(context, hostUuid);
         if (profile != null) {
             profile.applyTo(config);
+            config.fromPcProfile = true;
+            config.resolutionFollowsScreen = false;
             config.framePacing = config.vrr ? FRAME_PACING_MIN_LATENCY : getFramePacingValue(context);
             config.reduceRefreshRate = !config.vrr && PreferenceManager.getDefaultSharedPreferences(context)
                     .getBoolean(REDUCE_REFRESH_RATE_PREF_STRING, DEFAULT_REDUCE_REFRESH_RATE);
@@ -550,23 +559,36 @@ public class PreferenceConfiguration {
     // Move them once to the phone's native resolution and refresh rate with every latency switch on.
     // Codec, HDR, 4:4:4 and VRR choices stay as they are.
     static boolean migrateToNativeDefaults(SharedPreferences prefs, String nativeResolution, float panelMaxHz) {
-        if (nativeResolution == null || prefs.getInt(PREFS_VERSION_PREF_STRING, 0) >= NATIVE_DEFAULTS_VERSION) {
+        int version = prefs.getInt(PREFS_VERSION_PREF_STRING, 0);
+        if (nativeResolution == null || version >= FOLLOW_SCREEN_VERSION) {
             return false;
         }
-        String fps = Integer.toString(DisplayFrameRatePolicy.streamFrameRate(panelMaxHz));
-        SharedPreferences.Editor editor = prefs.edit()
-                .putString(RESOLUTION_PREF_STRING, nativeResolution)
-                .putString(FPS_PREF_STRING, fps)
-                .putInt(BITRATE_PREF_STRING, getDefaultBitrate(nativeResolution, fps))
-                .remove(BITRATE_PREF_OLD_STRING)
-                .putString(FRAME_PACING_PREF_STRING, DEFAULT_FRAME_PACING)
-                .putString(UPSCALING_PREF_STRING, "off")
-                .putInt(PREFS_VERSION_PREF_STRING, NATIVE_DEFAULTS_VERSION);
-        for (String key : StreamPreset.LATENCY_SWITCHES) {
-            editor.putBoolean(key, true);
+        SharedPreferences.Editor editor = prefs.edit();
+        if (version < NATIVE_DEFAULTS_VERSION) {
+            String fps = Integer.toString(DisplayFrameRatePolicy.streamFrameRate(panelMaxHz));
+            editor.putString(RESOLUTION_PREF_STRING, nativeResolution)
+                    .putString(FPS_PREF_STRING, fps)
+                    .putInt(BITRATE_PREF_STRING, getDefaultBitrate(nativeResolution, fps))
+                    .remove(BITRATE_PREF_OLD_STRING)
+                    .putString(FRAME_PACING_PREF_STRING, DEFAULT_FRAME_PACING)
+                    .putString(UPSCALING_PREF_STRING, "off");
+            for (String key : StreamPreset.LATENCY_SWITCHES) {
+                editor.putBoolean(key, true);
+            }
         }
+        // A size saved on another panel (a foldable's cover screen, say) no longer sticks: streams
+        // start at the native size of the screen they start on.
+        editor.putBoolean(RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, true)
+                .putInt(PREFS_VERSION_PREF_STRING, FOLLOW_SCREEN_VERSION);
         editor.apply();
         return true;
+    }
+
+    // The resolution to stream at: this screen's native size while the resolution follows the
+    // screen, otherwise the saved one.
+    static String effectiveResolution(SharedPreferences prefs, String saved, String nativeResolution) {
+        return prefs.getBoolean(RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, false) && nativeResolution != null ?
+                nativeResolution : saved;
     }
 
     public static void migrateToNativeDefaults(Context context) {
@@ -578,6 +600,7 @@ public class PreferenceConfiguration {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         migrateToNativeDefaults(context);
         PreferenceConfiguration config = new PreferenceConfiguration();
+        String savedResolution = null;
 
         // Migrate legacy preferences to the new locations
         // The old ListPreference persisted "expanded" even when the user never changed its default.
@@ -658,6 +681,10 @@ public class PreferenceConfiguration {
                 prefs.edit().putString(RESOLUTION_PREF_STRING, resStr).apply();
             }
 
+            savedResolution = resStr;
+            resStr = effectiveResolution(prefs, resStr, nativeResolution(context));
+            config.resolutionFollowsScreen = !resStr.equals(savedResolution) ||
+                    prefs.getBoolean(RESOLUTION_FOLLOWS_SCREEN_PREF_STRING, false);
             config.width = PreferenceConfiguration.getWidthFromResolutionString(resStr);
             config.height = PreferenceConfiguration.getHeightFromResolutionString(resStr);
             config.fps = Integer.parseInt(prefs.getString(FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS));
@@ -682,6 +709,13 @@ public class PreferenceConfiguration {
         config.bitrate = prefs.getInt(BITRATE_PREF_STRING, prefs.getInt(BITRATE_PREF_OLD_STRING, 0) * 1000);
         if (config.bitrate == 0) {
             config.bitrate = getDefaultBitrate(context);
+        }
+        // A bitrate left at the saved size's default follows the size the stream really uses.
+        String fpsString = Integer.toString(config.fps);
+        String used = getResolutionText(config.width, config.height);
+        if (savedResolution != null && !used.equals(savedResolution) &&
+                config.bitrate == getDefaultBitrate(savedResolution, fpsString)) {
+            config.bitrate = getDefaultBitrate(used, fpsString);
         }
 
         String audioConfig = prefs.getString(AUDIO_CONFIG_PREF_STRING, DEFAULT_AUDIO_CONFIG);
@@ -746,7 +780,10 @@ public class PreferenceConfiguration {
         config.codecPerformance = prefs.getBoolean(CODEC_PERFORMANCE_PREF_STRING, true);
         config.phonePerformanceHints = prefs.getBoolean(PHONE_PERFORMANCE_HINTS_PREF_STRING, true);
         config.gpuMaxClocks = prefs.getBoolean(GPU_MAX_CLOCKS_PREF_STRING, true);
-        config.pyroWaveFrontBuffer = prefs.getBoolean(PYROWAVE_FRONT_BUFFER_PREF_STRING, false);
+        if (prefs.contains("checkbox_pyrowave_front_buffer")) {
+            // Front-buffer rendering tore too much to play and is gone; drop its old switch.
+            prefs.edit().remove("checkbox_pyrowave_front_buffer").apply();
+        }
         config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, true);
         // SurfaceView preserves HDR metadata and avoids TextureView's extra composition step.
         config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&

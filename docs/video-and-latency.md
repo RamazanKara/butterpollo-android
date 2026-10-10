@@ -45,7 +45,7 @@ Choose **Stream → Upscaling** or override it in a PC profile.
 | FSR 1.0 | AMD EASU reconstruction followed by RCAS sharpening. |
 | SGSR 1 | Qualcomm's single-pass spatial reconstruction. |
 
-GPU upscaling is for lower-resolution MediaCodec SDR video on GLES 3.0 with the required external-image support. Native/larger input, HDR and 10-bit use direct output. PyroWave SDR streams use SGSR 1 inside the Vulkan renderer for both FSR and SGSR, reading the decoded planes directly in one pass. **Front-buffer rendering for PyroWave** (Advanced, off by default) draws each frame into a single image the display scans out continuously (Vulkan shared presentable image), skipping Android's display queue; it needs driver support, fast motion can show a tear line, and the overlay's present mode reads FRONT_BUFFER when active. Under GPU overload or after a resize, Rubylight switches to direct output for the rest of the session to keep the stream smooth.
+GPU upscaling is for lower-resolution MediaCodec SDR video on GLES 3.0 with the required external-image support. Native/larger input, HDR and 10-bit use direct output. PyroWave SDR streams use SGSR 1 inside the Vulkan renderer for both FSR and SGSR, reading the decoded planes directly in one pass. Under GPU overload or after a resize, Rubylight switches to direct output for the rest of the session to keep the stream smooth.
 
 Sharpening ranges from 0–100%, default 50%. At 0%, FSR bypasses extra sharpening; SGSR still performs spatial reconstruction. The setting applies next stream. Compare text, edges, motion, battery use and added time, not just a still image.
 

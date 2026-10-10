@@ -16,6 +16,9 @@ public final class DisplayCapsReporter {
     }
 
     /** Luminance in nits, 0 when unknown, limited to what the host accepts. */
+    // Lower "HDR peaks" are SDR levels some phones report instead; see Caps.of.
+    static final float MIN_PLAUSIBLE_HDR_PEAK_NITS = 500;
+
     public static final class Caps {
         public final boolean hdr;
         public final float maxNits;
@@ -39,6 +42,13 @@ public final class DisplayCapsReporter {
             if (max < 1 || max > 10000) max = 0;
             float average = known(maxAverageNits);
             if (average > 10000) average = 0;
+            // HDR panels peak well above 500 nits, but some phones report their SDR level as the
+            // HDR peak (a Galaxy Z Fold 7 says 400 for a panel of about 2,600). Below that the
+            // host's own default describes the panel better, so the peak and average are unknown.
+            if (max != 0 && max < MIN_PLAUSIBLE_HDR_PEAK_NITS) {
+                max = 0;
+                average = 0;
+            }
             if (max != 0 && average > max) average = max;
             float min = known(minNits);
             if (min >= 0.9999f) min = 0;

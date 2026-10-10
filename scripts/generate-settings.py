@@ -68,7 +68,6 @@ ADVICE = {
     "checkbox_codec_performance": "Leave on for decoder priority/rate hints on Android 6+. Disable to compare heat or battery use.",
     "checkbox_phone_performance_hints": "Enable for a measured comparison on Android 12+; compare decode time with it on and off.",
     "checkbox_gpu_max_clocks": "Enable to hold the Adreno GPU at full speed for the steadiest PyroWave decode time; uses more battery.",
-    "checkbox_pyrowave_front_buffer": "Enable for the lowest PyroWave display latency on drivers with shared presentable images; fast motion can show a tear line.",
     "checkbox_drop_late_frames": "Enable with Balanced pacing to discard older queued outputs. Favors response over smoothness.",
     "checkbox_unbatched_input": "Enable to bypass display-rate input batching. High-rate input can increase CPU and network load.",
     "checkbox_network_priority": "Enable to compare scheduling under load. Requests streaming thread priority on this device.",
@@ -181,41 +180,31 @@ def generate():
         lines.append("")
 
     source = (JAVA / "preferences/StreamPreset.java").read_text(encoding="utf-8")
-    presets = re.findall(r'^\s+([A-Z_]+)\((null|"[^"]+"), (\d+), (true|false), "([^"]+)", "([^"]+)"\)', source, re.M)
+    presets = re.findall(r"^    ([A-Z_]+)[,;]$", source, re.M)
     names = array("@array/stream_preset_names")
-    if len(presets) != len(names):
-        raise ValueError("Preset names and definitions differ")
-    apply = source.split("void apply(", 1)[1]
-    writes = re.findall(r"\.put(?:String|Boolean|Int)\(([^,]+), (.+)\)\s*;?\s*$", apply, re.M)
-    if not writes or "this == BATTERY_SAVER ? 30 : DisplayFrameRatePolicy.streamFrameRate(panelMaxHz)" not in source:
-        raise ValueError("Review the changed preset implementation")
+    if presets != ["NATIVE", "BATTERY_SAVER"] or len(names) != len(presets):
+        raise ValueError("Review the changed presets")
+    block = source.split("LATENCY_SWITCHES = {", 1)[1].split("};", 1)[0]
+    switches = re.findall(r'^\s+(?:"([a-z_]+)"|PreferenceConfiguration\.([A-Z_]+)),$', block, re.M)
+    switch_titles = [resolve(nodes[literal or constants[constant]].get(ANDROID + "title")) for literal, constant in switches]
     policy = (JAVA / "binding/video/DisplayFrameRatePolicy.java").read_text(encoding="utf-8")
     bounds = re.search(r"Math.max\((\d+), Math.min\((\d+), Math.round\(panelMaxHz\)\)\)", policy)
     if not bounds:
         raise ValueError("Review the changed preset refresh-rate policy")
-    fps_label = f"Screen maximum (rounded, {bounds[1]}–{bounds[2]} FPS)"
-    lines += ["## Presets", "", "Presets change only the following global values. Other settings, including resolution, HDR and sharpening, stay as selected. Saved PC profiles take priority. The selected chip says Custom when values do not match a preset.", "",
+    lines += ["## Presets", "",
+              "Both presets stream at this screen's own resolution and keep the selected codec, HDR and 4:4:4 choices. Saved PC profiles take priority. The selected chip says Custom when values do not match a preset.", "",
               "| Setting | " + " | ".join(names) + " |",
-              "| --- | " + " | ".join("---" for _ in names) + " |"]
-    for key_expression, expression in writes:
-        key = constants[key_expression.split(".")[-1]] if key_expression.startswith("PreferenceConfiguration.") else key_expression.strip('"')
-        values = []
-        for enum, codec, bitrate, vrr, pacing, upscaling in presets:
-            fields = {"codec": codec.strip('"'), "bitrate": bitrate, "vrr": vrr, "pacing": pacing, "upscaling": upscaling}
-            if expression == "Integer.toString(fps(panelMaxHz))":
-                values.append("30 FPS" if enum == "BATTERY_SAVER" else fps_label)
-                continue
-            if expression in fields:
-                value = fields[expression]
-            elif expression in ("true", "false"):
-                value = expression
-            elif expression in ("this == BATTERY_SAVER", "this != BATTERY_SAVER"):
-                value = str((enum == "BATTERY_SAVER") == ("==" in expression)).lower()
-            else:
-                raise ValueError(f"Review preset expression: {expression}")
-            values.append("Keep selected codec" if value == "null" else display_value(key, value))
-        lines.append("| " + resolve(nodes[key].get(ANDROID + "title")) + " | " + " | ".join(values) + " |")
-    lines += ["", "Choose Balanced for mixed play, Low latency for fast response, Best quality for a stable high-bandwidth connection, or Battery saver for a 30 FPS target with reduced decoder performance hints.", ""]
+              "| --- | --- | --- |",
+              "| Video resolution | This screen's resolution | This screen's resolution |",
+              f"| Video frame rate | Screen maximum (rounded, {bounds[1]}–{bounds[2]} FPS) | 30 FPS |",
+              "| Video bitrate | Default for that resolution and frame rate | Default for that resolution and frame rate |",
+              "| Variable refresh (VRR) | Off | Off |",
+              "| Client-side upscaling | Off | Off |",
+              "| Frame pacing | Lowest latency | Balanced with FPS limit |",
+              "| Allow lower refresh rate | Off | On |",
+              "| Decoder performance hints | On | Off |",
+              "| Max GPU clocks for PyroWave | On | Off |",
+              "", "Native also turns these back on: " + ", ".join(switch_titles) + ".", ""]
     return "\n".join(lines)
 
 

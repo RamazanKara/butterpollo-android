@@ -587,6 +587,18 @@ public class MediaCodecHelper {
                     setNewOption = true;
                 }
             }
+            // Snapdragon decoders take their low-latency and output-fence keys at configure time
+            // without always listing them as vendor parameters; without the software fence each
+            // frame waits several milliseconds longer. The first tries set the full Qualcomm set,
+            // the later ones only what the decoder declares.
+            if (tryNumber < 3 && isDecoderInList(qualcommDecoderPrefixes, decoderInfo.getName())) {
+                for (Map.Entry<String, Integer> key : VendorLowLatencyKeys.qualcommKeys().entrySet()) {
+                    if (!videoFormat.containsKey(key.getKey())) {
+                        videoFormat.setInteger(key.getKey(), key.getValue());
+                        setNewOption = true;
+                    }
+                }
+            }
         }
         else if (useVendorOptions && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Try vendor-specific low latency options

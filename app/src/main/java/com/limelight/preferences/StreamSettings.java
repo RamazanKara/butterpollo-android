@@ -1261,6 +1261,10 @@ public class StreamSettings extends AppCompatActivity {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
                     String valueStr = (String) newValue;
 
+                    // Picking this screen's native size keeps following the screen; any other size stays fixed.
+                    prefs.edit().putBoolean(PreferenceConfiguration.RESOLUTION_FOLLOWS_SCREEN_PREF_STRING,
+                            valueStr.equals(PreferenceConfiguration.nativeResolution(getActivity()))).apply();
+
                     // Write the new bitrate value
                     resetBitrateToDefault(prefs, valueStr, null);
 

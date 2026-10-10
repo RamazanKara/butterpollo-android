@@ -77,14 +77,14 @@ public final class PyroWaveDecoderRenderer {
 
     synchronized boolean setup(Surface surface, int format, int width, int height, int fps, float displayRefreshRate,
                                boolean fullRange, UpscalingPolicy.Mode upscaling, int sharpness,
-                               Context context, boolean maxClocks, boolean frontBuffer) {
+                               Context context, boolean maxClocks) {
         cleanup();
         if (!LIBRARY_LOADED || surface == null || !surface.isValid()) return false;
         try {
             handle = nativeCreate(surface, width, height, fps, displayRefreshRate,
                     (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0,
                     (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange,
-                    upscaleMode(upscaling), SgsrConstants.edgeSharpness(sharpness), frontBuffer);
+                    upscaleMode(upscaling), SgsrConstants.edgeSharpness(sharpness));
         } catch (IllegalArgumentException e) {
             // The surface may be released between isValid() and the native window lookup.
             LimeLog.warning("PyroWave surface unavailable: " + e);
@@ -205,7 +205,7 @@ public final class PyroWaveDecoderRenderer {
     private static native int nativeGetReadiness(boolean hdr);
     private static native long nativeCreate(Surface surface, int width, int height, int fps, float displayRefreshRate,
                                            boolean chroma444, boolean tenBit, boolean fullRange,
-                                           int upscale, float edgeSharpness, boolean frontBuffer);
+                                           int upscale, float edgeSharpness);
     private static native String nativeGetDriver(long handle);
     private static native boolean nativeIsUpscaling(long handle);
     private static native boolean nativeSetGpuMaxClocks(boolean enabled);
