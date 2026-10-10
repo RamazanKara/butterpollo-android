@@ -8,6 +8,7 @@ public final class AdaptiveBitrateController {
     private long lastChangeMs;
     private long healthySinceMs = -1;
     private int poorSamples;
+    private int thermalLevel;
 
     public AdaptiveBitrateController(int ceilingKbps, int currentKbps, int fps, long nowMs) {
         this.ceilingKbps = Math.min(500000, ceilingKbps);
@@ -28,17 +29,20 @@ public final class AdaptiveBitrateController {
             poorSamples = 0;
             return 0;
         }
-        if (poorConnection || (recentVideo && (lossPercent >= 3 || decodeMs >= frameMs ||
-                jitterMs >= Math.max(5, frameMs * 0.75f)))) {
+        boolean poor = poorConnection || (recentVideo && (lossPercent >= 3 || decodeMs >= frameMs ||
+                jitterMs >= Math.max(5, frameMs * 0.75f)));
+        if (poor || (recentVideo && thermalLevel >= 2)) {
             healthySinceMs = -1;
             poorSamples++;
-            if (poorSamples >= 2 && nowMs - lastChangeMs >= 5000) {
-                int target = Math.max(floorKbps, currentKbps * 80 / 100);
+            // Heat builds and fades slowly, so heat alone steps down less often and not as far.
+            int floor = poor ? floorKbps : Math.max(floorKbps, ceilingKbps / 2);
+            if (poorSamples >= 2 && nowMs - lastChangeMs >= (poor ? 5000 : 15000)) {
+                int target = Math.max(floor, currentKbps * 80 / 100);
                 return target < currentKbps ? target : 0;
             }
         } else {
             poorSamples = 0;
-            if (!(lossPercent >= 0 && lossPercent < 0.5f) ||
+            if (thermalLevel > 0 || !(lossPercent >= 0 && lossPercent < 0.5f) ||
                     !(decodeMs >= 0 && decodeMs < frameMs * 0.75f) ||
                     !(jitterMs >= 0 && jitterMs < Math.max(2, frameMs * 0.25f))) {
                 healthySinceMs = -1;
@@ -50,6 +54,11 @@ public final class AdaptiveBitrateController {
             }
         }
         return 0;
+    }
+
+    /** ThermalMonitor level: warm holds the rate, hot steps it down. */
+    public void setThermalLevel(int level) {
+        thermalLevel = level;
     }
 
     public void applied(int requestedKbps, int appliedKbps, long nowMs) {

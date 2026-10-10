@@ -46,6 +46,10 @@
     <string name="perf_overlay_low_latency_keys">Decoder settings accepted: %1$s</string>
     <string name="perf_overlay_low_latency_unconfirmed">Decoder settings unconfirmed: %1$s</string>
     <string name="perf_overlay_phone_hints">Phone performance hints: %1$s</string>
+    <string name="perf_overlay_thermal">Phone heat: %1$s</string>
+    <string name="perf_overlay_thermal_normal">normal</string>
+    <string name="perf_overlay_thermal_warm">warm, holding bitrate</string>
+    <string name="perf_overlay_thermal_hot">hot, easing load</string>
     <string-array name="overlay_mode_names"><item>@string/overlay_compact</item><item>@string/overlay_advanced</item></string-array>
     <string-array name="overlay_mode_values" translatable="false"><item>compact</item><item>advanced</item></string-array>
     <string name="connection_test_title">Connection test</string>

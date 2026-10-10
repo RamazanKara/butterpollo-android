@@ -46,6 +46,10 @@
     <string name="perf_overlay_low_latency_keys">Decoder-Optionen bestätigt: %1$s</string>
     <string name="perf_overlay_low_latency_unconfirmed">Decoder-Optionen unbestätigt: %1$s</string>
     <string name="perf_overlay_phone_hints">Android-Leistungssteuerung: %1$s</string>
+    <string name="perf_overlay_thermal">Gerätetemperatur: %1$s</string>
+    <string name="perf_overlay_thermal_normal">normal</string>
+    <string name="perf_overlay_thermal_warm">warm, Bitrate wird gehalten</string>
+    <string name="perf_overlay_thermal_hot">heiß, Last wird reduziert</string>
     <string-array name="overlay_mode_names">
         <item>@string/overlay_compact</item>
         <item>@string/overlay_advanced</item>

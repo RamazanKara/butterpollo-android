@@ -196,6 +196,9 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 long now = SystemClock.uptimeMillis();
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 float jitterMs = rttInfo == -1 ? -1 : (float) (rttInfo & 0xffffffffL);
+                int thermalLevel = decoderRenderer.getThermalLevel();
+                if (adaptiveBitrate != null) adaptiveBitrate.setThermalLevel(thermalLevel);
+                if (pyroWaveBitrate != null) pyroWaveBitrate.setThermalLevel(thermalLevel);
                 int target = pyroWaveBitrate != null ?
                         pyroWaveBitrate.sample(now, decoderRenderer.hasRecentVideoFrames(now), poorConnection,
                                 decoderRenderer.getPyroWaveLossPercent(), decoderRenderer.getPyroWaveQueueDelayMs(),

@@ -170,7 +170,6 @@ public final class PyroWaveDecoderRenderer {
         if (handle != 0) nativeSetHdrMode(handle, enabled, metadata);
     }
 
-    @SuppressLint("ApplySharedPref")
     synchronized void cleanup() {
         if (performanceHints != null) {
             performanceHints.close();
@@ -179,12 +178,17 @@ public final class PyroWaveDecoderRenderer {
         if (handle != 0) nativeDestroy(handle);
         handle = 0;
         format = 0;
-        if (maxClocksContext != null) {
-            Context context = maxClocksContext;
-            nativeSetGpuMaxClocks(false);
-            maxClocksContext = null;
-            PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean(MAX_CLOCKS_ACTIVE, false).commit();
-        }
+        restoreClocks();
+    }
+
+    /** Hands GPU clocks back to the driver if this stream forced them to maximum. */
+    @SuppressLint("ApplySharedPref")
+    synchronized void restoreClocks() {
+        if (maxClocksContext == null) return;
+        Context context = maxClocksContext;
+        nativeSetGpuMaxClocks(false);
+        maxClocksContext = null;
+        PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean(MAX_CLOCKS_ACTIVE, false).commit();
     }
 
     private static native int nativeGetReadiness(boolean hdr);

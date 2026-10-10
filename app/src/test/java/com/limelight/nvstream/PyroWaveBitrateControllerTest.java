@@ -128,4 +128,27 @@ public class PyroWaveBitrateControllerTest {
         assertEquals(0, c.sample(5000, true, false, 5, 100, 0));
         assertEquals(0, c.sample(6000, true, false, 5, 100, 0));
     }
+
+    @Test
+    public void hotPhoneStepsDownSlowlyAndNotBelowHalf() {
+        PyroWaveBitrateController controller = new PyroWaveBitrateController(20000, 20000, 60, 0);
+        controller.setThermalLevel(2);
+        assertEquals(0, controller.sample(5000, true, false, 0, 1, 2));
+        assertEquals(0, controller.sample(6000, true, false, 0, 1, 2));
+        assertEquals(17000, controller.sample(15000, true, false, 0, 1, 2));
+        controller.applied(10000, 10000, 15000);
+        assertEquals(0, controller.sample(31000, true, false, 0, 1, 2));
+        assertEquals(0, controller.sample(32000, true, false, 0, 1, 2));
+    }
+
+    @Test
+    public void warmPhoneHoldsTheRate() {
+        PyroWaveBitrateController controller = new PyroWaveBitrateController(30000, 20000, 60, 0);
+        controller.setThermalLevel(1);
+        for (long now = 1000; now <= 60000; now += 1000) {
+            assertEquals(0, controller.sample(now, true, false, 0, 1, 2));
+        }
+        controller.setThermalLevel(0);
+        assertEquals(0, controller.sample(61000, true, false, 0, 1, 2));
+    }
 }

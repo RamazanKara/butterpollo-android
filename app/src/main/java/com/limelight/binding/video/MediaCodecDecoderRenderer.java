@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -128,6 +129,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private volatile float pyroWaveLossPercent = -1;
     private volatile float pyroWaveQueueDelayMs = -1;
     private volatile float decodeTimeMs = -1;
+    private ThermalMonitor thermalMonitor;
+    private volatile int thermalLevel = ThermalMonitor.NORMAL;
 
     private final FrameLatencyStats frameLatencyStats;
     private HandlerThread latencyThread;
@@ -197,6 +200,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public float getDecodeTimeMs() {
         return decodeTimeMs;
+    }
+
+    /** ThermalMonitor level from the last stats window. */
+    public int getThermalLevel() {
+        return thermalLevel;
+    }
+
+    private String thermalStats() {
+        int state = thermalLevel == ThermalMonitor.HOT ? R.string.perf_overlay_thermal_hot :
+                thermalLevel == ThermalMonitor.WARM ? R.string.perf_overlay_thermal_warm : R.string.perf_overlay_thermal_normal;
+        float headroom = thermalMonitor.headroom();
+        return context.getString(R.string.perf_overlay_thermal, context.getString(state)) +
+                (headroom >= 0 ? String.format(Locale.US, " (%.2f)", headroom) : "");
     }
 
     static String formatPyroWaveStats(float recordLoss, float queueMs, float decodeMs, int gpuUs) {
@@ -562,6 +578,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         //dumpDecoders();
 
         this.context = activity;
+        this.thermalMonitor = new ThermalMonitor(activity);
         this.activity = activity;
         this.prefs = prefs;
         this.frameLatencyStats = new FrameLatencyStats(prefs.vrr);
@@ -1997,6 +2014,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 pyroWaveLossSamples = 0;
             }
             decodeTimeMs = frameLatencyStats.takeDecodeTimeMs();
+            thermalLevel = thermalMonitor.level();
+            // Forced max clocks on a phone that is already hot only bring on harder throttling.
+            if (thermalLevel == ThermalMonitor.HOT && pyroWaveRenderer.hasMaxClocks()) {
+                pyroWaveRenderer.restoreClocks();
+                updateDecoderDiagnostics();
+            }
             VideoStats lastTwo = new VideoStats();
             lastTwo.add(lastWindowVideoStats);
             lastTwo.add(activeWindowVideoStats);
@@ -2031,6 +2054,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                             this.decodeTimeMs, gpuUs));
                 }
                 decode.append('\n').append(upscalingStats());
+                decode.append('\n').append(thermalStats());
                 decode.append('\n').append(latencyOverlay);
                 perfListener.onPerfUpdate(video.toString(), network, decode.toString(),
                         PerformanceOverlay.compactText(context, frameRates[2], (int)(rttInfo >> 32),

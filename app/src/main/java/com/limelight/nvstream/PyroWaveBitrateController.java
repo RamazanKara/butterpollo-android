@@ -11,6 +11,7 @@ public final class PyroWaveBitrateController {
     private int congestedSamples;
     private float previousLoss = -1;
     private float previousQueueMs = -1;
+    private int thermalLevel;
 
     public PyroWaveBitrateController(int ceilingKbps, int currentKbps, int fps, long nowMs) {
         this.ceilingKbps = Math.min(MAX_RUNTIME_KBPS, ceilingKbps);
@@ -42,15 +43,17 @@ public final class PyroWaveBitrateController {
                         queueMs - previousQueueMs >= 3)));
         previousLoss = lossPercent;
         previousQueueMs = queueMs;
-        if (congested) {
+        if (congested || (recentVideo && thermalLevel >= 2)) {
             healthySinceMs = -1;
-            if (++congestedSamples >= 2 && nowMs - lastChangeMs >= 3000) {
-                int target = Math.max(floorKbps, currentKbps * 85 / 100);
+            // Heat builds and fades slowly, so heat alone steps down less often and not as far.
+            int floor = congested ? floorKbps : Math.max(floorKbps, ceilingKbps / 2);
+            if (++congestedSamples >= 2 && nowMs - lastChangeMs >= (congested ? 3000 : 15000)) {
+                int target = Math.max(floor, currentKbps * 85 / 100);
                 return target < currentKbps ? target : 0;
             }
         } else {
             congestedSamples = 0;
-            if (!(lossPercent >= 0 && lossPercent < 0.1f) || !(queueMs >= 0 && queueMs < Math.max(4, frameMs / 2)) ||
+            if (thermalLevel > 0 || !(lossPercent >= 0 && lossPercent < 0.1f) || !(queueMs >= 0 && queueMs < Math.max(4, frameMs / 2)) ||
                     !(decodeMs >= 0 && decodeMs < frameMs * 0.75f) ||
                     !(jitterMs >= 0 && jitterMs < Math.max(2, frameMs * 0.25f))) {
                 healthySinceMs = -1;
@@ -62,6 +65,11 @@ public final class PyroWaveBitrateController {
             }
         }
         return 0;
+    }
+
+    /** ThermalMonitor level: warm holds the rate, hot steps it down. */
+    public void setThermalLevel(int level) {
+        thermalLevel = level;
     }
 
     public void applied(int requestedKbps, int appliedKbps, long nowMs) {
