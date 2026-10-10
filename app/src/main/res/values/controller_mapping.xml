@@ -2,8 +2,8 @@
 <resources>
     <string name="controller_mapping_title">Controller buttons</string>
     <string name="controller_mapping_summary">Assign buttons for each controller model.</string>
-    <string name="controller_mapping_intro">Select Map a button, then press the controller button to remap.\nChanges apply to the next stream.</string>
-    <string name="controller_mapping_waiting">No controller chosen yet. Tap Map a button.</string>
+    <string name="controller_mapping_intro">Tap “Map a button”, then press the controller button to remap.\nChanges apply to the next stream.</string>
+    <string name="controller_mapping_waiting">Connect a controller, then tap “Map a button”.</string>
     <string name="controller_mapping_unnamed">Controller</string>
     <string name="controller_mapping_none">All buttons use their default mapping.</string>
     <string name="controller_mapping_row">Sends %1$s</string>

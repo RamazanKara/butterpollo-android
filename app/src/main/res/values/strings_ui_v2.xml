@@ -2,6 +2,7 @@
     <string name="settings_section_advanced">Advanced</string>
     <string name="settings_advanced_summary">Decoder, input, network and diagnostics</string>
     <string name="settings_custom">Custom</string>
+    <string name="settings_preset_default">Default</string>
     <string name="setting_help">About %1$s</string>
     <string name="stream_presets_help_title">About presets</string>
     <string name="settings_overlay_audio_summary">Overlay %1$s · %2$s</string>

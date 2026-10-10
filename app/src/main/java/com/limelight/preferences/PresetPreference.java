@@ -28,7 +28,8 @@ public class PresetPreference extends Preference {
         ChipGroup group = view.findViewById(R.id.preset_chips);
         group.removeAllViews();
         String[] names = getContext().getResources().getStringArray(R.array.stream_preset_names);
-        String selected = getContext().getString(R.string.settings_custom);
+        String selected = getContext().getString(StreamPreset.isUntouched(getSharedPreferences())
+                ? R.string.settings_preset_default : R.string.settings_custom);
         for (StreamPreset preset : StreamPreset.values()) {
             Chip chip = new Chip(getContext());
             chip.setId(View.generateViewId());

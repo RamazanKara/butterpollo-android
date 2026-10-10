@@ -43,6 +43,23 @@ public enum StreamPreset {
                 !preferences.getBoolean("checkbox_phone_performance_hints", false);
     }
 
+    private static final String[] STREAM_KEYS = {
+            PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING, PreferenceConfiguration.BITRATE_PREF_STRING,
+            PreferenceConfiguration.FPS_PREF_STRING, "checkbox_vrr", PreferenceConfiguration.FRAME_PACING_PREF_STRING,
+            PreferenceConfiguration.UPSCALING_PREF_STRING, "checkbox_drop_late_frames", "checkbox_reduce_refresh_rate",
+            "checkbox_codec_performance", "checkbox_phone_performance_hints"
+    };
+
+    // True until the user picks a preset or changes any value a preset sets.
+    static boolean isUntouched(SharedPreferences preferences) {
+        for (String key : STREAM_KEYS) {
+            if (preferences.contains(key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void apply(SharedPreferences preferences, float panelMaxHz) {
         SharedPreferences.Editor editor = preferences.edit();
         if (codec != null) {

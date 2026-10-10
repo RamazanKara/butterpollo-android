@@ -118,6 +118,19 @@ public class StreamPresetTest {
         }
     }
 
+    @Test
+    public void freshSettingsAreUntouchedUntilAPresetOrStreamValueIsSet() {
+        Map<String, Object> values = new HashMap<>();
+        values.put("list_resolution", "1920x1080");
+        SharedPreferences preferences = preferences(values, new int[1]);
+        assertTrue(StreamPreset.isUntouched(preferences));
+        StreamPreset.BALANCED.apply(preferences, 120);
+        assertFalse(StreamPreset.isUntouched(preferences));
+        values.clear();
+        values.put("seekbar_bitrate_kbps", 20000);
+        assertFalse(StreamPreset.isUntouched(preferences));
+    }
+
     private SharedPreferences preferences(Map<String, Object> values, int[] applies) {
         SharedPreferences.Editor editor = (SharedPreferences.Editor) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[] {SharedPreferences.Editor.class}, (proxy, method, args) -> {
@@ -134,6 +147,9 @@ public class StreamPresetTest {
                 getClass().getClassLoader(), new Class<?>[] {SharedPreferences.class}, (proxy, method, args) -> {
                     if (method.getName().startsWith("get")) {
                         return values.getOrDefault(args[0], args[1]);
+                    }
+                    if (method.getName().equals("contains")) {
+                        return values.containsKey(args[0]);
                     }
                     return editor;
                 });
