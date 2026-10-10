@@ -76,6 +76,7 @@ Compact includes PyroWave measurements. Advanced groups details into Video, Netw
 | Upscaling mode / added time / fallback | Selected GPU path, its added-time estimate and a reason for direct output. GPU texture callbacks are not display presentation measurements. |
 | PyroWave queue / completed decode / GPU decode | Queued work, completed frame decode and the last GPU decode measurement are distinct; do not substitute one for another. |
 | PyroWave missing records | Missing portions of record-framed data. Surviving records can update while missing regions reuse earlier coefficients. |
+| PyroWave waits / replaced frames | PyroWave decodes into three plane sets on the stream thread while a separate present thread waits for the display, so decoding never queues behind presentation. "Free planes" is the decoder's wait for a plane set, "screen image" the present thread's wait for a swapchain image, and "replaced" the share of decoded frames a newer one superseded before display. |
 | Bitrate / automatic bitrate status | Requested or host-applied bitrate and adaptation state, subject to host caps. |
 
 ## Automatic bitrate and diagnostics

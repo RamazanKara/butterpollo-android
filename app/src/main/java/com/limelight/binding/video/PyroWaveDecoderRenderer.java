@@ -110,7 +110,7 @@ public final class PyroWaveDecoderRenderer {
         return format;
     }
 
-    // CLOCK_MONOTONIC at the decode fence, before acquiring/presenting a swapchain image.
+    // CLOCK_MONOTONIC at the decode fence. The renderer's own thread presents the frame afterwards.
     synchronized long submitFrame(byte[] data, int length, long ptsUs, FrameLatencyStats stats,
                                   Context context, boolean enablePerformanceHints, int frameRate) {
         if (handle == 0) return -1;
@@ -126,26 +126,31 @@ public final class PyroWaveDecoderRenderer {
             // The decode fence excludes the subsequent wait for a swapchain image/presentation.
             performanceHints.reportWorkDuration((outputNs > 0 ? outputNs : System.nanoTime()) - workStartNs, frameRate);
         }
-        long releaseNs = outputNs > 0 ? nativeGetLastReleaseTimeNs(handle) : 0;
         if (outputNs > 0) {
-            stats.onDecoderOutput(0, ptsUs, outputNs);
-            stats.onOutputReleased(0, releaseNs, releaseNs != 0, true);
+            stats.onDecoderOutput(outputIndex(ptsUs), ptsUs, outputNs);
         }
-        // Keep output registration and polling under the same lock: a present can already be ready.
-        if (!nativePollRenderedFrames(handle, stats) && releaseNs != 0) {
-            stats.discard(ptsUs, "render_unavailable");
-        }
+        // Keep output registration and polling under the same lock: the present thread may
+        // already have shown (or replaced) this frame.
+        nativePollRenderedFrames(handle, stats);
         return outputNs;
+    }
+
+    /** Frames can wait for the display while newer ones decode, so each needs its own index. */
+    static int outputIndex(long ptsUs) {
+        return (int) ptsUs;  // Matches the native side's release events.
     }
 
     synchronized void pollRenderedFrames(FrameLatencyStats stats) {
         if (handle != 0) nativePollRenderedFrames(handle, stats);
     }
 
-    /** Average ms per frame spent waiting for the previous frame's draw and for a swapchain image. */
+    /**
+     * Average ms per frame the decoder waited for free planes and the present thread waited for a
+     * swapchain image, and the percentage of decoded frames a newer one replaced before display.
+     */
     synchronized float[] getWaits() {
         float[] waits = handle != 0 ? nativeGetWaits(handle) : null;
-        return waits != null ? waits : new float[] {-1, -1};
+        return waits != null && waits.length >= 3 ? waits : new float[] {-1, -1, -1};
     }
 
     synchronized int getLastGpuDecodeUs() {
@@ -205,7 +210,6 @@ public final class PyroWaveDecoderRenderer {
     private static native boolean nativeIsUpscaling(long handle);
     private static native boolean nativeSetGpuMaxClocks(boolean enabled);
     private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
-    private static native long nativeGetLastReleaseTimeNs(long handle);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
     private static native float[] nativeGetWaits(long handle);

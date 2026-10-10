@@ -2059,8 +2059,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
                     float[] waits = pyroWaveRenderer.getWaits();
                     decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs, gpuUs))
-                            .append("\nWaits per frame: previous frame ").append(metric(waits[0], " ms"))
-                            .append(" | screen image ").append(metric(waits[1], " ms"));
+                            .append("\nWaits per frame: free planes ").append(metric(waits[0], " ms"))
+                            .append(" | screen image ").append(metric(waits[1], " ms"))
+                            .append("\nReplaced by a newer frame before display: ").append(metric(waits[2], "%"));
                 }
                 decode.append('\n').append(upscalingStats());
                 decode.append('\n').append(thermalStats());

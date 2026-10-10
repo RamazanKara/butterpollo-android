@@ -40,7 +40,12 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 #include <unistd.h>
 #include <jni.h>
 
+#include <sys/resource.h>
+
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <deque>
@@ -48,6 +53,7 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "shaders_spv.h"
@@ -403,6 +409,17 @@ namespace {
         uint32_t height = 0;
     };
 
+    // One decoded frame's Y/Cb/Cr planes and what drawing them needs.
+    struct Slot {
+        Plane planes[3];
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        VkCommandBuffer drawCommandBuffer = VK_NULL_HANDLE;
+        // Signaled whenever no draw of these planes is in flight.
+        VkFence drawFence = VK_NULL_HANDLE;
+        bool initialized = false;
+        int64_t ptsUs = 0;
+    };
+
     class Renderer {
     public:
         PyroWaveRecords records;
@@ -426,12 +443,12 @@ namespace {
             records = PyroWaveRecords(width, height, chroma444);
             return apiVersionSupported() && createInstanceAndSurface() && createDevice() &&
                    createSwapchain() && checkDecoderLimits() && createDecoder() && createPlanes() &&
-                   createPipeline() && createUpscaler() && createFrameResources() && warmUpDecoder();
+                   createPipeline() && createUpscaler() && createFrameResources() && warmUpDecoder() &&
+                   startPresenter();
         }
 
         int submit(const uint8_t *data, size_t length, int64_t ptsUs) {
             completedDecodeNs = 0;
-            lastReleaseNs = 0;
             lastGpuDecodeUs = 0;
             if (failed) return SUBMIT_ERROR;
             pyrowave_decoder_clear(decoder);
@@ -443,7 +460,7 @@ namespace {
             if (!pyrowave_decoder_decode_is_ready(decoder, false)) {
                 return SUBMIT_SKIPPED;
             }
-            if (present(true, ptsUs)) return SUBMIT_OK;
+            if (decodeFrame(true, ptsUs)) return SUBMIT_OK;
             failed = true;
             return SUBMIT_ERROR;
         }
@@ -672,9 +689,9 @@ namespace {
             const uint32_t sequence[] = {0x80000000u | (width - 1) | ((height - 1) << 14),
                                          uint32_t(chroma444) << 26};
             if (pyrowave_decoder_push_packet(decoder, sequence, sizeof(sequence)) != PYROWAVE_SUCCESS ||
-                !pyrowave_decoder_decode_is_ready(decoder, false) || !present(false)) return false;
+                !pyrowave_decoder_decode_is_ready(decoder, false) || !decodeFrame(false)) return false;
             pyrowave_decoder_clear(decoder);
-            stats = {};
+            decodeStats = {};
             return true;
         }
 
@@ -689,7 +706,11 @@ namespace {
             info.device_create_info = &deviceInfo;
             info.queue_info = &pyroQueue;
             info.queue_info_count = 1;
-            // All submissions happen on the decode thread, so no queue lock is needed.
+            // The decode and present threads share the queue; PyroWave takes the same lock for
+            // any submission of its own.
+            info.queue_lock_callback = [](void *self) { static_cast<Renderer *>(self)->queueMutex.lock(); };
+            info.queue_unlock_callback = [](void *self) { static_cast<Renderer *>(self)->queueMutex.unlock(); };
+            info.userdata = this;
             auto result = pyrowave_create_device(&info, &pyroDevice);
             if (result != PYROWAVE_SUCCESS) {
                 LOGE("pyrowave_create_device failed: %d", result);
@@ -788,9 +809,12 @@ namespace {
             // (4:4:4) planes need no shader change; its siting offset turns itself off.
             const uint32_t chromaWidth = chroma444 ? width : width / 2;
             const uint32_t chromaHeight = chroma444 ? height : height / 2;
-            return createPlane(planes[0], width, height) &&
-                   createPlane(planes[1], chromaWidth, chromaHeight) &&
-                   createPlane(planes[2], chromaWidth, chromaHeight);
+            for (auto &slot : slots) {
+                if (!createPlane(slot.planes[0], width, height) ||
+                    !createPlane(slot.planes[1], chromaWidth, chromaHeight) ||
+                    !createPlane(slot.planes[2], chromaWidth, chromaHeight)) return false;
+            }
+            return true;
         }
 
         bool createSwapchain() {
@@ -841,8 +865,10 @@ namespace {
                 if (fifoLatestReadyFeatures.presentModeFifoLatestReady &&
                     std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_FIFO_LATEST_READY_EXT) != modes.end()) {
                     presentMode = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
-                } else if (displayRefreshRateHz > frameRateHz &&
-                           std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end()) {
+                } else if (std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end()) {
+                    // The newest frame replaces a queued one instead of waiting behind it. With
+                    // FIFO a stream at the display's own rate keeps the queue full, a constant
+                    // extra frame or two of delay.
                     presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
                 } else {
                     presentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -973,7 +999,12 @@ namespace {
         }
 
         bool recreateSwapchain() {
-            return check(vk.DeviceWaitIdle(device), "wait before recreating swapchain") && createSwapchain();
+            {
+                // Waiting for the device idle needs every queue held.
+                std::lock_guard<std::mutex> lock(queueMutex);
+                if (!check(vk.DeviceWaitIdle(device), "wait before recreating swapchain")) return false;
+            }
+            return createSwapchain();
         }
 
         VkShaderModule createShader(const uint32_t *code, size_t size) {
@@ -1053,34 +1084,36 @@ namespace {
                 return false;
             }
 
-            VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3};
+            VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 * SLOT_COUNT};
             VkDescriptorPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-            poolInfo.maxSets = 1;
+            poolInfo.maxSets = SLOT_COUNT;
             poolInfo.poolSizeCount = 1;
             poolInfo.pPoolSizes = &poolSize;
             if (!check(vk.CreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "vkCreateDescriptorPool")) {
                 return false;
             }
-            VkDescriptorSetAllocateInfo setInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-            setInfo.descriptorPool = descriptorPool;
-            setInfo.descriptorSetCount = 1;
-            setInfo.pSetLayouts = &setLayout;
-            if (!check(vk.AllocateDescriptorSets(device, &setInfo, &descriptorSet), "vkAllocateDescriptorSets")) {
-                return false;
+            for (auto &slot : slots) {
+                VkDescriptorSetAllocateInfo setInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+                setInfo.descriptorPool = descriptorPool;
+                setInfo.descriptorSetCount = 1;
+                setInfo.pSetLayouts = &setLayout;
+                if (!check(vk.AllocateDescriptorSets(device, &setInfo, &slot.descriptorSet), "vkAllocateDescriptorSets")) {
+                    return false;
+                }
+                // The plane images never change, so the descriptors are written once.
+                VkDescriptorImageInfo imageInfos[3];
+                VkWriteDescriptorSet writes[3] = {};
+                for (uint32_t i = 0; i < 3; ++i) {
+                    imageInfos[i] = {sampler, slot.planes[i].view, VK_IMAGE_LAYOUT_GENERAL};
+                    writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writes[i].dstSet = slot.descriptorSet;
+                    writes[i].dstBinding = i;
+                    writes[i].descriptorCount = 1;
+                    writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    writes[i].pImageInfo = &imageInfos[i];
+                }
+                vk.UpdateDescriptorSets(device, 3, writes, 0, nullptr);
             }
-            // The plane images never change, so the descriptors are written once.
-            VkDescriptorImageInfo imageInfos[3];
-            VkWriteDescriptorSet writes[3] = {};
-            for (uint32_t i = 0; i < 3; ++i) {
-                imageInfos[i] = {sampler, planes[i].view, VK_IMAGE_LAYOUT_GENERAL};
-                writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                writes[i].dstSet = descriptorSet;
-                writes[i].dstBinding = i;
-                writes[i].descriptorCount = 1;
-                writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                writes[i].pImageInfo = &imageInfos[i];
-            }
-            vk.UpdateDescriptorSets(device, 3, writes, 0, nullptr);
 
             pipeline = buildPipeline(planar_csc_frag_spv, sizeof(planar_csc_frag_spv), pipelineLayout, renderPass);
             return pipeline != VK_NULL_HANDLE && createSwapchainResources();
@@ -1183,13 +1216,13 @@ namespace {
             VkCommandBufferAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
             allocInfo.commandPool = commandPool;
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandBufferCount = 2;
-            VkCommandBuffer buffers[2];
+            allocInfo.commandBufferCount = 1 + SLOT_COUNT;
+            VkCommandBuffer buffers[1 + SLOT_COUNT];
             if (!check(vk.AllocateCommandBuffers(device, &allocInfo, buffers), "vkAllocateCommandBuffers")) {
                 return false;
             }
             decodeCommandBuffer = buffers[0];
-            commandBuffer = buffers[1];
+            for (int i = 0; i < SLOT_COUNT; ++i) slots[i].drawCommandBuffer = buffers[1 + i];
             if (timestampsSupported) {
                 VkQueryPoolCreateInfo queryInfo = {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
                 queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -1202,10 +1235,13 @@ namespace {
                  queryPool != VK_NULL_HANDLE ? "on" : "off");
             VkFenceCreateInfo fenceInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
             fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-            VkSemaphoreCreateInfo semInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-            return check(vk.CreateFence(device, &fenceInfo, nullptr, &frameFence), "vkCreateFence") &&
-                   check(vk.CreateFence(device, &fenceInfo, nullptr, &decodeFence), "vkCreateFence(decode)") &&
-                   check(vk.CreateSemaphore(device, &semInfo, nullptr, &acquireSemaphore), "vkCreateSemaphore");
+            for (auto &slot : slots) {
+                if (!check(vk.CreateFence(device, &fenceInfo, nullptr, &slot.drawFence), "vkCreateFence(draw)")) return false;
+            }
+            // Acquire needs an unsignaled fence.
+            VkFenceCreateInfo acquireInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+            return check(vk.CreateFence(device, &fenceInfo, nullptr, &decodeFence), "vkCreateFence(decode)") &&
+                   check(vk.CreateFence(device, &acquireInfo, nullptr, &acquireFence), "vkCreateFence(acquire)");
         }
 
         bool pushFrame(const uint8_t *data, size_t length) {
@@ -1227,8 +1263,8 @@ namespace {
             return fragmentPath ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_WRITE_BIT;
         }
 
-        void planeBarrier(VkCommandBuffer cmd, VkPipelineStageFlags srcStage, VkAccessFlags srcAccess, VkPipelineStageFlags dstStage,
-                          VkAccessFlags dstAccess, VkImageLayout oldLayout) {
+        void planeBarrier(VkCommandBuffer cmd, const Slot &slot, VkPipelineStageFlags srcStage, VkAccessFlags srcAccess,
+                          VkPipelineStageFlags dstStage, VkAccessFlags dstAccess, VkImageLayout oldLayout) {
             VkImageMemoryBarrier barriers[3] = {};
             for (int i = 0; i < 3; ++i) {
                 barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1238,47 +1274,57 @@ namespace {
                 barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
                 barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                barriers[i].image = planes[i].image;
+                barriers[i].image = slot.planes[i].image;
                 barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
             }
             vk.CmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 3, barriers);
         }
 
-        // Records the decode's finish time if the GPU is already done with it. Polled while the
-        // CPU prepares the draw, so a late wait does not inflate the measured decode time.
-        void stampDecodeIfDone() {
-            if (decodeStamped || vk.WaitForFences(device, 1, &decodeFence, VK_TRUE, 0) != VK_SUCCESS) return;
-            timespec completed;
-            clock_gettime(CLOCK_MONOTONIC, &completed);
-            completedDecodeNs = uint64_t(completed.tv_sec) * 1000000000ULL + completed.tv_nsec;
-            decodeStamped = true;
-        }
-
         // Waits for the submitted decode and records when it finished.
         bool finishDecode() {
             if (!check(vk.WaitForFences(device, 1, &decodeFence, VK_TRUE, FENCE_TIMEOUT_NS), "decode fence")) return false;
-            stampDecodeIfDone();
-            decodeStamped = false;
+            timespec completed;
+            clock_gettime(CLOCK_MONOTONIC, &completed);
+            completedDecodeNs = uint64_t(completed.tv_sec) * 1000000000ULL + completed.tv_nsec;
             queriesPending = queryPool != VK_NULL_HANDLE;
             readTimestamps();
             return true;
         }
 
-        bool present(bool display = true, int64_t ptsUs = 0) {
-            const uint64_t frameStart = nowUs();
+        // A plane set neither waiting for nor being drawn by the present thread. The one drawn
+        // last is avoided when possible, so its draw has the most time to finish.
+        int pickFreeSlot() {
+            int fallback = -1;
+            for (int i = 1; i <= SLOT_COUNT; ++i) {
+                const int candidate = (lastDecodedSlot + i) % SLOT_COUNT;
+                if (candidate == readySlot || candidate == drawingSlot) continue;
+                if (candidate != lastDrawnSlot) return candidate;
+                fallback = candidate;
+            }
+            return fallback;
+        }
 
-            // One frame in flight: after this wait the previous frame's sampling of the
-            // planes is finished, so decoding may overwrite them. The decode fence is normally
-            // signaled already; it only matters after a frame that failed midway.
-            const VkFence inFlight[] = {frameFence, decodeFence};
-            if (!check(vk.WaitForFences(device, 2, inFlight, VK_TRUE, FENCE_TIMEOUT_NS), "frame fence")) {
+        // Decoding and display run on separate threads. This (the stream's decode thread)
+        // decodes each frame into a free plane set and hands it to the present thread, which
+        // waits for the display on the CPU. Nothing on the GPU queue ever waits for the display,
+        // so a frame's decode starts the moment it arrives instead of queueing behind the previous
+        // frame's trip to the screen.
+        bool decodeFrame(bool display, int64_t ptsUs = 0) {
+            const uint64_t frameStart = nowUs();
+            int index;
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                index = pickFreeSlot();
+            }
+            if (index < 0) return false;
+            Slot &slot = slots[index];
+            // The last draw that sampled these planes. Draws never wait for the display, so this
+            // is at most a short GPU wait.
+            if (!check(vk.WaitForFences(device, 1, &slot.drawFence, VK_TRUE, FENCE_TIMEOUT_NS), "draw fence")) {
                 return false;
             }
             const uint64_t afterFence = nowUs();
 
-
-            // Decode first, without waiting for the display, so the GPU starts on the
-            // frame immediately. The draw below is ordered after it on the same queue.
             if (!check(vk.ResetCommandBuffer(decodeCommandBuffer, 0), "reset decode command buffer")) return false;
             VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1287,15 +1333,15 @@ namespace {
                 vk.CmdResetQueryPool(decodeCommandBuffer, queryPool, 0, QUERY_COUNT);
                 vk.CmdWriteTimestamp(decodeCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool, 0);
             }
-            planeBarrier(decodeCommandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, decodeWriteStage(),
-                         decodeWriteAccess(), planesInitialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED);
+            planeBarrier(decodeCommandBuffer, slot, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, decodeWriteStage(),
+                         decodeWriteAccess(), slot.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED);
 
             pyrowave_gpu_buffers buffers = {};
             for (int i = 0; i < 3; ++i) {
                 auto &view = buffers.planes[i];
-                view.image = planes[i].image;
-                view.width = planes[i].width;
-                view.height = planes[i].height;
+                view.image = slot.planes[i].image;
+                view.width = slot.planes[i].width;
+                view.height = slot.planes[i].height;
                 view.image_format = planeFormat();
                 view.view_format = planeFormat();
                 view.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1310,7 +1356,7 @@ namespace {
                 vk.EndCommandBuffer(decodeCommandBuffer);
                 return false;
             }
-            planesInitialized = true;
+            slot.initialized = true;
             if (queryPool != VK_NULL_HANDLE) {
                 vk.CmdWriteTimestamp(decodeCommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 1);
             }
@@ -1320,40 +1366,133 @@ namespace {
             VkSubmitInfo decodeSubmit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
             decodeSubmit.commandBufferCount = 1;
             decodeSubmit.pCommandBuffers = &decodeCommandBuffer;
-            decodeStamped = false;
             if (!check(vk.ResetFences(device, 1, &decodeFence), "reset decode fence")) return false;
-            if (!check(vk.QueueSubmit(queue, 1, &decodeSubmit, decodeFence), "vkQueueSubmit(decode)")) {
-                return false;
+            {
+                std::lock_guard<std::mutex> lock(queueMutex);
+                if (!check(vk.QueueSubmit(queue, 1, &decodeSubmit, decodeFence), "vkQueueSubmit(decode)")) return false;
             }
 
-            // The draw is queued right behind the decode instead of after a CPU wait for it, so
-            // the GPU goes straight from one to the other without idling (and clocking down).
-            // Every path waits for the decode before returning, which keeps the decode command
-            // buffer and timestamp queries safe to reuse on the next frame.
-            if (!display) return finishDecode();
+            // Handed over as soon as the decode is queued: the draw is submitted after it on the
+            // same queue, so the GPU orders the two, and the present thread can wait for a
+            // swapchain image while the decode runs.
+            if (display) {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                if (readySlot >= 0) {
+                    // The display has not taken the previous frame yet; the newer one replaces it.
+                    pushRelease(slots[readySlot].ptsUs, 0, false);
+                    decodeStats.replaced++;
+                }
+                slot.ptsUs = ptsUs;
+                readySlot = index;
+                slotReady.notify_one();
+            }
+            lastDecodedSlot = index;
 
-            stampDecodeIfDone();
+            // Waiting here keeps the decode command buffer, the timestamp queries and PyroWave's
+            // own upload buffers safe to reuse on the next frame.
+            if (!finishDecode()) return false;
+            if (display) {
+                decodeStats.frames++;
+                decodeStats.slotWaitUs += afterFence - frameStart;
+                logDecodeStatsIfDue(nowUs());
+            }
+            return true;
+        }
+
+        bool startPresenter() {
+            presenter = std::thread([this] { presentLoop(); });
+            return true;
+        }
+
+        void stopPresenterThread() {
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                stopPresenter = true;
+            }
+            slotReady.notify_all();
+            if (presenter.joinable()) presenter.join();
+        }
+
+        void presentLoop() {
+            // Like a game's render thread: frames must reach the compositor on time.
+            setpriority(PRIO_PROCESS, 0, -8);
+            while (true) {
+                int index;
+                {
+                    std::unique_lock<std::mutex> lock(slotMutex);
+                    const auto woken = [this] { return stopPresenter || readySlot >= 0; };
+                    // Display times of shown frames arrive a little after their present; keep
+                    // asking for them while the stream is still (as during the latency test).
+                    while (!pendingPresents.empty() && !woken()) {
+                        if (slotReady.wait_for(lock, std::chrono::milliseconds(2), woken)) break;
+                        lock.unlock();
+                        pollRenderedFrames();
+                        lock.lock();
+                    }
+                    slotReady.wait(lock, woken);
+                    if (stopPresenter) return;
+                    index = readySlot;
+                    readySlot = -1;
+                    drawingSlot = index;
+                }
+                const bool ok = presentSlot(index);
+                {
+                    std::lock_guard<std::mutex> lock(slotMutex);
+                    drawingSlot = -1;
+                }
+                if (!ok) {
+                    failed = true;
+                    return;
+                }
+            }
+        }
+
+        // Runs on the present thread, which owns the swapchain.
+        bool presentSlot(int index) {
+            if (!applyPendingHdr()) return false;
             uint32_t imageIndex = 0;
             const uint64_t beforeAcquire = nowUs();
-            auto acquired = vk.AcquireNextImageKHR(device, swapchain, ACQUIRE_TIMEOUT_NS, acquireSemaphore,
-                                                   VK_NULL_HANDLE, &imageIndex);
-            const uint64_t afterAcquire = nowUs();
+            // A fence rather than a semaphore: the CPU waits for the display to free an image, so
+            // the GPU queue never holds a draw that blocks the next decode behind it.
+            auto acquired = vk.AcquireNextImageKHR(device, swapchain, ACQUIRE_TIMEOUT_NS, VK_NULL_HANDLE,
+                                                   acquireFence, &imageIndex);
             if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
-                return finishDecode() && recreateSwapchain();
+                dropSlot(index);
+                return recreateSwapchain();
             }
             if (acquired == VK_TIMEOUT || acquired == VK_NOT_READY) {
-                return finishDecode();  // Skip presenting this frame; the next one replaces it anyway.
+                dropSlot(index);  // The next frame replaces it anyway.
+                return true;
             }
             if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR) {
-                finishDecode();
+                dropSlot(index);
                 return check(acquired, "vkAcquireNextImageKHR");
             }
+            if (!check(vk.WaitForFences(device, 1, &acquireFence, VK_TRUE, FENCE_TIMEOUT_NS), "acquire fence") ||
+                !check(vk.ResetFences(device, 1, &acquireFence), "reset acquire fence")) return false;
+            const uint64_t afterAcquire = nowUs();
 
-            if (!check(vk.ResetCommandBuffer(commandBuffer, 0), "reset render command buffer") ||
-                !check(vk.BeginCommandBuffer(commandBuffer, &beginInfo), "begin render command buffer")) return false;
-            // Barriers order against all earlier work on the queue, which covers the
-            // decode submitted above.
-            planeBarrier(commandBuffer, decodeWriteStage(), decodeWriteAccess(),
+            // Show the newest frame: one decoded while we waited for the image replaces this one.
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                if (readySlot >= 0) {
+                    pushRelease(slots[index].ptsUs, 0, false);
+                    presentStats.replaced++;
+                    index = readySlot;
+                    readySlot = -1;
+                    drawingSlot = index;
+                }
+            }
+            Slot &slot = slots[index];
+
+            VkCommandBuffer cmd = slot.drawCommandBuffer;
+            VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            if (!check(vk.ResetCommandBuffer(cmd, 0), "reset render command buffer") ||
+                !check(vk.BeginCommandBuffer(cmd, &beginInfo), "begin render command buffer")) return false;
+            // Barriers order against all earlier work on the queue, which covers the decode
+            // that was submitted before this slot was handed over.
+            planeBarrier(cmd, slot, decodeWriteStage(), decodeWriteAccess(),
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
             VkClearValue clear = {};
@@ -1369,8 +1508,9 @@ namespace {
                                          float(swapchainExtent.height) / float(height));
             const int32_t color[] = {tenBit, hdr, fullRange};
             // Upscale only when the stream is shown larger than it is and the frame is SDR.
-            upscaling = upscalePipeline != VK_NULL_HANDLE && !hdr && scale > 1.01f;
-            vk.CmdBeginRenderPass(commandBuffer, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
+            const bool upscale = upscalePipeline != VK_NULL_HANDLE && !hdr && scale > 1.01f;
+            upscaling = upscale;
+            vk.CmdBeginRenderPass(cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
             VkViewport viewport = {};
             viewport.width = float(width) * scale;
@@ -1379,41 +1519,33 @@ namespace {
             viewport.y = (float(swapchainExtent.height) - viewport.height) / 2.0f;
             viewport.maxDepth = 1.0f;
             VkRect2D scissor = {{0, 0}, swapchainExtent};
-            vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
-            vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
-            if (upscaling) {
+            vk.CmdSetViewport(cmd, 0, 1, &viewport);
+            vk.CmdSetScissor(cmd, 0, 1, &scissor);
+            if (upscale) {
                 const SgsrParams params = {{1.0f / float(width), 1.0f / float(height), float(width), float(height)},
                                            edgeSharpness, fullRange};
-                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscalePipeline);
-                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscaleLayout, 0, 1,
-                                         &descriptorSet, 0, nullptr);
-                vk.CmdPushConstants(commandBuffer, upscaleLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(params), &params);
+                vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, upscalePipeline);
+                vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, upscaleLayout, 0, 1,
+                                         &slot.descriptorSet, 0, nullptr);
+                vk.CmdPushConstants(cmd, upscaleLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(params), &params);
             } else {
-                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-                                         &descriptorSet, 0, nullptr);
-                vk.CmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
+                vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                         &slot.descriptorSet, 0, nullptr);
+                vk.CmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
             }
-            vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
-            vk.CmdEndRenderPass(commandBuffer);
-            if (!check(vk.EndCommandBuffer(commandBuffer), "vkEndCommandBuffer")) {
+            vk.CmdDraw(cmd, 3, 1, 0, 0);
+            vk.CmdEndRenderPass(cmd);
+            if (!check(vk.EndCommandBuffer(cmd), "vkEndCommandBuffer")) {
                 return false;
             }
 
-            const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = &acquireSemaphore;
-            submitInfo.pWaitDstStageMask = &waitStage;
             submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffer;
+            submitInfo.pCommandBuffers = &cmd;
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &renderDone[imageIndex];
-            stampDecodeIfDone();
-            if (!check(vk.ResetFences(device, 1, &frameFence), "reset frame fence")) return false;
-            if (!check(vk.QueueSubmit(queue, 1, &submitInfo, frameFence), "vkQueueSubmit")) {
-                return false;
-            }
+            if (!check(vk.ResetFences(device, 1, &slot.drawFence), "reset draw fence")) return false;
             VkPresentInfoKHR presentInfo = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
             presentInfo.waitSemaphoreCount = 1;
             presentInfo.pWaitSemaphores = &renderDone[imageIndex];
@@ -1428,23 +1560,31 @@ namespace {
                 presentInfo.pNext = &presentTimes;
             }
             timespec released;
-            clock_gettime(CLOCK_MONOTONIC, &released);
-            const auto presented = vk.QueuePresentKHR(queue, &presentInfo);
-            if (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR) {
-                lastReleaseNs = uint64_t(released.tv_sec) * 1000000000ULL + released.tv_nsec;
+            VkResult presented;
+            {
+                std::lock_guard<std::mutex> lock(queueMutex);
+                if (!check(vk.QueueSubmit(queue, 1, &submitInfo, slot.drawFence), "vkQueueSubmit")) return false;
+                clock_gettime(CLOCK_MONOTONIC, &released);
+                presented = vk.QueuePresentKHR(queue, &presentInfo);
             }
-            if (displayTimingSupported && (presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR)) {
+            const int64_t ptsUs = slot.ptsUs;
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                drawingSlot = -1;
+                lastDrawnSlot = index;
+            }
+            const bool shown = presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR;
+            pushRelease(ptsUs, shown ? int64_t(released.tv_sec) * 1000000000LL + released.tv_nsec : 0, shown);
+            uint64_t frameEnd = nowUs();
+            if (displayTimingSupported && shown) {
                 if (pendingPresents.size() == 8192) pendingPresents.pop_front();
-                pendingPresents.emplace_back(presentTime.presentID, ptsUs);
+                pendingPresents.push_back({presentTime.presentID, ptsUs, frameEnd});
             }
-            const uint64_t frameEnd = nowUs();
-            if (!finishDecode()) return false;
+            pollRenderedFrames();
 
-            stats.frames++;
-            stats.fenceWaitUs += afterFence - frameStart;
-            stats.acquireWaitUs += afterAcquire - beforeAcquire;
-            stats.presentUs += frameEnd - afterAcquire;
-            logStatsIfDue(frameEnd);
+            presentStats.frames++;
+            presentStats.acquireWaitUs += afterAcquire - beforeAcquire;
+            logPresentStatsIfDue(frameEnd);
 
             if (presented == VK_ERROR_OUT_OF_DATE_KHR) {
                 return recreateSwapchain();
@@ -1455,10 +1595,44 @@ namespace {
             if ((presented == VK_SUBOPTIMAL_KHR || acquired == VK_SUBOPTIMAL_KHR) && surfaceSizeChanged(frameEnd)) {
                 return recreateSwapchain();
             }
-            return presented == VK_SUBOPTIMAL_KHR || check(presented, "vkQueuePresentKHR");
+            return shown || check(presented, "vkQueuePresentKHR");
+        }
+
+        void dropSlot(int index) {
+            std::lock_guard<std::mutex> lock(slotMutex);
+            pushRelease(slots[index].ptsUs, 0, false);
+        }
+
+        // Release events for Java's frame statistics, delivered by nativePollRenderedFrames.
+        void pushRelease(int64_t ptsUs, int64_t releaseNs, bool shown) {
+            std::lock_guard<std::mutex> lock(eventsMutex);
+            if (releasedFrames.size() >= 3 * 8192) return;
+            releasedFrames.push_back(ptsUs);
+            releasedFrames.push_back(releaseNs);
+            releasedFrames.push_back(shown ? 1 : 0);
+        }
+
+        // HDR changes come from Java's thread and are applied here, by the swapchain's owner.
+        bool applyPendingHdr() {
+            bool enabled;
+            VkHdrMetadataEXT metadata;
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                if (!hdrPending) return true;
+                hdrPending = false;
+                enabled = pendingHdr;
+                metadata = pendingHdrMetadata;
+            }
+            const bool changed = hdr != enabled;
+            hdr = enabled;
+            hdrMetadata = metadata;
+            if (changed) return recreateSwapchain();
+            applyHdrMetadata();
+            return true;
         }
 
         void destroy() {
+            stopPresenterThread();
             if (device != VK_NULL_HANDLE) {
                 vk.DeviceWaitIdle(device);
             }
@@ -1474,8 +1648,7 @@ namespace {
             if (device != VK_NULL_HANDLE) {
                 destroySwapchainResources();
                 if (swapchain != VK_NULL_HANDLE) vk.DestroySwapchainKHR(device, swapchain, nullptr);
-                if (acquireSemaphore != VK_NULL_HANDLE) vk.DestroySemaphore(device, acquireSemaphore, nullptr);
-                if (frameFence != VK_NULL_HANDLE) vk.DestroyFence(device, frameFence, nullptr);
+                if (acquireFence != VK_NULL_HANDLE) vk.DestroyFence(device, acquireFence, nullptr);
                 if (decodeFence != VK_NULL_HANDLE) vk.DestroyFence(device, decodeFence, nullptr);
                 if (queryPool != VK_NULL_HANDLE) vk.DestroyQueryPool(device, queryPool, nullptr);
                 if (commandPool != VK_NULL_HANDLE) vk.DestroyCommandPool(device, commandPool, nullptr);
@@ -1487,10 +1660,13 @@ namespace {
                 if (setLayout != VK_NULL_HANDLE) vk.DestroyDescriptorSetLayout(device, setLayout, nullptr);
                 if (sampler != VK_NULL_HANDLE) vk.DestroySampler(device, sampler, nullptr);
                 if (renderPass != VK_NULL_HANDLE) vk.DestroyRenderPass(device, renderPass, nullptr);
-                for (auto &plane : planes) {
-                    if (plane.view != VK_NULL_HANDLE) vk.DestroyImageView(device, plane.view, nullptr);
-                    if (plane.image != VK_NULL_HANDLE) vk.DestroyImage(device, plane.image, nullptr);
-                    if (plane.memory != VK_NULL_HANDLE) vk.FreeMemory(device, plane.memory, nullptr);
+                for (auto &slot : slots) {
+                    if (slot.drawFence != VK_NULL_HANDLE) vk.DestroyFence(device, slot.drawFence, nullptr);
+                    for (auto &plane : slot.planes) {
+                        if (plane.view != VK_NULL_HANDLE) vk.DestroyImageView(device, plane.view, nullptr);
+                        if (plane.image != VK_NULL_HANDLE) vk.DestroyImage(device, plane.image, nullptr);
+                        if (plane.memory != VK_NULL_HANDLE) vk.FreeMemory(device, plane.memory, nullptr);
+                    }
                 }
                 vk.DestroyDevice(device, nullptr);
                 device = VK_NULL_HANDLE;
@@ -1514,7 +1690,7 @@ namespace {
         bool tenBit = false;
         bool hdr = false;
         bool fullRange = false;
-        bool failed = false;
+        std::atomic<bool> failed{false};
         VkHdrMetadataEXT hdrMetadata = {VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
         std::vector<const char *> instanceExtensions, deviceExtensions;
 
@@ -1539,8 +1715,25 @@ namespace {
 
         pyrowave_device pyroDevice = nullptr;
         pyrowave_decoder decoder = nullptr;
-        Plane planes[3];
-        bool planesInitialized = false;
+        // Plane sets decoded into in turn, so decoding never waits for a frame on its way to the screen.
+        static constexpr int SLOT_COUNT = 3;
+        Slot slots[SLOT_COUNT];
+        int lastDecodedSlot = SLOT_COUNT - 1;
+
+        // Guards the hand-over between the decode and present threads, and pending HDR changes.
+        std::mutex slotMutex;
+        std::condition_variable slotReady;
+        int readySlot = -1;
+        int drawingSlot = -1;
+        int lastDrawnSlot = -1;
+        uint32_t replacedSinceReport = 0;
+        bool stopPresenter = false;
+        bool hdrPending = false;
+        bool pendingHdr = false;
+        VkHdrMetadataEXT pendingHdrMetadata = {VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
+        std::thread presenter;
+        // Both threads submit to the one queue; PyroWave takes it too for any upload of its own.
+        std::mutex queueMutex;
         bool fragmentPath = false;
         uint64_t lastSizeCheckUs = 0;
 
@@ -1554,14 +1747,18 @@ namespace {
         std::vector<VkFramebuffer> framebuffers;
         std::vector<VkSemaphore> renderDone;
         uint32_t nextPresentId = 0;
-        std::deque<std::pair<uint32_t, int64_t>> pendingPresents;
+        struct PendingPresent {
+            uint32_t id;
+            int64_t ptsUs;
+            uint64_t queuedUs;
+        };
+        std::deque<PendingPresent> pendingPresents;
 
         VkRenderPass renderPass = VK_NULL_HANDLE;
         VkSampler sampler = VK_NULL_HANDLE;
         VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
 
         struct SgsrParams {
@@ -1577,10 +1774,8 @@ namespace {
         bool highPriorityQueue = false;
 
         VkCommandPool commandPool = VK_NULL_HANDLE;
-        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-        VkFence frameFence = VK_NULL_HANDLE;
         VkFence decodeFence = VK_NULL_HANDLE;
-        VkSemaphore acquireSemaphore = VK_NULL_HANDLE;
+        VkFence acquireFence = VK_NULL_HANDLE;
 
         // Queries bracket GPU decode; Java records the completed fence in the latency CSV.
         static constexpr uint32_t QUERY_COUNT = 2;
@@ -1599,21 +1794,26 @@ namespace {
         const char *getPresentModeName() const { return presentModeName(presentMode); }
         std::string driverDescription;
         // Whether the most recent frame went through SGSR.
-        bool upscaling = false;
+        std::atomic<bool> upscaling{false};
 
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
-        // Average CPU waits per frame over the last stats interval, shown in the overlay.
-        float lastWaitPreviousMs = -1;
-        float lastWaitImageMs = -1;
-        bool decodeStamped = false;
-        uint64_t lastReleaseNs = 0;
+        // Averages over the last stats interval, shown in the overlay: the decode thread's wait
+        // for a free plane set, the present thread's wait for a swapchain image, and the share of
+        // decoded frames a newer one replaced before they reached the screen.
+        std::atomic<float> lastWaitFreeSlotMs{-1};
+        std::atomic<float> lastWaitImageMs{-1};
+        std::atomic<float> lastReplacedPercent{-1};
         bool displayTimingSupported = false;
-        std::vector<jlong> renderedFrames;
+        // Filled by the present thread, drained by nativePollRenderedFrames.
+        std::mutex eventsMutex;
+        std::vector<jlong> renderedFrames;   // (ptsUs, presentNs) pairs
+        std::vector<jlong> releasedFrames;   // (ptsUs, releaseNs, shown) triples
 
+        // Present thread only: it owns the swapchain.
         void pollRenderedFrames() {
-            if (!displayTimingSupported || swapchain == VK_NULL_HANDLE) return;
+            if (!displayTimingSupported || swapchain == VK_NULL_HANDLE || pendingPresents.empty()) return;
             uint32_t count = 0;
             if (vk.GetPastPresentationTimingGOOGLE(device, swapchain, &count, nullptr) != VK_SUCCESS || count == 0) return;
             std::vector<VkPastPresentationTimingGOOGLE> timings(count);
@@ -1622,35 +1822,49 @@ namespace {
             for (uint32_t i = 0; i < count; ++i) {
                 const auto &timing = timings[i];
                 auto frame = std::find_if(pendingPresents.begin(), pendingPresents.end(),
-                    [&timing](const auto &entry) { return entry.first == timing.presentID; });
+                    [&timing](const auto &entry) { return entry.id == timing.presentID; });
                 if (frame == pendingPresents.end()) continue;
                 // actualPresentTime uses CLOCK_MONOTONIC on Android, like System.nanoTime().
                 if (timing.actualPresentTime != 0) {
-                    renderedFrames.push_back(frame->second);
+                    std::lock_guard<std::mutex> lock(eventsMutex);
+                    renderedFrames.push_back(frame->ptsUs);
                     renderedFrames.push_back(jlong(timing.actualPresentTime));
                 }
                 pendingPresents.erase(frame);
+            }
+            // A frame the compositor skipped never gets a time; stop waiting for it.
+            const uint64_t now = nowUs();
+            while (!pendingPresents.empty() && now - pendingPresents.front().queuedUs > 500'000) {
+                pendingPresents.pop_front();
             }
         }
 
         void setHdrMode(bool enabled, const uint8_t *metadata) {
             if (!tenBit || failed) return;
-            bool changed = hdr != enabled;
-            hdr = enabled;
-            hdrMetadata = {VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
+            VkHdrMetadataEXT parsed = {VK_STRUCTURE_TYPE_HDR_METADATA_EXT};
             if (enabled && metadata) {
                 auto word = [metadata](int i) { return float(metadata[i] | (metadata[i + 1] << 8)); };
-                hdrMetadata.displayPrimaryRed = {word(0) / 50000, word(2) / 50000};
-                hdrMetadata.displayPrimaryGreen = {word(4) / 50000, word(6) / 50000};
-                hdrMetadata.displayPrimaryBlue = {word(8) / 50000, word(10) / 50000};
-                hdrMetadata.whitePoint = {word(12) / 50000, word(14) / 50000};
-                hdrMetadata.maxLuminance = word(16);
-                hdrMetadata.minLuminance = word(18) / 10000;
-                hdrMetadata.maxContentLightLevel = word(20);
-                hdrMetadata.maxFrameAverageLightLevel = word(22);
+                parsed.displayPrimaryRed = {word(0) / 50000, word(2) / 50000};
+                parsed.displayPrimaryGreen = {word(4) / 50000, word(6) / 50000};
+                parsed.displayPrimaryBlue = {word(8) / 50000, word(10) / 50000};
+                parsed.whitePoint = {word(12) / 50000, word(14) / 50000};
+                parsed.maxLuminance = word(16);
+                parsed.minLuminance = word(18) / 10000;
+                parsed.maxContentLightLevel = word(20);
+                parsed.maxFrameAverageLightLevel = word(22);
             }
-            if (changed) failed = !recreateSwapchain();
-            else applyHdrMetadata();
+            // The present thread applies it before its next frame.
+            std::lock_guard<std::mutex> lock(slotMutex);
+            pendingHdr = enabled;
+            pendingHdrMetadata = parsed;
+            hdrPending = true;
+        }
+
+        // Hands the queued release and display-time events to the caller.
+        void takeEvents(std::vector<jlong> &released, std::vector<jlong> &rendered) {
+            std::lock_guard<std::mutex> lock(eventsMutex);
+            released.swap(releasedFrames);
+            rendered.swap(renderedFrames);
         }
 
     private:
@@ -1661,15 +1875,21 @@ namespace {
         }
 
     private:
+        // Each thread keeps its own counters.
         struct {
             uint64_t startUs = 0;
             uint32_t frames = 0;
+            uint32_t replaced = 0;
             uint64_t gpuDecodeUs = 0;
             uint32_t gpuSamples = 0;
-            uint64_t fenceWaitUs = 0;
+            uint64_t slotWaitUs = 0;
+        } decodeStats;
+        struct {
+            uint64_t startUs = 0;
+            uint32_t frames = 0;
+            uint32_t replaced = 0;
             uint64_t acquireWaitUs = 0;
-            uint64_t presentUs = 0;
-        } stats;
+        } presentStats;
 
         void readTimestamps() {
             if (!queriesPending) {
@@ -1684,11 +1904,12 @@ namespace {
             const auto toUs = [this](uint64_t delta) { return uint64_t(double(delta) * timestampPeriodNs / 1000.0); };
             uint64_t mask = timestampValidBits == 64 ? UINT64_MAX : (uint64_t(1) << timestampValidBits) - 1;
             lastGpuDecodeUs = uint32_t(toUs((ticks[1] - ticks[0]) & mask));
-            stats.gpuDecodeUs += lastGpuDecodeUs;
-            stats.gpuSamples++;
+            decodeStats.gpuDecodeUs += lastGpuDecodeUs;
+            decodeStats.gpuSamples++;
         }
 
-        void logStatsIfDue(uint64_t now) {
+        void logDecodeStatsIfDue(uint64_t now) {
+            auto &stats = decodeStats;
             if (stats.startUs == 0) {
                 stats.startUs = now;
                 return;
@@ -1698,20 +1919,48 @@ namespace {
             }
             const double seconds = double(now - stats.startUs) / 1e6;
             const double gpuFrames = stats.gpuSamples ? double(stats.gpuSamples) : 1.0;
-            LOGI("%.1f fps: GPU decode %.2f ms, wait previous frame %.2f ms, "
-                 "wait swapchain image %.2f ms, submit+present %.2f ms",
-                 stats.frames / seconds, stats.gpuDecodeUs / gpuFrames / 1000.0,
-                 stats.fenceWaitUs / double(stats.frames) / 1000.0, stats.acquireWaitUs / double(stats.frames) / 1000.0,
-                 stats.presentUs / double(stats.frames) / 1000.0);
-            lastWaitPreviousMs = float(stats.fenceWaitUs / double(stats.frames) / 1000.0);
-            lastWaitImageMs = float(stats.acquireWaitUs / double(stats.frames) / 1000.0);
+            const float slotWaitMs = float(stats.slotWaitUs / double(stats.frames) / 1000.0);
+            LOGI("%.1f fps decoded: GPU decode %.2f ms, wait for free planes %.2f ms, replaced before display %u",
+                 stats.frames / seconds, stats.gpuDecodeUs / gpuFrames / 1000.0, slotWaitMs, stats.replaced);
+            lastWaitFreeSlotMs = slotWaitMs;
+            const uint32_t decodedFrames = stats.frames;
+            const uint32_t replacedHere = stats.replaced;
             stats = {};
             stats.startUs = now;
+            {
+                // Frames replaced on either thread, as a share of the frames decoded for display.
+                std::lock_guard<std::mutex> lock(slotMutex);
+                replacedSinceReport += replacedHere;
+                lastReplacedPercent = std::min(100.0f, 100.0f * float(replacedSinceReport) / float(decodedFrames));
+                replacedSinceReport = 0;
+            }
 
             // PyroWave's own per-pass GPU timings, to see which stage dominates decode.
             pyrowave_device_report_performance_stats(pyroDevice, [](void *, const char *msg) {
                 LOGI("PyroWave pass: %s", msg);
             }, nullptr, true);
+        }
+
+        void logPresentStatsIfDue(uint64_t now) {
+            auto &stats = presentStats;
+            if (stats.startUs == 0) {
+                stats.startUs = now;
+                return;
+            }
+            if (now - stats.startUs < STATS_INTERVAL_US || stats.frames == 0) {
+                return;
+            }
+            const double seconds = double(now - stats.startUs) / 1e6;
+            const float imageWaitMs = float(stats.acquireWaitUs / double(stats.frames) / 1000.0);
+            LOGI("%.1f fps presented: wait for swapchain image %.2f ms, replaced while waiting %u",
+                 stats.frames / seconds, imageWaitMs, stats.replaced);
+            lastWaitImageMs = imageWaitMs;
+            {
+                std::lock_guard<std::mutex> lock(slotMutex);
+                replacedSinceReport += stats.replaced;
+            }
+            stats = {};
+            stats.startUs = now;
         }
     };
 
@@ -1855,28 +2104,32 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSubmitFrame(JNIEn
     return result == SUBMIT_OK ? jlong(renderer->completedDecodeNs) : (result == SUBMIT_ERROR ? -1 : 0);
 }
 
-JNIEXPORT jlong JNICALL
-Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastReleaseTimeNs(JNIEnv *, jclass, jlong handle) {
-    return jlong(reinterpret_cast<Renderer *>(handle)->lastReleaseNs);
-}
-
 JNIEXPORT jboolean JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativePollRenderedFrames(JNIEnv *env, jclass, jlong handle,
                                                                                  jobject stats) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
-    renderer->pollRenderedFrames();
-    if (!renderer->renderedFrames.empty()) {
-        jclass statsClass = env->GetObjectClass(stats);
-        jmethodID callback = env->GetMethodID(statsClass, "onFrameRendered", "(JJ)V");
-        env->DeleteLocalRef(statsClass);
-        if (callback == nullptr) return JNI_FALSE;
-        for (size_t i = 0; i < renderer->renderedFrames.size(); i += 2) {
-            env->CallVoidMethod(stats, callback, renderer->renderedFrames[i], renderer->renderedFrames[i + 1]);
-            if (env->ExceptionCheck()) break;
-        }
-        renderer->renderedFrames.clear();
+    const jboolean timing = renderer->displayTimingSupported ? JNI_TRUE : JNI_FALSE;
+    // Presentation runs on the renderer's own thread, so releases (and replaced frames) are
+    // reported here, ahead of the display times that follow them.
+    std::vector<jlong> released, rendered;
+    renderer->takeEvents(released, rendered);
+    if (released.empty() && rendered.empty()) return timing;
+    jclass statsClass = env->GetObjectClass(stats);
+    jmethodID onReleased = env->GetMethodID(statsClass, "onOutputReleased", "(IJZZ)V");
+    jmethodID onRendered = env->GetMethodID(statsClass, "onFrameRendered", "(JJ)V");
+    env->DeleteLocalRef(statsClass);
+    if (onReleased == nullptr || onRendered == nullptr) return JNI_FALSE;
+    for (size_t i = 0; i + 3 <= released.size(); i += 3) {
+        // The output index Java registered for this frame: its presentation time, truncated.
+        env->CallVoidMethod(stats, onReleased, jint(released[i]), released[i + 1],
+                            released[i + 2] ? JNI_TRUE : JNI_FALSE, timing);
+        if (env->ExceptionCheck()) return JNI_FALSE;
     }
-    return renderer->displayTimingSupported ? JNI_TRUE : JNI_FALSE;
+    for (size_t i = 0; i + 2 <= rendered.size(); i += 2) {
+        env->CallVoidMethod(stats, onRendered, rendered[i], rendered[i + 1]);
+        if (env->ExceptionCheck()) return JNI_FALSE;
+    }
+    return timing;
 }
 
 JNIEXPORT jint JNICALL
@@ -1888,9 +2141,9 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastGpuDecodeU
 JNIEXPORT jfloatArray JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetWaits(JNIEnv *env, jclass, jlong handle) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
-    jfloat values[2] = {renderer->lastWaitPreviousMs, renderer->lastWaitImageMs};
-    jfloatArray result = env->NewFloatArray(2);
-    if (result != nullptr) env->SetFloatArrayRegion(result, 0, 2, values);
+    jfloat values[3] = {renderer->lastWaitFreeSlotMs, renderer->lastWaitImageMs, renderer->lastReplacedPercent};
+    jfloatArray result = env->NewFloatArray(3);
+    if (result != nullptr) env->SetFloatArrayRegion(result, 0, 3, values);
     return result;
 }
 
