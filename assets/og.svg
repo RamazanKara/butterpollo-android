@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">RUBYLIGHT</title>
+  <desc id="desc">Your PC. In your hands. Stream your PC to Android.</desc>
+  <rect width="1200" height="630" fill="#151216"/>
+  <g fill="none" stroke="#71354c" stroke-width="2">
+    <circle cx="1070" cy="315" r="375"/><circle cx="1070" cy="315" r="300"/><circle cx="1070" cy="315" r="225"/><circle cx="1070" cy="315" r="150"/>
+  </g>
+  <circle cx="1070" cy="315" r="76" fill="#ad234b"/>
+  <path d="m1053 280 45 35-45 35z" fill="#fff2f6"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <text x="80" y="112" fill="#faf1f5" font-size="27" font-weight="700" letter-spacing="5">RUBYLIGHT</text>
+    <text x="76" y="278" fill="#faf1f5" font-size="88" font-weight="650" letter-spacing="-4">Your PC.</text>
+    <text x="76" y="377" fill="#ff8daf" font-size="88" font-weight="650" letter-spacing="-4">In your hands.</text>
+    <text x="80" y="467" fill="#c2b3bd" font-size="29">Stream your PC to Android.</text>
+    <text x="80" y="558" fill="#c2b3bd" font-size="18">ULTRA-LOW LATENCY   /   YOUR GAMES. YOUR CONTROLS.</text>
+  </g>
+</svg>
