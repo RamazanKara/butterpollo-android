@@ -1,7 +1,9 @@
 package com.limelight.nvstream;
 
+import android.Manifest;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkProperties;
@@ -34,6 +36,8 @@ import javax.crypto.SecretKey;
 import org.xmlpull.v1.XmlPullParserException;
 
 import com.limelight.LimeLog;
+import com.limelight.binding.audio.MicrophoneCapture;
+import com.limelight.binding.audio.MicrophoneStatus;
 import com.limelight.binding.input.InputBatcher;
 import com.limelight.nvstream.av.audio.AudioRenderer;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
@@ -66,6 +70,12 @@ public class NvConnection {
     private volatile ScheduledExecutorService inputPoller;
     private ScheduledFuture<?> inputPoll;
     private long inputIntervalNs = InputBatcher.intervalNs(60);
+    // Microphone: whether the setting was on and RECORD_AUDIO granted when this connection
+    // started, the capture thread while one runs, and the user's mute choice.
+    private volatile boolean micEnabled;
+    private volatile boolean micPermitted;
+    private volatile boolean micMuted;
+    private MicrophoneCapture microphone;
     private final InputBatcher inputBatcher = new InputBatcher(motion -> {
         if (!canSendInput()) return;
         if (motion.kind == 0) MoonBridge.sendMouseMove((short) motion.x, (short) motion.y);
@@ -87,6 +97,60 @@ public class NvConnection {
         if (stopRequested || unbatched) return;
         inputPoller = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Input - Poll"));
         inputPoll = inputPoller.scheduleWithFixedDelay(inputBatcher::flush, 0, inputIntervalNs, TimeUnit.NANOSECONDS);
+    }
+
+    private boolean hasMicrophonePermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        return appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    // Starts recording once the host has taken the microphone. Called with MoonBridge.class held.
+    private void startMicrophone() {
+        if (!micPermitted) {
+            return;
+        }
+        int state = MoonBridge.getMicrophoneState();
+        if (state != MoonBridge.MIC_STATE_READY) {
+            LimeLog.info("Microphone: not sending (" + (state == MoonBridge.MIC_STATE_NOT_OFFERED ?
+                    "not offered by host" : "host did not set it up") + ")");
+            return;
+        }
+        synchronized (this) {
+            if (stopRequested || microphone != null) {
+                return;
+            }
+            microphone = new MicrophoneCapture(MoonBridge::sendMicrophonePcm, micMuted);
+            microphone.start();
+        }
+    }
+
+    private void stopMicrophone() {
+        MicrophoneCapture capture;
+        synchronized (this) {
+            capture = microphone;
+            microphone = null;
+        }
+        if (capture != null) {
+            capture.stop();
+        }
+    }
+
+    public synchronized MicrophoneStatus getMicrophoneStatus() {
+        return MicrophoneStatus.of(micEnabled, micPermitted, micPermitted ? MoonBridge.getMicrophoneState() :
+                MoonBridge.MIC_STATE_OFF, microphone != null && microphone.isCapturing(), micMuted);
+    }
+
+    public synchronized void setMicrophoneMuted(boolean muted) {
+        micMuted = muted;
+        if (microphone != null) {
+            microphone.setMuted(muted);
+        }
+    }
+
+    public boolean isMicrophoneMuted() {
+        return micMuted;
     }
 
     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
@@ -152,6 +216,8 @@ public class NvConnection {
         // Moonlight-core is not thread-safe with respect to connection start and stop, so
         // we must not invoke that functionality in parallel.
         synchronized (MoonBridge.class) {
+            // Stop recording before the native side closes the microphone socket.
+            stopMicrophone();
             if (nativeConnected) {
                 nativeConnected = false;
                 MoonBridge.stopConnection();
@@ -637,6 +703,11 @@ public class NvConnection {
                         }
                         MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener, () -> stopRequested);
                         PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(appContext);
+                        micEnabled = prefs.enableMic;
+                        micPermitted = prefs.enableMic && hasMicrophonePermission();
+                        if (micEnabled && !micPermitted) {
+                            LimeLog.warning("Microphone: on in settings but the permission is not granted; not sending");
+                        }
                         int ret = MoonBridge.startConnection(context.serverAddress.address,
                                 context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
                                 context.serverCodecModeSupport,
@@ -652,12 +723,14 @@ public class NvConnection {
                                 context.streamConfig.getColorRange(), prefs.unbatchedInput, prefs.networkPriority,
                                 hostDetails.rustHostVersion,
                                 context.streamConfig.getApp().getRole() == NvApp.Role.INPUT_ONLY,
-                                context.streamConfig.getApp().getRole() == NvApp.Role.REMOTE_MONITOR);
+                                context.streamConfig.getApp().getRole() == NvApp.Role.REMOTE_MONITOR,
+                                micPermitted);
                         if (ret != 0) {
                             return;
                         }
                         nativeConnected = true;
                         startInputPolling(prefs.unbatchedInput);
+                        startMicrophone();
                         started = true;
                     }
                 } catch (InterruptedException e) {

@@ -76,6 +76,7 @@ These tables include every preference, including actions. On/Off choices have no
 | Performance overlay mode<br>`performance_overlay_mode` | Compact | Compact; Advanced | Use Compact for a corner summary or Advanced for the measured stages. Hold the overlay to switch; Copy stats includes Advanced details. |
 | Surround sound<br>`list_audio_config` | Stereo | Stereo; 5.1 Surround Sound; 7.1 Surround Sound | Choose 5.1 or 7.1 for a matching audio output and host configuration; use stereo for headphones or two speakers. |
 | Play audio on the host PC<br>`checkbox_host_audio` | Off | On; Off | Enable to hear audio on the PC as well as Android. |
+| Send microphone to the PC<br>`checkbox_enable_mic` | Off | On; Off | Enable to talk in games and chat apps on the PC. Asks for microphone access; if it is not allowed, the setting stays off. The PC hears it as its streaming microphone. Mute it from the stream menu; the overlay shows whether it is sending. |
 | Allow system audio effects<br>`checkbox_enable_audiofx` | Off | On; Off | Enable for Android equalizers or effects. Can add delay and changes the audio output path. |
 | Show latency after streaming<br>`checkbox_enable_post_stream_toast` | Off | On; Off | Enable to see average decode time after a session ends. |
 

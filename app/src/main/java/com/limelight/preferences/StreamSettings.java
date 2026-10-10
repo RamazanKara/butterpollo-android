@@ -1,5 +1,6 @@
 package com.limelight.preferences;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
@@ -439,6 +440,7 @@ public class StreamSettings extends AppCompatActivity {
 
     public static class SettingsFragment extends PreferenceFragment {
         private static final String ARG_SECTION = "section";
+        private static final int MIC_PERMISSION_REQUEST = 2;
         private final Map<PreferenceCategory, List<Preference>> searchCategories = new LinkedHashMap<>();
         private final Map<String, Preference> allPreferences = new HashMap<>();
 
@@ -573,9 +575,47 @@ public class StreamSettings extends AppCompatActivity {
             }
         }
 
+        private boolean hasMicPermission() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                return true;
+            }
+            return getActivity().checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        private void showMicPermissionDenied() {
+            new MaterialAlertDialogBuilder(getActivity())
+                    .setTitle(R.string.title_checkbox_enable_mic)
+                    .setMessage(R.string.mic_permission_denied)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+        }
+
+        @Override
+        public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+            if (requestCode != MIC_PERMISSION_REQUEST) {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                return;
+            }
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            SwitchPreference mic = (SwitchPreference) findPreference(PreferenceConfiguration.ENABLE_MIC_PREF_STRING);
+            if (mic != null) {
+                mic.setChecked(granted);
+            }
+            LimeLog.info("Microphone: permission " + (granted ? "granted" : "denied"));
+            if (!granted && isAdded()) {
+                showMicPermissionDenied();
+            }
+        }
+
         @Override
         public void onResume() {
             super.onResume();
+            // Microphone access can be withdrawn in Android settings; the switch follows it.
+            SwitchPreference mic = (SwitchPreference) findPreference(PreferenceConfiguration.ENABLE_MIC_PREF_STRING);
+            if (mic != null && mic.isChecked() && !hasMicPermission()) {
+                mic.setChecked(false);
+                showMicPermissionDenied();
+            }
             getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(summaryUpdater);
             updateValueSummaries(getPreferenceScreen());
             // The fragment is replaced after the window got its insets, so ask for them again
@@ -882,6 +922,18 @@ public class StreamSettings extends AppCompatActivity {
                         (PreferenceCategory) findPreference("category_gamepad_settings");
                 category.removePreference(findPreference("checkbox_gamepad_motion_fallback"));
             }
+
+            // The microphone switch turns on only once microphone access is allowed.
+            SwitchPreference mic = (SwitchPreference) findPreference(PreferenceConfiguration.ENABLE_MIC_PREF_STRING);
+            mic.setOnPreferenceChangeListener((preference, value) -> {
+                if (!Boolean.TRUE.equals(value) || hasMicPermission()) {
+                    return true;
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION_REQUEST);
+                }
+                return false;
+            });
 
             SwitchPreference dualSense = (SwitchPreference) findPreference("checkbox_usb_dualsense");
             dualSense.setOnPreferenceChangeListener((preference, value) -> {

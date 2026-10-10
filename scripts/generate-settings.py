@@ -51,6 +51,7 @@ ADVICE = {
     "performance_overlay_mode": "Use Compact for a corner summary or Advanced for the measured stages. Hold the overlay to switch; Copy stats includes Advanced details.",
     "list_audio_config": "Choose 5.1 or 7.1 for a matching audio output and host configuration; use stereo for headphones or two speakers.",
     "checkbox_host_audio": "Enable to hear audio on the PC as well as Android.",
+    "checkbox_enable_mic": "Enable to talk in games and chat apps on the PC. Asks for microphone access; if it is not allowed, the setting stays off. The PC hears it as its streaming microphone. Mute it from the stream menu; the overlay shows whether it is sending.",
     "checkbox_enable_audiofx": "Enable for Android equalizers or effects. Can add delay and changes the audio output path.",
     "checkbox_enable_post_stream_toast": "Enable to see average decode time after a session ends.",
     "checkbox_enable_pip": "Enable to keep a small video window when leaving the app. Input and overlay are hidden there; requires device support.",

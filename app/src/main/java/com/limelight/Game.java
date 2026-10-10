@@ -3,6 +3,7 @@ package com.limelight;
 
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.audio.AndroidAudioRenderer;
+import com.limelight.binding.audio.MicrophoneStatus;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.KeyboardTranslator;
 import com.limelight.binding.input.MouseDeltaAccumulator;
@@ -1559,6 +1560,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             addStreamAction(sheet, R.drawable.ic_keyboard, R.string.stream_keyboard, this::toggleKeyboard);
             addStreamAction(sheet, R.drawable.ic_input_only, R.string.stream_input_menu, this::showInputMenu);
         }
+        if (conn.getMicrophoneStatus().canMute()) {
+            boolean micMuted = conn.isMicrophoneMuted();
+            addStreamAction(sheet, micMuted ? R.drawable.ic_mic_off : R.drawable.ic_mic,
+                    micMuted ? R.string.stream_mic_unmute : R.string.stream_mic_mute, this::toggleMicrophoneMute);
+        }
         if (app.getRole() != NvApp.Role.INPUT_ONLY) {
             addStreamAction(sheet, R.drawable.ic_remote_monitor, R.string.stream_overlay_menu, this::showOverlayMenu);
             if (details.rustHostVersion != null &&
@@ -1581,6 +1587,13 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             }
         }
         showStreamDialog(sheet);
+    }
+
+    private void toggleMicrophoneMute() {
+        if (conn == null) return;
+        boolean muted = !conn.isMicrophoneMuted();
+        conn.setMicrophoneMuted(muted);
+        Toast.makeText(this, muted ? R.string.mic_toast_muted : R.string.mic_toast_unmuted, Toast.LENGTH_SHORT).show();
     }
 
     private void addStreamAction(ActionSheet sheet, int icon, int label, Runnable action) {
@@ -4000,6 +4013,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                         useArr ? "ARR" : "max Hz") : "";
                 String networkText = !isAdaptiveBitrateEnabled() ? network : network + "\n" +
                         getString(R.string.stream_auto_bitrate_status, currentBitrate / 1000.0);
+                MicrophoneStatus micStatus = conn.getMicrophoneStatus();
+                if (micStatus.label != 0) {
+                    networkText += "\n" + getString(micStatus.label);
+                }
                 expandedPerformanceText = PerformanceOverlay.advancedText(Game.this, video + displayLine, networkText, decode);
                 compactPerformanceText = compactText;
                 updatePerformanceOverlay();

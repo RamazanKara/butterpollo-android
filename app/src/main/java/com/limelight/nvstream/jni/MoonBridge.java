@@ -381,7 +381,7 @@ public class MoonBridge {
                                               int videoCapabilities,
                                               int colorSpace, int colorRange,
                                               boolean unbatchedInput, boolean networkPriority, String rustHostVersion,
-                                              boolean inputOnly, boolean remoteMonitor);
+                                              boolean inputOnly, boolean remoteMonitor, boolean enableMic);
 
     public static native void stopConnection();
 
@@ -472,4 +472,16 @@ public class MoonBridge {
     // Sends the display's HDR luminance in nits (0 when unknown) on the encrypted control
     // stream; false when the host did not announce 0x5531 or the stream is not up.
     public static native boolean sendDisplayCaps(boolean hdr, float maxNits, float maxAverageNits, float minNits);
+
+    // Microphone state for this session (android_microphone.h).
+    public static final int MIC_STATE_OFF = 0;
+    public static final int MIC_STATE_NOT_OFFERED = 1;
+    public static final int MIC_STATE_UNAVAILABLE = 2;
+    public static final int MIC_STATE_READY = 3;
+
+    public static native int getMicrophoneState();
+
+    // Encodes one frame of 48 kHz mono PCM as Opus and sends it to the host. Returns the
+    // datagram length, or a negative value when the frame was not sent.
+    public static native int sendMicrophonePcm(short[] pcm, int samples);
 }

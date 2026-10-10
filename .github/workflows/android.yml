@@ -49,6 +49,13 @@ jobs:
           /tmp/pyrowave-frame-test
           gcc -std=c11 -O2 app/src/test/native/control_negotiation_test.c -o /tmp/control-negotiation-test
           /tmp/control-negotiation-test
+      - name: Check microphone packets against the host's vectors
+        run: |
+          m=app/src/main/jni/moonlight-core
+          cc -std=gnu11 -O2 -DHAS_SOCKLEN_T=1 -DHAVE_CLOCK_GETTIME=1 -I $m -I $m/moonlight-common-c/src \
+            -I $m/moonlight-common-c/enet/include app/src/test/native/microphone_packet_test.c \
+            $m/moonlight-common-c/src/PlatformCrypto.c -lcrypto -o /tmp/microphone-packet-test
+          /tmp/microphone-packet-test
       - uses: actions/upload-artifact@v7
         with:
           name: butterpollo-debug

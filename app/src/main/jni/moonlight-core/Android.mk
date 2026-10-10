@@ -16,6 +16,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/FakeCallbacks.c \
                    android_input.c \
                    aaudio_output.c \
+                   android_microphone.c \
                    latency.c \
                    moonlight-common-c/src/LinkedBlockingQueue.c \
                    moonlight-common-c/src/Misc.c \
