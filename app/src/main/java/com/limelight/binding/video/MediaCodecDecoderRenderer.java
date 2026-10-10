@@ -417,6 +417,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             upscalingPolicy.fail(UpscalingPolicy.Reason.DISABLED);
             return;
         }
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            // The Vulkan renderer runs SGSR itself; the GLES upscaler only serves MediaCodec.
+            upscalingPolicy.fail(UpscalingPolicy.Reason.PYROWAVE);
+            return;
+        }
         int[] viewport = UpscalingPolicy.viewport(initialWidth, initialHeight, renderWidth, renderHeight, prefs.stretchVideo);
         UpscalingPolicy.Reason reason = UpscalingPolicy.unavailableReason(prefs.upscalingMode,
                 initialWidth, initialHeight, viewport[2], viewport[3],
@@ -467,6 +472,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private String upscalingStats() {
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            return context.getString(R.string.perf_overlay_upscaling_pyrowave, pyroWaveRenderer.isUpscaling() ?
+                    "SGSR (Vulkan)" : context.getString(R.string.upscaling_direct));
+        }
         boolean active = upscaler != null;
         String mode = active ? context.getResources().getStringArray(R.array.upscaling_names)[prefs.upscalingMode.ordinal()] :
                 context.getString(R.string.upscaling_direct);
@@ -717,7 +726,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 MoonBridge.VIDEO_FORMAT_PYROWAVE_444, MoonBridge.VIDEO_FORMAT_PYROWAVE };
         for (int choice : choices) {
             if ((formats & choice) != 0 && !stopping &&
-                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, displayRefreshRate, prefs.fullRange) && !stopping) {
+                    pyroWaveRenderer.setup(renderTarget, choice, width, height, fps, displayRefreshRate, prefs.fullRange,
+                            prefs.upscalingMode, prefs.upscalingSharpness, context, prefs.gpuMaxClocks) && !stopping) {
                 LimeLog.info("PyroWave surface initialized before negotiation: " + Integer.toHexString(choice));
                 return (formats & ~MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) | choice;
             }
@@ -913,7 +923,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private void updateDecoderDiagnostics() {
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
-                    "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")");
+                    "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")") + '\n' +
+                    context.getString(R.string.perf_overlay_gpu_driver, pyroWaveRenderer.getDriver()) +
+                    (pyroWaveRenderer.hasMaxClocks() ? '\n' + context.getString(R.string.title_gpu_max_clocks) : "");
         } else {
             String mimeType = configuredFormat.getString(MediaFormat.KEY_MIME);
             String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat,

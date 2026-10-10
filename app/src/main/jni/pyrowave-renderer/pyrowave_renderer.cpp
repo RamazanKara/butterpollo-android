@@ -34,7 +34,10 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 #include <android/log.h>
 #include <android/native_window_jni.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 #include <time.h>
+#include <unistd.h>
 #include <jni.h>
 
 #include <algorithm>
@@ -44,6 +47,7 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "shaders_spv.h"
@@ -76,6 +80,34 @@ namespace {
 
     constexpr uint64_t ACQUIRE_TIMEOUT_NS = 250'000'000;
     constexpr uint64_t FENCE_TIMEOUT_NS = 2'000'000'000;
+
+    // Upscaling passes for streams smaller than the surface.
+    constexpr int UPSCALE_OFF = 0;
+    constexpr int UPSCALE_SGSR = 1;
+
+    // VK_KHR_global_priority and its EXT predecessor share one create-info layout.
+    const char *const GLOBAL_PRIORITY_EXTENSIONS[] = {"VK_KHR_global_priority", "VK_EXT_global_priority"};
+
+    // Adreno power control from the kernel UAPI header msm_kgsl.h, as used by emulators to pin
+    // GPU clocks: property value 0 turns power management off, 1 restores it.
+    struct KgslProperty {
+        unsigned int type;
+        void *value;
+        size_t sizebytes;
+    };
+    constexpr unsigned int KGSL_PROP_PWRCTRL = 0x0E;
+    constexpr unsigned long KGSL_IOCTL_SETPROPERTY = _IOW(0x09, 0x32, KgslProperty);
+
+    bool setAdrenoMaxClocks(bool enabled) {
+        int fd = open("/dev/kgsl-3d0", O_RDWR | O_CLOEXEC);
+        if (fd < 0) return false;
+        unsigned int powerControl = enabled ? 0u : 1u;
+        KgslProperty property = {KGSL_PROP_PWRCTRL, &powerControl, sizeof(powerControl)};
+        bool ok = ioctl(fd, KGSL_IOCTL_SETPROPERTY, &property) == 0;
+        close(fd);
+        LOGI("Adreno max clocks %s: %s", enabled ? "on" : "off", ok ? "applied" : "rejected");
+        return ok;
+    }
 
     const char *const INSTANCE_EXTENSIONS[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
@@ -378,8 +410,12 @@ namespace {
             destroy();
         }
 
-        bool create(ANativeWindow *nativeWindow, int streamWidth, int streamHeight, int frameRate, float displayRefreshRate, bool fullChroma, bool tenBitOutput, bool fullRangeOutput) {
+        bool create(ANativeWindow *nativeWindow, int streamWidth, int streamHeight, int frameRate, float displayRefreshRate,
+                    bool fullChroma, bool tenBitOutput, bool fullRangeOutput, int upscale, float sharpness) {
             window = nativeWindow;
+            // SGSR works on display-referred SDR; PQ-encoded HDR keeps the direct path.
+            upscaleMode = tenBitOutput || upscale != UPSCALE_SGSR ? UPSCALE_OFF : UPSCALE_SGSR;
+            edgeSharpness = sharpness;
             chroma444 = fullChroma;
             tenBit = hdr = tenBitOutput;
             fullRange = fullRangeOutput;
@@ -390,7 +426,7 @@ namespace {
             records = PyroWaveRecords(width, height, chroma444);
             return apiVersionSupported() && createInstanceAndSurface() && createDevice() &&
                    createSwapchain() && checkDecoderLimits() && createDecoder() && createPlanes() &&
-                   createPipeline() && createFrameResources() && warmUpDecoder();
+                   createPipeline() && createUpscaler() && createFrameResources() && warmUpDecoder();
         }
 
         int submit(const uint8_t *data, size_t length, int64_t ptsUs) {
@@ -513,6 +549,9 @@ namespace {
 
             queuePriority = 1.0f;
             queueInfo = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+            // Like a game's render queue: ask the GPU scheduler to run our work ahead of other apps.
+            globalPriority = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_EXT};
+            globalPriority.globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH_EXT;
             queueInfo.queueFamilyIndex = queueFamily;
             queueInfo.queueCount = 1;
             queueInfo.pQueuePriorities = &queuePriority;
@@ -546,7 +585,11 @@ namespace {
             extensions.resize(extensionCount);
             bool metadata = false;
             bool fifoLatestReadyExtension = false;
+            const char *priorityExtension = nullptr;
             for (const auto &ext : extensions) {
+                for (const char *name : GLOBAL_PRIORITY_EXTENSIONS) {
+                    if (priorityExtension == nullptr && !strcmp(ext.extensionName, name)) priorityExtension = name;
+                }
                 if (!strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME)) metadata = true;
                 if (!strcmp(ext.extensionName, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME)) displayTimingSupported = true;
                 if (!strcmp(ext.extensionName, VK_EXT_PRESENT_MODE_FIFO_LATEST_READY_EXTENSION_NAME)) fifoLatestReadyExtension = true;
@@ -568,11 +611,26 @@ namespace {
                 if (!metadata) return false;
                 deviceExtensions.push_back(VK_EXT_HDR_METADATA_EXTENSION_NAME);
             }
+            if (priorityExtension != nullptr) {
+                deviceExtensions.push_back(priorityExtension);
+                queueInfo.pNext = &globalPriority;
+            }
             deviceInfo.enabledExtensionCount = uint32_t(deviceExtensions.size());
             deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
-            if (!check(vk.CreateDevice(physicalDevice, &deviceInfo, nullptr, &device), "vkCreateDevice")) {
+            VkResult created = vk.CreateDevice(physicalDevice, &deviceInfo, nullptr, &device);
+            if (created != VK_SUCCESS && priorityExtension != nullptr) {
+                // Drivers may refuse elevated priority to unprivileged apps; run at normal priority.
+                LOGI("High GPU queue priority refused (%d); using normal priority", created);
+                deviceExtensions.pop_back();
+                queueInfo.pNext = nullptr;
+                deviceInfo.enabledExtensionCount = uint32_t(deviceExtensions.size());
+                priorityExtension = nullptr;
+                created = vk.CreateDevice(physicalDevice, &deviceInfo, nullptr, &device);
+            }
+            if (!check(created, "vkCreateDevice")) {
                 return false;
             }
+            highPriorityQueue = priorityExtension != nullptr;
             if (!vk.loadDevice(device)) {
                 LOGE("Vulkan device is missing required functions");
                 auto destroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(vk.GetDeviceProcAddr(device, "vkDestroyDevice"));
@@ -589,6 +647,13 @@ namespace {
             VkPhysicalDeviceProperties props;
             vk.GetPhysicalDeviceProperties(physicalDevice, &props);
             timestampPeriodNs = props.limits.timestampPeriod;
+            VkPhysicalDeviceDriverProperties driverProps = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+            VkPhysicalDeviceProperties2 props2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+            props2.pNext = &driverProps;
+            vk.GetPhysicalDeviceProperties2(physicalDevice, &props2);
+            driverDescription = std::string(props.deviceName) + ", " + driverProps.driverName +
+                                (driverProps.driverInfo[0] ? std::string(" ") + driverProps.driverInfo : std::string());
+            LOGI("GPU driver: %s, queue priority %s", driverDescription.c_str(), highPriorityQueue ? "high" : "normal");
 
             LOGI("%s on Vulkan %u.%u (float16: %d)", chosenProbe.name, VK_API_VERSION_MAJOR(chosenProbe.apiVersion),
                  VK_API_VERSION_MINOR(chosenProbe.apiVersion), chosenProbe.float16);
@@ -654,19 +719,24 @@ namespace {
         }
 
         bool createPlane(Plane &plane, uint32_t planeWidth, uint32_t planeHeight) {
+            return createImage(plane, planeWidth, planeHeight, planeFormat(),
+                               (fragmentPath ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : VK_IMAGE_USAGE_STORAGE_BIT) |
+                               VK_IMAGE_USAGE_SAMPLED_BIT);
+        }
+
+        bool createImage(Plane &plane, uint32_t planeWidth, uint32_t planeHeight, VkFormat format, VkImageUsageFlags usage) {
             plane.width = planeWidth;
             plane.height = planeHeight;
 
             VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
             imageInfo.imageType = VK_IMAGE_TYPE_2D;
-            imageInfo.format = planeFormat();
+            imageInfo.format = format;
             imageInfo.extent = {planeWidth, planeHeight, 1};
             imageInfo.mipLevels = 1;
             imageInfo.arrayLayers = 1;
             imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
             imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            imageInfo.usage = (fragmentPath ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : VK_IMAGE_USAGE_STORAGE_BIT) |
-                              VK_IMAGE_USAGE_SAMPLED_BIT;
+            imageInfo.usage = usage;
             imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
             imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
             if (!check(vk.CreateImage(device, &imageInfo, nullptr, &plane.image), "vkCreateImage")) {
@@ -700,7 +770,7 @@ namespace {
             VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
             viewInfo.image = plane.image;
             viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            viewInfo.format = planeFormat();
+            viewInfo.format = format;
             viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
             return check(vk.CreateImageView(device, &viewInfo, nullptr, &plane.view), "vkCreateImageView");
         }
@@ -1012,12 +1082,18 @@ namespace {
             }
             vk.UpdateDescriptorSets(device, 3, writes, 0, nullptr);
 
+            pipeline = buildPipeline(planar_csc_frag_spv, sizeof(planar_csc_frag_spv), pipelineLayout, renderPass);
+            return pipeline != VK_NULL_HANDLE && createSwapchainResources();
+        }
+
+        // A fullscreen-triangle pipeline with dynamic viewport and scissor.
+        VkPipeline buildPipeline(const uint32_t *fragCode, size_t fragSize, VkPipelineLayout layout, VkRenderPass pass) {
             VkShaderModule vert = createShader(fullscreen_vert_spv, sizeof(fullscreen_vert_spv));
-            VkShaderModule frag = createShader(planar_csc_frag_spv, sizeof(planar_csc_frag_spv));
+            VkShaderModule frag = createShader(fragCode, fragSize);
             if (vert == VK_NULL_HANDLE || frag == VK_NULL_HANDLE) {
                 if (vert != VK_NULL_HANDLE) vk.DestroyShaderModule(device, vert, nullptr);
                 if (frag != VK_NULL_HANDLE) vk.DestroyShaderModule(device, frag, nullptr);
-                return false;
+                return VK_NULL_HANDLE;
             }
             VkPipelineShaderStageCreateInfo stages[2] = {};
             stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1063,13 +1139,125 @@ namespace {
             pipelineInfo.pMultisampleState = &multisample;
             pipelineInfo.pColorBlendState = &blend;
             pipelineInfo.pDynamicState = &dynamic;
-            pipelineInfo.layout = pipelineLayout;
-            pipelineInfo.renderPass = renderPass;
-            const bool ok = check(vk.CreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline),
-                                  "vkCreateGraphicsPipelines");
+            pipelineInfo.layout = layout;
+            pipelineInfo.renderPass = pass;
+            VkPipeline created = VK_NULL_HANDLE;
+            check(vk.CreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &created),
+                  "vkCreateGraphicsPipelines");
             vk.DestroyShaderModule(device, vert, nullptr);
             vk.DestroyShaderModule(device, frag, nullptr);
-            return ok && createSwapchainResources();
+            return created;
+        }
+
+        // Upscaling is optional: any failure leaves the direct CSC path in place.
+        bool createUpscaler() {
+            if (upscaleMode != UPSCALE_OFF && !createUpscalerResources()) {
+                LOGW("SGSR setup failed; presenting directly");
+                upscaleMode = UPSCALE_OFF;
+            }
+            return true;
+        }
+
+        // SGSR needs the converted RGB frame as a texture: the CSC pass renders into an
+        // RGBA8 image at stream size, and SGSR scales that image into the swapchain.
+        bool createUpscalerResources() {
+            const VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+            VkFormatProperties formatProps;
+            vk.GetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+            const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+            if ((formatProps.optimalTilingFeatures & required) != required ||
+                !createImage(upscaleSource, width, height, format,
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)) {
+                return false;
+            }
+
+            VkAttachmentDescription attachment = {};
+            attachment.format = format;
+            attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;  // The CSC pass covers every pixel.
+            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkAttachmentReference colorRef = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+            VkSubpassDescription subpass = {};
+            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            subpass.colorAttachmentCount = 1;
+            subpass.pColorAttachments = &colorRef;
+            VkSubpassDependency dependencies[2] = {};
+            // The previous frame's SGSR reads finish before this frame overwrites the image...
+            dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+            dependencies[0].dstSubpass = 0;
+            dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            // ...and this frame's writes are visible to SGSR.
+            dependencies[1].srcSubpass = 0;
+            dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+            dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            VkRenderPassCreateInfo rpInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+            rpInfo.attachmentCount = 1;
+            rpInfo.pAttachments = &attachment;
+            rpInfo.subpassCount = 1;
+            rpInfo.pSubpasses = &subpass;
+            rpInfo.dependencyCount = 2;
+            rpInfo.pDependencies = dependencies;
+            if (!check(vk.CreateRenderPass(device, &rpInfo, nullptr, &cscRenderPass), "vkCreateRenderPass(csc)")) return false;
+
+            VkFramebufferCreateInfo fbInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+            fbInfo.renderPass = cscRenderPass;
+            fbInfo.attachmentCount = 1;
+            fbInfo.pAttachments = &upscaleSource.view;
+            fbInfo.width = width;
+            fbInfo.height = height;
+            fbInfo.layers = 1;
+            if (!check(vk.CreateFramebuffer(device, &fbInfo, nullptr, &cscFramebuffer), "vkCreateFramebuffer(csc)")) return false;
+            cscPipeline = buildPipeline(planar_csc_frag_spv, sizeof(planar_csc_frag_spv), pipelineLayout, cscRenderPass);
+            if (cscPipeline == VK_NULL_HANDLE) return false;
+
+            VkDescriptorSetLayoutBinding binding = {};
+            binding.binding = 0;
+            binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            binding.descriptorCount = 1;
+            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            VkDescriptorSetLayoutCreateInfo layoutInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+            layoutInfo.bindingCount = 1;
+            layoutInfo.pBindings = &binding;
+            if (!check(vk.CreateDescriptorSetLayout(device, &layoutInfo, nullptr, &upscaleSetLayout), "vkCreateDescriptorSetLayout(sgsr)")) return false;
+            VkPushConstantRange range = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SgsrParams)};
+            VkPipelineLayoutCreateInfo plInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+            plInfo.setLayoutCount = 1;
+            plInfo.pSetLayouts = &upscaleSetLayout;
+            plInfo.pushConstantRangeCount = 1;
+            plInfo.pPushConstantRanges = &range;
+            if (!check(vk.CreatePipelineLayout(device, &plInfo, nullptr, &upscaleLayout), "vkCreatePipelineLayout(sgsr)")) return false;
+            VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1};
+            VkDescriptorPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+            poolInfo.maxSets = 1;
+            poolInfo.poolSizeCount = 1;
+            poolInfo.pPoolSizes = &poolSize;
+            if (!check(vk.CreateDescriptorPool(device, &poolInfo, nullptr, &upscalePool), "vkCreateDescriptorPool(sgsr)")) return false;
+            VkDescriptorSetAllocateInfo setInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+            setInfo.descriptorPool = upscalePool;
+            setInfo.descriptorSetCount = 1;
+            setInfo.pSetLayouts = &upscaleSetLayout;
+            if (!check(vk.AllocateDescriptorSets(device, &setInfo, &upscaleSet), "vkAllocateDescriptorSets(sgsr)")) return false;
+            VkDescriptorImageInfo imageInfo = {sampler, upscaleSource.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            VkWriteDescriptorSet write = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            write.dstSet = upscaleSet;
+            write.dstBinding = 0;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageInfo = &imageInfo;
+            vk.UpdateDescriptorSets(device, 1, &write, 0, nullptr);
+            upscalePipeline = buildPipeline(sgsr_frag_spv, sizeof(sgsr_frag_spv), upscaleLayout, renderPass);
+            LOGI("SGSR upscaling %s", upscalePipeline != VK_NULL_HANDLE ? "ready" : "failed");
+            return upscalePipeline != VK_NULL_HANDLE;
         }
 
         bool createFrameResources() {
@@ -1241,11 +1429,31 @@ namespace {
             rpBegin.renderArea = {{0, 0}, swapchainExtent};
             rpBegin.clearValueCount = 1;
             rpBegin.pClearValues = &clear;
-            vk.CmdBeginRenderPass(commandBuffer, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
-
             // Fit the stream into the surface, preserving its aspect ratio.
             const float scale = std::min(float(swapchainExtent.width) / float(width),
                                          float(swapchainExtent.height) / float(height));
+            const int32_t color[] = {tenBit, hdr, fullRange};
+            // Upscale only when the stream is shown larger than it is and the frame is SDR.
+            upscaling = upscalePipeline != VK_NULL_HANDLE && !hdr && scale > 1.01f;
+            if (upscaling) {
+                VkRenderPassBeginInfo cscBegin = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+                cscBegin.renderPass = cscRenderPass;
+                cscBegin.framebuffer = cscFramebuffer;
+                cscBegin.renderArea = {{0, 0}, {width, height}};
+                vk.CmdBeginRenderPass(commandBuffer, &cscBegin, VK_SUBPASS_CONTENTS_INLINE);
+                VkViewport full = {0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f};
+                VkRect2D fullScissor = {{0, 0}, {width, height}};
+                vk.CmdSetViewport(commandBuffer, 0, 1, &full);
+                vk.CmdSetScissor(commandBuffer, 0, 1, &fullScissor);
+                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cscPipeline);
+                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                         &descriptorSet, 0, nullptr);
+                vk.CmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
+                vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
+                vk.CmdEndRenderPass(commandBuffer);
+            }
+            vk.CmdBeginRenderPass(commandBuffer, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
+
             VkViewport viewport = {};
             viewport.width = float(width) * scale;
             viewport.height = float(height) * scale;
@@ -1255,11 +1463,19 @@ namespace {
             VkRect2D scissor = {{0, 0}, swapchainExtent};
             vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
             vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
-            vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-            vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-                                     &descriptorSet, 0, nullptr);
-            const int32_t color[] = {tenBit, hdr, fullRange};
-            vk.CmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
+            if (upscaling) {
+                const SgsrParams params = {{1.0f / float(width), 1.0f / float(height), float(width), float(height)},
+                                           edgeSharpness};
+                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscalePipeline);
+                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscaleLayout, 0, 1,
+                                         &upscaleSet, 0, nullptr);
+                vk.CmdPushConstants(commandBuffer, upscaleLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(params), &params);
+            } else {
+                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                         &descriptorSet, 0, nullptr);
+                vk.CmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
+            }
             vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
             vk.CmdEndRenderPass(commandBuffer);
             if (!check(vk.EndCommandBuffer(commandBuffer), "vkEndCommandBuffer")) {
@@ -1344,6 +1560,16 @@ namespace {
                 if (queryPool != VK_NULL_HANDLE) vk.DestroyQueryPool(device, queryPool, nullptr);
                 if (commandPool != VK_NULL_HANDLE) vk.DestroyCommandPool(device, commandPool, nullptr);
                 if (pipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, pipeline, nullptr);
+                if (cscPipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, cscPipeline, nullptr);
+                if (upscalePipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, upscalePipeline, nullptr);
+                if (upscalePool != VK_NULL_HANDLE) vk.DestroyDescriptorPool(device, upscalePool, nullptr);
+                if (upscaleLayout != VK_NULL_HANDLE) vk.DestroyPipelineLayout(device, upscaleLayout, nullptr);
+                if (upscaleSetLayout != VK_NULL_HANDLE) vk.DestroyDescriptorSetLayout(device, upscaleSetLayout, nullptr);
+                if (cscFramebuffer != VK_NULL_HANDLE) vk.DestroyFramebuffer(device, cscFramebuffer, nullptr);
+                if (cscRenderPass != VK_NULL_HANDLE) vk.DestroyRenderPass(device, cscRenderPass, nullptr);
+                if (upscaleSource.view != VK_NULL_HANDLE) vk.DestroyImageView(device, upscaleSource.view, nullptr);
+                if (upscaleSource.image != VK_NULL_HANDLE) vk.DestroyImage(device, upscaleSource.image, nullptr);
+                if (upscaleSource.memory != VK_NULL_HANDLE) vk.FreeMemory(device, upscaleSource.memory, nullptr);
                 if (descriptorPool != VK_NULL_HANDLE) vk.DestroyDescriptorPool(device, descriptorPool, nullptr);
                 if (pipelineLayout != VK_NULL_HANDLE) vk.DestroyPipelineLayout(device, pipelineLayout, nullptr);
                 if (setLayout != VK_NULL_HANDLE) vk.DestroyDescriptorSetLayout(device, setLayout, nullptr);
@@ -1426,6 +1652,24 @@ namespace {
         VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
 
+        struct SgsrParams {
+            float viewportInfo[4];
+            float edgeSharpness;
+        };
+        int upscaleMode = UPSCALE_OFF;
+        float edgeSharpness = 1.5f;
+        Plane upscaleSource;
+        VkRenderPass cscRenderPass = VK_NULL_HANDLE;
+        VkFramebuffer cscFramebuffer = VK_NULL_HANDLE;
+        VkPipeline cscPipeline = VK_NULL_HANDLE;
+        VkDescriptorSetLayout upscaleSetLayout = VK_NULL_HANDLE;
+        VkPipelineLayout upscaleLayout = VK_NULL_HANDLE;
+        VkDescriptorPool upscalePool = VK_NULL_HANDLE;
+        VkDescriptorSet upscaleSet = VK_NULL_HANDLE;
+        VkPipeline upscalePipeline = VK_NULL_HANDLE;
+        VkDeviceQueueGlobalPriorityCreateInfoEXT globalPriority = {};
+        bool highPriorityQueue = false;
+
         VkCommandPool commandPool = VK_NULL_HANDLE;
         VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
         VkFence frameFence = VK_NULL_HANDLE;
@@ -1447,6 +1691,9 @@ namespace {
 
     public:
         const char *getPresentModeName() const { return presentModeName(presentMode); }
+        std::string driverDescription;
+        // Whether the most recent frame went through SGSR.
+        bool upscaling = false;
 
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
@@ -1657,7 +1904,8 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetReadiness(JNIE
 JNIEXPORT jlong JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *env, jclass, jobject surface,
                                                                       jint width, jint height, jint frameRate, jfloat displayRefreshRate,
-                                                                      jboolean chroma444, jboolean tenBit, jboolean fullRange) {
+                                                                      jboolean chroma444, jboolean tenBit, jboolean fullRange,
+                                                                      jint upscale, jfloat edgeSharpness) {
     if (surface == nullptr || width < 64 || height < 64 || width > 16384 || height > 16384 || (!chroma444 && ((width & 1) || (height & 1)))) {
         LOGE("PyroWave needs a surface and positive dimensions, even for 4:2:0 (%dx%d)", width, height);
         return 0;
@@ -1667,7 +1915,8 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeCreate(JNIEnv *en
         return 0;
     }
     auto renderer = std::make_unique<Renderer>();
-    if (!renderer->create(window, width, height, frameRate, displayRefreshRate, chroma444, tenBit, fullRange)) {
+    if (!renderer->create(window, width, height, frameRate, displayRefreshRate, chroma444, tenBit, fullRange,
+                          upscale, edgeSharpness)) {
         return 0;  // The renderer releases the window.
     }
     LOGI("PyroWave renderer ready for %dx%d %s", width, height, chroma444 ? "4:4:4" : "4:2:0");
@@ -1727,6 +1976,23 @@ Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastGpuDecodeU
 JNIEXPORT jstring JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetPresentMode(JNIEnv *env, jclass, jlong handle) {
     return env->NewStringUTF(reinterpret_cast<Renderer *>(handle)->getPresentModeName());
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetDriver(JNIEnv *env, jclass, jlong handle) {
+    auto *renderer = reinterpret_cast<Renderer *>(handle);
+    return env->NewStringUTF(renderer != nullptr ? renderer->driverDescription.c_str() : "");
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeIsUpscaling(JNIEnv *, jclass, jlong handle) {
+    auto *renderer = reinterpret_cast<Renderer *>(handle);
+    return renderer != nullptr && renderer->upscaling;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeSetGpuMaxClocks(JNIEnv *, jclass, jboolean enabled) {
+    return setAdrenoMaxClocks(enabled);
 }
 
 JNIEXPORT jfloat JNICALL

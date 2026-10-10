@@ -346,6 +346,8 @@
     <string name="summary_codec_performance">Speed up decoding at the cost of more power.</string>
     <string name="title_phone_performance_hints">Phone performance hints</string>
     <string name="summary_phone_performance_hints">Let Android tune performance during streaming.</string>
+    <string name="title_gpu_max_clocks">Max GPU clocks for PyroWave</string>
+    <string name="summary_gpu_max_clocks">Keep the Adreno GPU at full speed while streaming PyroWave. Uses more battery.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
     <string name="summary_drop_late_frames">Reduce delay with Balanced frame pacing.</string>
     <string name="title_texture_view">Compatibility video view</string>
@@ -440,7 +442,7 @@
     <string name="upscaling_direct">Off (direct output)</string>
     <string name="upscaling_fallback">Upscaling: direct output. %1$s</string>
     <string name="upscaling_hdr">HDR/10-bit keeps direct output to preserve color and precision.</string>
-    <string name="upscaling_pyrowave">PyroWave keeps its Vulkan output; upscaling requires a MediaCodec stream.</string>
+    <string name="upscaling_pyrowave">PyroWave streams use SGSR on the GPU for both FSR and SGSR.</string>
     <string name="upscaling_native">The stream already fills the output resolution; no upscaling is needed.</string>
     <string name="upscaling_unsupported">GLES 3.0 video textures or EGL presentation timing are unavailable.</string>
     <string name="upscaling_gpu_error">The GPU path or decoder surface failed. Direct output stays active until reconnect.</string>
@@ -448,6 +450,8 @@
     <string name="upscaling_dropped">The GPU path dropped frames repeatedly. Direct output stays active until reconnect.</string>
     <string name="upscaling_size_changed">The video or output size changed. Direct output stays active until reconnect.</string>
     <string name="perf_overlay_upscaling">Upscaling: %1$s · added %2$s</string>
+    <string name="perf_overlay_upscaling_pyrowave">Upscaling: %1$s</string>
+    <string name="perf_overlay_gpu_driver">GPU: %1$s</string>
     <string name="upscaling_timing_estimate">Estimate includes texture handoff, GPU completion and swap wait (1 ms polling). Display presentation timing is unavailable.</string>
     <string name="upscaling_last_timing">Last GPU path estimate: %1$s</string>
 </resources>

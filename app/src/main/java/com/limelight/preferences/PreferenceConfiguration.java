@@ -77,6 +77,7 @@ public class PreferenceConfiguration {
     private static final String VENDOR_LOW_LATENCY_PREF_STRING = "checkbox_vendor_low_latency";
     private static final String CODEC_PERFORMANCE_PREF_STRING = "checkbox_codec_performance";
     private static final String PHONE_PERFORMANCE_HINTS_PREF_STRING = "checkbox_phone_performance_hints";
+    static final String GPU_MAX_CLOCKS_PREF_STRING = "checkbox_gpu_max_clocks";
     private static final String DROP_LATE_FRAMES_PREF_STRING = "checkbox_drop_late_frames";
     private static final String TEXTURE_VIEW_PREF_STRING = "checkbox_texture_view";
     private static final String UNBATCHED_INPUT_PREF_STRING = "checkbox_unbatched_input";
@@ -180,6 +181,7 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensorsFallbackToDevice;
     public boolean codecLowLatency, vendorLowLatency, codecPerformance;
     public boolean phonePerformanceHints;
+    public boolean gpuMaxClocks;
     public boolean dropLateFrames, useTextureView, unbatchedInput, networkPriority;
     public boolean virtualDisplay, enableYuv444, vrr;
     public int virtualDisplayScale;
@@ -666,6 +668,7 @@ public class PreferenceConfiguration {
         config.vendorLowLatency = prefs.getBoolean(VENDOR_LOW_LATENCY_PREF_STRING, true);
         config.codecPerformance = prefs.getBoolean(CODEC_PERFORMANCE_PREF_STRING, true);
         config.phonePerformanceHints = prefs.getBoolean(PHONE_PERFORMANCE_HINTS_PREF_STRING, false);
+        config.gpuMaxClocks = prefs.getBoolean(GPU_MAX_CLOCKS_PREF_STRING, false);
         config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, false);
         // SurfaceView preserves HDR metadata and avoids TextureView's extra composition step.
         config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&

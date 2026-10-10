@@ -766,6 +766,10 @@ public class StreamSettings extends AppCompatActivity {
             findPreference("checkbox_codec_low_latency").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
             findPreference("checkbox_codec_performance").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
             findPreference("checkbox_phone_performance_hints").setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S);
+            if (!PyroWaveDecoderRenderer.hasAdrenoGpu()) {
+                ((PreferenceCategory) findPreference("category_advanced_settings"))
+                        .removePreference(findPreference("checkbox_gpu_max_clocks"));
+            }
             ListPreference pacing = (ListPreference) findPreference("frame_pacing");
             findPreference("checkbox_drop_late_frames").setEnabled("balanced".equals(pacing.getValue()));
             pacing.setOnPreferenceChangeListener((preference, value) -> {

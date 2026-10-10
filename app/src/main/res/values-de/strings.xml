@@ -302,6 +302,8 @@
     <string name="summary_codec_performance">Dekodiere schneller auf Kosten eines höheren Verbrauchs.</string>
     <string name="title_phone_performance_hints">Android-Leistungssteuerung</string>
     <string name="summary_phone_performance_hints">Lass Android die Leistung beim Streamen anpassen.</string>
+    <string name="title_gpu_max_clocks">Volle GPU-Leistung für PyroWave</string>
+    <string name="summary_gpu_max_clocks">Hält die Adreno-GPU beim PyroWave-Streamen auf vollem Takt. Braucht mehr Akku.</string>
     <string name="title_drop_late_frames">Nur neueste Frames behalten</string>
     <string name="summary_drop_late_frames">Senke die Latenz mit ausgewogenem Frame-Pacing.</string>
     <string name="title_texture_view">Alternative Videoanzeige</string>
@@ -396,7 +398,7 @@
     <string name="upscaling_direct">Aus (direkte Ausgabe)</string>
     <string name="upscaling_fallback">Hochskalierung: direkte Ausgabe. %1$s</string>
     <string name="upscaling_hdr">HDR/10-Bit nutzt direkte Ausgabe für volle Farbpräzision.</string>
-    <string name="upscaling_pyrowave">PyroWave behält die Vulkan-Ausgabe; Hochskalierung braucht einen MediaCodec-Stream.</string>
+    <string name="upscaling_pyrowave">PyroWave-Streams nutzen für FSR und SGSR immer SGSR auf der GPU.</string>
     <string name="upscaling_native">Der Stream füllt die Ausgabe bereits aus; keine Hochskalierung nötig.</string>
     <string name="upscaling_unsupported">GLES-3.0-Videotexturen oder EGL-Präsentationszeitmessung sind nicht verfügbar.</string>
     <string name="upscaling_gpu_error">GPU-Verarbeitung oder Decoder-Ausgabe fehlgeschlagen. Direkte Ausgabe bis zur nächsten Verbindung.</string>
@@ -404,6 +406,8 @@
     <string name="upscaling_dropped">GPU-Verarbeitung hat wiederholt Frames verworfen. Direkte Ausgabe bis zur nächsten Verbindung.</string>
     <string name="upscaling_size_changed">Video- oder Ausgabegröße hat sich geändert. Direkte Ausgabe bis zur nächsten Verbindung.</string>
     <string name="perf_overlay_upscaling">Hochskalierung: %1$s · zusätzlich %2$s</string>
+    <string name="perf_overlay_upscaling_pyrowave">Hochskalierung: %1$s</string>
+    <string name="perf_overlay_gpu_driver">GPU: %1$s</string>
     <string name="upscaling_timing_estimate">Schätzung umfasst Texturübergabe, GPU-Verarbeitung und Ausgabewartezeit (1-ms-Abfrage). Anzeigezeitmessung nicht verfügbar.</string>
     <string name="upscaling_last_timing">Letzte GPU-Zeitschätzung: %1$s</string>
 </resources>

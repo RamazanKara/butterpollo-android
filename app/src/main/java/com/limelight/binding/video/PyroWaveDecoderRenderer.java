@@ -1,13 +1,17 @@
 package com.limelight.binding.video;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Process;
+import android.preference.PreferenceManager;
 import android.view.Surface;
 
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.nvstream.jni.MoonBridge;
+
+import java.io.File;
 
 // Adapted from joemossjr16/artemis-android-pyrowave 387d3a5c (GPL-3.0).
 public final class PyroWaveDecoderRenderer {
@@ -15,6 +19,9 @@ public final class PyroWaveDecoderRenderer {
     private long handle;
     private int format;
     private DecoderPerformanceHints performanceHints;
+    private Context maxClocksContext;
+    // Survives a crash, so the next stream can hand GPU power management back to the kernel.
+    private static final String MAX_CLOCKS_ACTIVE = "pyrowave_max_clocks_active";
 
     private static boolean loadLibrary() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
@@ -57,20 +64,44 @@ public final class PyroWaveDecoderRenderer {
         }
     }
 
-    synchronized boolean setup(Surface surface, int format, int width, int height, int fps, float displayRefreshRate, boolean fullRange) {
+    /** Whether this device has an Adreno GPU, whose clocks the app can pin while streaming. */
+    public static boolean hasAdrenoGpu() {
+        return new File("/dev/kgsl-3d0").exists();
+    }
+
+    // SGSR serves both GPU upscaling choices: it is a single pass, cheaper than FSR's two.
+    static int upscaleMode(UpscalingPolicy.Mode mode) {
+        return mode == UpscalingPolicy.Mode.FSR1 || mode == UpscalingPolicy.Mode.SGSR1 ? 1 : 0;
+    }
+
+    synchronized boolean setup(Surface surface, int format, int width, int height, int fps, float displayRefreshRate,
+                               boolean fullRange, UpscalingPolicy.Mode upscaling, int sharpness,
+                               Context context, boolean maxClocks) {
         cleanup();
         if (!LIBRARY_LOADED || surface == null || !surface.isValid()) return false;
         try {
             handle = nativeCreate(surface, width, height, fps, displayRefreshRate,
                     (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) != 0,
-                    (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange);
+                    (format & MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0, fullRange,
+                    upscaleMode(upscaling), SgsrConstants.edgeSharpness(sharpness));
         } catch (IllegalArgumentException e) {
             // The surface may be released between isValid() and the native window lookup.
             LimeLog.warning("PyroWave surface unavailable: " + e);
             return false;
         }
         this.format = handle != 0 ? format : 0;
+        setMaxClocks(context, handle != 0 && maxClocks && hasAdrenoGpu());
         return handle != 0;
+    }
+
+    private void setMaxClocks(Context context, boolean enabled) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        boolean stale = prefs.getBoolean(MAX_CLOCKS_ACTIVE, false) && maxClocksContext == null;
+        if (!enabled && !stale) return;
+        if (!LIBRARY_LOADED) return;
+        boolean applied = nativeSetGpuMaxClocks(enabled);
+        maxClocksContext = enabled && applied ? context.getApplicationContext() : null;
+        prefs.edit().putBoolean(MAX_CLOCKS_ACTIVE, maxClocksContext != null).commit();
     }
 
     synchronized int getFormat() {
@@ -113,6 +144,18 @@ public final class PyroWaveDecoderRenderer {
         return handle != 0 ? nativeGetLastGpuDecodeUs(handle) : 0;
     }
 
+    synchronized String getDriver() {
+        return handle != 0 ? nativeGetDriver(handle) : "";
+    }
+
+    synchronized boolean isUpscaling() {
+        return handle != 0 && nativeIsUpscaling(handle);
+    }
+
+    synchronized boolean hasMaxClocks() {
+        return maxClocksContext != null;
+    }
+
     synchronized String getPresentMode() {
         return handle != 0 ? nativeGetPresentMode(handle) : "unavailable";
     }
@@ -133,11 +176,21 @@ public final class PyroWaveDecoderRenderer {
         if (handle != 0) nativeDestroy(handle);
         handle = 0;
         format = 0;
+        if (maxClocksContext != null) {
+            Context context = maxClocksContext;
+            nativeSetGpuMaxClocks(false);
+            maxClocksContext = null;
+            PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean(MAX_CLOCKS_ACTIVE, false).commit();
+        }
     }
 
     private static native int nativeGetReadiness(boolean hdr);
     private static native long nativeCreate(Surface surface, int width, int height, int fps, float displayRefreshRate,
-                                           boolean chroma444, boolean tenBit, boolean fullRange);
+                                           boolean chroma444, boolean tenBit, boolean fullRange,
+                                           int upscale, float edgeSharpness);
+    private static native String nativeGetDriver(long handle);
+    private static native boolean nativeIsUpscaling(long handle);
+    private static native boolean nativeSetGpuMaxClocks(boolean enabled);
     private static native long nativeSubmitFrame(long handle, byte[] data, int length, long ptsUs);
     private static native long nativeGetLastReleaseTimeNs(long handle);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
