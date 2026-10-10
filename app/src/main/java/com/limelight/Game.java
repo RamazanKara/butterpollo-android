@@ -15,6 +15,7 @@ import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.video.CrashListener;
+import com.limelight.binding.video.DisplayCapsReporter;
 import com.limelight.binding.video.LatencyProbe;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
@@ -228,9 +229,51 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 @Override public void onDisplayRemoved(int displayId) {}
                 @Override public void onDisplayChanged(int displayId) {
                     Display display = getWindowManager().getDefaultDisplay();
-                    if (conn != null && display.getDisplayId() == displayId) updateInputPollingRate();
+                    if (conn != null && display.getDisplayId() == displayId) {
+                        updateInputPollingRate();
+                        // Also fires when a foldable moves the stream to its other screen.
+                        reportDisplayCaps();
+                    }
                 }
             };
+    // Whether this stream asked for HDR (setting on, HDR10 display and decoder).
+    private boolean streamHdr;
+    private DisplayCapsReporter displayCapsReporter;
+
+    // Tells a Rubylight 2.2.0+ host this display's HDR luminance so it tone-maps for the real
+    // panel. Sent once the stream is up and again only when a value changes.
+    private void reportDisplayCaps() {
+        if (!connected || displayCapsReporter == null ||
+                !MoonBridge.hostSupportsControlMessage(MoonBridge.CONTROL_MESSAGE_DISPLAY_CAPS)) {
+            return;
+        }
+        boolean displayHdr = false;
+        float maxNits = 0, maxAverageNits = 0, minNits = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Display display = getWindowManager().getDefaultDisplay();
+            // getHdrCapabilities() returns null on some devices (Lenovo Mirage Solo, Android 8.0).
+            Display.HdrCapabilities hdrCaps = display.getHdrCapabilities();
+            if (hdrCaps != null) {
+                int[] hdrTypes = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ?
+                        display.getMode().getSupportedHdrTypes() : hdrCaps.getSupportedHdrTypes();
+                for (int hdrType : hdrTypes) {
+                    if (hdrType == Display.HdrCapabilities.HDR_TYPE_HDR10 ||
+                            hdrType == Display.HdrCapabilities.HDR_TYPE_HLG) {
+                        displayHdr = true;
+                        break;
+                    }
+                }
+                maxNits = hdrCaps.getDesiredMaxLuminance();
+                maxAverageNits = hdrCaps.getDesiredMaxAverageLuminance();
+                minNits = hdrCaps.getDesiredMinLuminance();
+            }
+        }
+        DisplayCapsReporter.Caps sent = displayCapsReporter.update(streamHdr && displayHdr,
+                maxNits, maxAverageNits, minNits);
+        if (sent != null) {
+            LimeLog.info("Display luminance sent to host: " + sent);
+        }
+    }
 
     private void updateInputPollingRate() {
         Display display = getWindowManager().getDefaultDisplay();
@@ -588,6 +631,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             willStreamHdr = false;
             Toast.makeText(this, "Decoder does not support HDR10 profile", Toast.LENGTH_LONG).show();
         }
+        streamHdr = willStreamHdr;
 
         // Display a message to the user if HEVC was forced on but we still didn't find a decoder
         if (mediaStream && prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer.isHevcSupported()) {
@@ -3272,6 +3316,7 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         bitrateHandler.removeCallbacks(updateBitrate);
         adaptiveBitrate = null;
         pyroWaveBitrate = null;
+        displayCapsReporter = null;
         if (usbDriverBinder != null) {
             usbDriverBinder.setListener(null);
             usbDriverBinder.setStateListener(null);
@@ -3491,6 +3536,10 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
                 connected = true;
                 LimeLog.info("Stream connected");
                 connecting = false;
+                if (app.getRole() != NvApp.Role.INPUT_ONLY && !app.isControlAction()) {
+                    displayCapsReporter = new DisplayCapsReporter(MoonBridge::sendDisplayCaps);
+                    reportDisplayCaps();
+                }
                 if (!conn.canSendInput()) {
                     if (virtualController != null) {
                         virtualController.hide();

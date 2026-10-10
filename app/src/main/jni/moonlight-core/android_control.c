@@ -114,3 +114,21 @@ Java_com_limelight_nvstream_jni_MoonBridge_hostSupportsControlMessage(JNIEnv *en
     if (messageType < 0 || messageType > 0xFFFF) return JNI_FALSE;
     return hostSupportsControlMessage((uint16_t)messageType) ? JNI_TRUE : JNI_FALSE;
 }
+
+// Display HDR luminance (protocol/core/src/control.rs, DisplayCaps): sent at stream start and
+// when the display changes, only to hosts that announced 0x5531. The Java side sends it again
+// only when a value changes, so it goes reliably.
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_sendDisplayCaps(JNIEnv *env, jclass clazz, jboolean hdr,
+                                                          jfloat maxNits, jfloat maxAverageNits, jfloat minNits) {
+    (void)env; (void)clazz;
+    if (!hostSupportsControlMessage(RP_DISPLAY_CAPS_MESSAGE_TYPE) ||
+        !encryptedControlStream || stopping || peer == NULL) {
+        return JNI_FALSE;
+    }
+    uint8_t message[RP_DISPLAY_CAPS_BYTES];
+    rp_display_caps_encode(hdr == JNI_TRUE, maxNits, maxAverageNits, minNits, message);
+    return sendMessageAndForget(RP_DISPLAY_CAPS_MESSAGE_TYPE, (short)sizeof(message), message,
+                                CTRL_CHANNEL_GENERIC, ENET_PACKET_FLAG_RELIABLE, false)
+        ? JNI_TRUE : JNI_FALSE;
+}

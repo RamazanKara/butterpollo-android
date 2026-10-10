@@ -465,4 +465,11 @@ public class MoonBridge {
     // Whether this connection's host named the control message in its DESCRIBE answer
     // (a=x-rl-control, Rubylight 2.2.0+). False before the RTSP handshake and for other hosts.
     public static native boolean hostSupportsControlMessage(int messageType);
+
+    // Display HDR luminance, client to host (protocol/core/src/control.rs DisplayCaps).
+    public static final int CONTROL_MESSAGE_DISPLAY_CAPS = 0x5531;
+
+    // Sends the display's HDR luminance in nits (0 when unknown) on the encrypted control
+    // stream; false when the host did not announce 0x5531 or the stream is not up.
+    public static native boolean sendDisplayCaps(boolean hdr, float maxNits, float maxAverageNits, float minNits);
 }
