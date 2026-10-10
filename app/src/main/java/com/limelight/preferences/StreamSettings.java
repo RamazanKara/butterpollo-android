@@ -167,8 +167,10 @@ public class StreamSettings extends AppCompatActivity {
         }
         editor.remove("checkbox_native_touch")
                 .remove(PreferenceConfiguration.BITRATE_PREF_OLD_STRING)
+                .remove(PreferenceConfiguration.PREFS_VERSION_PREF_STRING)
                 .commit();
         PreferenceManager.setDefaultValues(context, R.xml.preferences, true);
+        PreferenceConfiguration.migrateToNativeDefaults(context);
     }
 
     @Override
@@ -518,8 +520,6 @@ public class StreamSettings extends AppCompatActivity {
             setPreferenceScreen(screen);
         }
 
-        private int nativeResolutionStartIndex = Integer.MAX_VALUE;
-        private boolean nativeFramerateShown = false;
         private final Map<String, CharSequence> descriptions = new HashMap<>();
         private final SharedPreferences.OnSharedPreferenceChangeListener summaryUpdater =
                 (prefs, key) -> updateValueSummaries(getPreferenceScreen());
@@ -657,9 +657,6 @@ public class StreamSettings extends AppCompatActivity {
                 }
             }
 
-            if (pref.getEntryValues().length < nativeResolutionStartIndex) {
-                nativeResolutionStartIndex = pref.getEntryValues().length;
-            }
             appendPreferenceEntry(pref, newName, newValue);
         }
 
@@ -685,13 +682,11 @@ public class StreamSettings extends AppCompatActivity {
             for (CharSequence value : pref.getEntryValues()) {
                 if (fpsValue.equals(value.toString())) {
                     // It is present in the default list, so don't add it again
-                    nativeFramerateShown = false;
                     return;
                 }
             }
 
             appendPreferenceEntry(pref, fpsName, fpsValue);
-            nativeFramerateShown = true;
         }
 
         private void removeValue(String preferenceKey, String value, Runnable onMatched) {
@@ -1214,25 +1209,6 @@ public class StreamSettings extends AppCompatActivity {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
                     String valueStr = (String) newValue;
 
-                    // Detect if this value is the native resolution option
-                    CharSequence[] values = ((ListPreference)preference).getEntryValues();
-                    boolean isNativeRes = true;
-                    for (int i = 0; i < values.length; i++) {
-                        // Look for a match prior to the start of the native resolution entries
-                        if (valueStr.equals(values[i].toString()) && i < nativeResolutionStartIndex) {
-                            isNativeRes = false;
-                            break;
-                        }
-                    }
-
-                    // If this is native resolution, show the warning dialog
-                    if (isNativeRes) {
-                        Dialog.displayDialog(getActivity(),
-                                getResources().getString(R.string.title_native_res_dialog),
-                                getResources().getString(R.string.text_native_res_dialog),
-                                false);
-                    }
-
                     // Write the new bitrate value
                     resetBitrateToDefault(prefs, valueStr, null);
 
@@ -1245,15 +1221,6 @@ public class StreamSettings extends AppCompatActivity {
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(SettingsFragment.this.getActivity());
                     String valueStr = (String) newValue;
-
-                    // If this is native frame rate, show the warning dialog
-                    CharSequence[] values = ((ListPreference)preference).getEntryValues();
-                    if (nativeFramerateShown && values[values.length - 1].toString().equals(newValue.toString())) {
-                        Dialog.displayDialog(getActivity(),
-                                getResources().getString(R.string.title_native_fps_dialog),
-                                getResources().getString(R.string.text_native_res_dialog),
-                                false);
-                    }
 
                     // Write the new bitrate value
                     resetBitrateToDefault(prefs, null, valueStr);

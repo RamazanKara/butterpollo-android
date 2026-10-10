@@ -314,32 +314,32 @@
             android:key="checkbox_phone_performance_hints"
             android:title="@string/title_phone_performance_hints"
             android:summary="@string/summary_phone_performance_hints"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_gpu_max_clocks"
             android:title="@string/title_gpu_max_clocks"
             android:summary="@string/summary_gpu_max_clocks"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_pyrowave_front_buffer"
             android:title="@string/title_pyrowave_front_buffer"
             android:summary="@string/summary_pyrowave_front_buffer"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_drop_late_frames"
             android:title="@string/title_drop_late_frames"
             android:summary="@string/summary_drop_late_frames"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_unbatched_input"
             android:title="@string/title_unbatched_input"
             android:summary="@string/summary_unbatched_input"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_network_priority"
             android:title="@string/title_network_priority"
             android:summary="@string/summary_network_priority"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
         <com.limelight.preferences.MaterialSwitchPreference
             android:key="checkbox_texture_view"
             android:title="@string/title_texture_view"

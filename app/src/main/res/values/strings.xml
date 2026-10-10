@@ -135,8 +135,6 @@
     <string name="category_basic_settings">Basic Settings</string>
     <string name="title_resolution_list">Video resolution</string>
     <string name="summary_resolution_list">Higher resolution gives a sharper picture.</string>
-    <string name="title_native_res_dialog">Native resolution</string>
-    <string name="text_native_res_dialog">Match resolution and FPS on the PC.\nTry a virtual display or custom mode.</string>
     <string name="title_fps_list">Video frame rate</string>
     <string name="summary_fps_list">Higher frame rates give smoother motion.</string>
     <string name="title_seekbar_bitrate">Video bitrate</string>
@@ -153,7 +151,6 @@
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
     <string name="resolution_prefix_native_portrait">(Portrait)</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Native frame rate</string>
 
     <string name="category_audio_settings">Audio</string>
     <string name="title_audio_config_list">Surround sound</string>
@@ -351,7 +348,7 @@
     <string name="title_pyrowave_front_buffer">Front-buffer rendering for PyroWave</string>
     <string name="summary_pyrowave_front_buffer">Draw each PyroWave frame straight into the image on screen, skipping Android\'s display queue. Lowest latency; fast motion can show a tear line. Experimental, needs driver support.</string>
     <string name="title_drop_late_frames">Keep only the newest frame</string>
-    <string name="summary_drop_late_frames">Reduce delay with Balanced frame pacing.</string>
+    <string name="summary_drop_late_frames">Skip frames the screen can no longer show in time.</string>
     <string name="title_texture_view">Compatibility video view</string>
     <string name="summary_texture_view">Try this for black or flickering video.</string>
     <string name="title_unbatched_input">Instant mouse and pen input</string>
