@@ -58,6 +58,7 @@ struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT {
 
 #include "shaders_spv.h"
 #include "frame.h"
+#include "rubylight_protocol.h"
 
 #define LOG_TAG "PyroWave"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
