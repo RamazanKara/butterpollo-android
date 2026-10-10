@@ -2,3 +2,4 @@ Rubylight 0.4.0
 Stream from your PC with low latency. Connects to Rubylight hosts and other stream hosts.
 Choose stream presets and per-PC settings. View latency in the compact overlay. Adjust controls in the stream menu and map controller buttons.
 Fresh Rubylight branding and clearer privacy information.
+Native-resolution streams stay sharp when you open or close a foldable or resize a window, without reconnecting (Rubylight 2.2 hosts).
