@@ -1,8 +1,10 @@
 package com.limelight.demo;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 import com.limelight.AppView;
@@ -16,6 +18,16 @@ public final class DemoLauncherActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        String home = getIntent().getStringExtra("home");
+        if (home != null) {
+            // adb's shell may not change component state on current Android, but the app can change its own:
+            // "--es home enable" / "--es home disable" toggles the stand-in home screen used for the PiP capture.
+            getPackageManager().setComponentEnabledSetting(new ComponentName(this, DemoHomeActivity.class),
+                    "enable".equals(home) ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                            : PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
+            finish();
+            return;
+        }
         try {
             DemoFixtures.prepare(this);
         } catch (IOException e) {
@@ -29,6 +41,7 @@ public final class DemoLauncherActivity extends Activity {
         else if ("stream".equals(screen) || "compact".equals(screen) || "advanced".equals(screen) ||
                 "touch".equals(screen) || "pip".equals(screen)) target = DemoGameActivity.class;
         else target = DemoPcView.class;
+        DemoGameActivity.forceH264 = "h264".equals(getIntent().getStringExtra("codec"));
         Intent intent = new Intent(this, target).putExtra("state", screen)
                 .putExtra(AppView.UUID_EXTRA, DemoFixtures.PC_UUID).putExtra(AppView.NAME_EXTRA, "Living-room PC");
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));

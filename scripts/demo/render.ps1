@@ -4,14 +4,21 @@ $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $output = Join-Path $root 'out/demo'
 $work = Join-Path $output 'work'
-$frames = Join-Path $output 'frames'
+$frames = Join-Path $output 'frames-v2'
 $utf8 = New-Object Text.UTF8Encoding($false)
 $culture = [Globalization.CultureInfo]::InvariantCulture
 $fps = 30
-$fade = 0.4
-$intro = 2.5
-$outro = 4.5
-$releases = 'https://github.com/RamazanKara/rubylight-android/releases'
+$intro = 3.0
+$outro = 5.0
+$introFade = 0.5
+$outroFade = 0.8
+$repoUrl = 'github.com/RamazanKara/rubylight-android'
+$tilePath = Join-Path $PSScriptRoot 'assets/r-tile.png'
+
+# Palette: the ruby red and white of the README banner (banner tile #C41242, gradient #301522 to #10141D).
+$ruby = '#C41242'
+$white = 'FFFFFF'
+$muted = 'DCC9D0'
 
 function Find-FFmpeg {
     $command = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
@@ -49,13 +56,13 @@ function Get-Media([string]$Path) {
 }
 
 function Text-Filter([string]$Name, [string]$Text, [int]$Size, [string]$X, [int]$Y,
-        [string]$Color = 'F0F3F4', [string]$Font = 'bold') {
+        [string]$Color = $white, [string]$Font = 'bold') {
     [IO.File]::WriteAllText((Join-Path $work "$Name.txt"), $Text, $utf8)
     return "drawtext=fontfile=font-$Font.ttf:textfile=$Name.txt:expansion=none:fontsize=${Size}:fontcolor=0x${Color}:x=${X}:y=$Y"
 }
 
 function Text-Lines([string]$Name, [string[]]$Lines, [int]$Size, [string]$X, [int]$Y,
-        [string]$Color = 'F0F3F4', [string]$Font = 'bold') {
+        [string]$Color = $white, [string]$Font = 'bold') {
     $filters = @()
     for ($line = 0; $line -lt $Lines.Count; $line++) {
         $filters += Text-Filter "$Name-$line" $Lines[$line] $Size $X ($Y + $line * ($Size + 16)) $Color $Font
@@ -76,47 +83,209 @@ function Wrap-Caption([string]$Text) {
     return $lines
 }
 
-function Round-Rectangle([Drawing.Graphics]$Graphics, [Drawing.Brush]$Brush,
-        [int]$X, [int]$Y, [int]$Width, [int]$Height, [int]$Radius) {
+# ---- GDI+ drawing for the static artwork: backdrops, brand lockups, title cards, phone frames -----------------------
+
+function Hex([string]$Value) { return [Drawing.ColorTranslator]::FromHtml($Value) }
+
+function Round-Path([int]$X, [int]$Y, [int]$Width, [int]$Height, [int]$Radius) {
     $path = New-Object Drawing.Drawing2D.GraphicsPath
-    try {
-        $d = $Radius * 2
-        $path.AddArc($X, $Y, $d, $d, 180, 90)
-        $path.AddArc($X + $Width - $d, $Y, $d, $d, 270, 90)
-        $path.AddArc($X + $Width - $d, $Y + $Height - $d, $d, $d, 0, 90)
-        $path.AddArc($X, $Y + $Height - $d, $d, $d, 90, 90)
-        $path.CloseFigure()
-        $Graphics.FillPath($Brush, $path)
-    } finally { $path.Dispose() }
+    $d = $Radius * 2
+    $path.AddArc($X, $Y, $d, $d, 180, 90)
+    $path.AddArc($X + $Width - $d, $Y, $d, $d, 270, 90)
+    $path.AddArc($X + $Width - $d, $Y + $Height - $d, $d, $d, 0, 90)
+    $path.AddArc($X, $Y + $Height - $d, $d, $d, 90, 90)
+    $path.CloseFigure()
+    return $path
 }
 
-function New-Backdrop([string]$Name, [int]$Width, [int]$Height, $Phone) {
+function Round-Rectangle([Drawing.Graphics]$Graphics, [Drawing.Brush]$Brush,
+        [int]$X, [int]$Y, [int]$Width, [int]$Height, [int]$Radius) {
+    $path = Round-Path $X $Y $Width $Height $Radius
+    try { $Graphics.FillPath($Brush, $path) } finally { $path.Dispose() }
+}
+
+function New-Font([int]$Pixels, [string]$Style = 'Bold') {
+    return New-Object Drawing.Font('Segoe UI', [single]$Pixels, [Drawing.FontStyle]::$Style, [Drawing.GraphicsUnit]::Pixel)
+}
+
+function Measure-Text([Drawing.Graphics]$Graphics, [string]$Text, [Drawing.Font]$Font) {
+    return $Graphics.MeasureString($Text, $Font, 4000, [Drawing.StringFormat]::GenericTypographic).Width
+}
+
+function Draw-Text([Drawing.Graphics]$Graphics, [string]$Text, [Drawing.Font]$Font, [Drawing.Brush]$Brush, [double]$X, [double]$Y) {
+    $Graphics.DrawString($Text, $Font, $Brush, [single]$X, [single]$Y, [Drawing.StringFormat]::GenericTypographic)
+}
+
+function Draw-CenteredText([Drawing.Graphics]$Graphics, [string]$Text, [Drawing.Font]$Font, [Drawing.Brush]$Brush,
+        [double]$CenterX, [double]$Y) {
+    $width = Measure-Text $Graphics $Text $Font
+    Draw-Text $Graphics $Text $Font $Brush ($CenterX - $width / 2) $Y
+}
+
+function New-Card([string]$Name, [int]$Width, [int]$Height, [scriptblock]$Draw) {
     $bitmap = New-Object Drawing.Bitmap($Width, $Height)
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
-    $rect = New-Object Drawing.Rectangle(0, 0, $Width, $Height)
-    $gradient = New-Object Drawing.Drawing2D.LinearGradientBrush($rect,
-        [Drawing.ColorTranslator]::FromHtml('#172328'), [Drawing.ColorTranslator]::FromHtml('#080F14'), 35.0)
-    $gold = New-Object Drawing.SolidBrush([Drawing.ColorTranslator]::FromHtml('#F4CE69'))
-    $rim = New-Object Drawing.SolidBrush([Drawing.ColorTranslator]::FromHtml('#536168'))
-    $black = New-Object Drawing.SolidBrush([Drawing.ColorTranslator]::FromHtml('#080B0D'))
-    $shadow = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(70, 0, 0, 0))
     try {
         $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $graphics.FillRectangle($gradient, $rect)
-        $graphics.FillRectangle($gold, 108, 204, 68, 4)
-        if ($Phone) {
-            $x = $Phone.X; $y = $Phone.Y; $w = $Phone.Width; $h = $Phone.Height
-            Round-Rectangle $graphics $shadow ($x - 28) ($y - 8) ($w + 56) ($h + 48) 38
-            Round-Rectangle $graphics $rim ($x - 18) ($y - 18) ($w + 36) ($h + 36) 28
-            Round-Rectangle $graphics $black ($x - 16) ($y - 16) ($w + 32) ($h + 32) 26
-            $graphics.FillRectangle($rim, ($x + $w + 18), ($y + 78), 4, 60)
-        }
+        $graphics.TextRenderingHint = [Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+        $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        & $Draw $graphics $Width $Height
         $bitmap.Save((Join-Path $work $Name), [Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $shadow.Dispose(); $black.Dispose(); $rim.Dispose(); $gold.Dispose()
-        $gradient.Dispose(); $graphics.Dispose(); $bitmap.Dispose()
+    } finally { $graphics.Dispose(); $bitmap.Dispose() }
+}
+
+function Draw-Backdrop([Drawing.Graphics]$Graphics, [int]$Width, [int]$Height, [double]$RingX, [double]$RingY, [double]$RingStep) {
+    $rect = New-Object Drawing.Rectangle(0, 0, $Width, $Height)
+    $gradient = New-Object Drawing.Drawing2D.LinearGradientBrush($rect, (Hex '#301522'), (Hex '#0F131C'), 35.0)
+    # Concentric rings echo the README banner.
+    $pen = New-Object Drawing.Pen([Drawing.Color]::FromArgb(54, 196, 18, 66), 2)
+    try {
+        $Graphics.FillRectangle($gradient, $rect)
+        for ($ring = 1; $ring -le 5; $ring++) {
+            $radius = $ring * $RingStep
+            $Graphics.DrawEllipse($pen, [single]($RingX - $radius), [single]($RingY - $radius), [single](2 * $radius), [single](2 * $radius))
+        }
+    } finally { $pen.Dispose(); $gradient.Dispose() }
+}
+
+function Draw-Tile([Drawing.Graphics]$Graphics, [Drawing.Image]$Tile, [double]$X, [double]$Y, [double]$Size) {
+    $Graphics.DrawImage($Tile, [single]$X, [single]$Y, [single]$Size, [single]$Size)
+}
+
+function Draw-BrandRow([Drawing.Graphics]$Graphics, [Drawing.Image]$Tile, [int]$X, [int]$Y, [int]$TileSize, [int]$FontPixels) {
+    $font = New-Font $FontPixels
+    $brush = New-Object Drawing.SolidBrush((Hex "#$white"))
+    try {
+        Draw-Tile $Graphics $Tile $X $Y $TileSize
+        $height = $Graphics.MeasureString('RUBYLIGHT', $font, 4000, [Drawing.StringFormat]::GenericTypographic).Height
+        Draw-Text $Graphics 'RUBYLIGHT' $font $brush ($X + $TileSize + 16) ($Y + ($TileSize - $height) / 2)
+    } finally { $font.Dispose(); $brush.Dispose() }
+}
+
+function New-TitleCard([string]$Name, [int]$Width, [int]$Height, [string]$Card, [bool]$Vertical, [Drawing.Image]$Tile) {
+    New-Card $Name $Width $Height {
+        param($g, $w, $h)
+        $whiteBrush = New-Object Drawing.SolidBrush((Hex "#$white"))
+        $mutedBrush = New-Object Drawing.SolidBrush((Hex "#$muted"))
+        $softBrush = New-Object Drawing.SolidBrush((Hex '#F1D3DC'))
+        $rubyBrush = New-Object Drawing.SolidBrush((Hex $ruby))
+        $fonts = @()
+        try {
+            if ($Card -eq 'intro') {
+                if ($Vertical) {
+                    Draw-Backdrop $g $w $h ($w / 2) ($h * 0.55) 170
+                    $word = New-Font 116; $tag = New-Font 46 'Regular'; $fonts += $word, $tag
+                    Draw-Tile $g $Tile (($w - 200) / 2) 590 200
+                    Draw-CenteredText $g 'RUBYLIGHT' $word $whiteBrush ($w / 2) 825
+                    Draw-CenteredText $g 'Your games. Your screen.' $tag $softBrush ($w / 2) 1015
+                    Draw-CenteredText $g 'Your stream.' $tag $softBrush ($w / 2) 1080
+                } else {
+                    Draw-Backdrop $g $w $h ($w * 0.8) ($h / 2) 150
+                    $word = New-Font 150; $tag = New-Font 48 'Regular'; $fonts += $word, $tag
+                    $wordWidth = Measure-Text $g 'RUBYLIGHT' $word
+                    $tagWidth = Measure-Text $g 'Your games. Your screen. Your stream.' $tag
+                    $tileSize = 190; $gap = 56
+                    $left = ($w - ($tileSize + $gap + [Math]::Max($wordWidth, $tagWidth))) / 2
+                    $top = 330
+                    Draw-Tile $g $Tile $left ($top + 20) $tileSize
+                    Draw-Text $g 'RUBYLIGHT' $word $whiteBrush ($left + $tileSize + $gap) ($top - 30)
+                    Draw-Text $g 'Your games. Your screen. Your stream.' $tag $softBrush ($left + $tileSize + $gap + 4) ($top + 180)
+                }
+            } else {
+                if ($Vertical) {
+                    Draw-Backdrop $g $w $h ($w / 2) ($h * 0.6) 170
+                    $word = New-Font 84; $big = New-Font 80; $get = New-Font 44; $dl = New-Font 44; $url = New-Font 31 'Regular'
+                    $fonts += $word, $big, $get, $dl, $url
+                    Draw-Tile $g $Tile (($w - 132) / 2) 490 132
+                    Draw-CenteredText $g 'RUBYLIGHT' $word $whiteBrush ($w / 2) 650
+                    Draw-CenteredText $g 'Start your stream.' $big $whiteBrush ($w / 2) 810
+                    $pillW = [int]((Measure-Text $g 'Get RUBYLIGHT' $get) + 120); $pillH = 100
+                    Round-Rectangle $g $rubyBrush ([int](($w - $pillW) / 2)) 960 $pillW $pillH 50
+                    Draw-CenteredText $g 'Get RUBYLIGHT' $get $whiteBrush ($w / 2) 982
+                    Draw-CenteredText $g 'Download on GitHub' $dl $whiteBrush ($w / 2) 1110
+                    Draw-CenteredText $g $repoUrl $url $mutedBrush ($w / 2) 1190
+                } else {
+                    Draw-Backdrop $g $w $h ($w * 0.82) ($h / 2) 150
+                    $word = New-Font 78; $big = New-Font 108; $get = New-Font 44; $dl = New-Font 44; $url = New-Font 34 'Regular'
+                    $fonts += $word, $big, $get, $dl, $url
+                    $wordWidth = Measure-Text $g 'RUBYLIGHT' $word
+                    $tileSize = 112; $gap = 28
+                    $left = ($w - ($tileSize + $gap + $wordWidth)) / 2
+                    Draw-Tile $g $Tile $left 150 $tileSize
+                    Draw-Text $g 'RUBYLIGHT' $word $whiteBrush ($left + $tileSize + $gap) 168
+                    Draw-CenteredText $g 'Start your stream.' $big $whiteBrush ($w / 2) 330
+                    $pillW = [int]((Measure-Text $g 'Get RUBYLIGHT' $get) + 140); $pillH = 104
+                    Round-Rectangle $g $rubyBrush ([int](($w - $pillW) / 2)) 530 $pillW $pillH 52
+                    Draw-CenteredText $g 'Get RUBYLIGHT' $get $whiteBrush ($w / 2) 554
+                    Draw-CenteredText $g 'Download on GitHub' $dl $whiteBrush ($w / 2) 690
+                    Draw-CenteredText $g $repoUrl $url $mutedBrush ($w / 2) 765
+                }
+            }
+        } finally {
+            foreach ($font in $fonts) { $font.Dispose() }
+            $whiteBrush.Dispose(); $mutedBrush.Dispose(); $softBrush.Dispose(); $rubyBrush.Dispose()
+        }
     }
 }
+
+# The layout of one shot: where the phone goes and where each piece of text sits, per output format and screen shape.
+function Get-Layout([bool]$Vertical, [bool]$Landscape, [int]$SourceW, [int]$SourceH) {
+    if ($Vertical) {
+        # 9:16 safe areas: wordmark and headline below y=290, captions end by y=1440, nothing in the right 120 px.
+        $l = [ordered]@{ Width = 1080; Height = 1920; BrandX = 124; BrandY = 292; Tile = 48; BrandFont = 34
+            CountX = 'w-text_w-124'; CountY = 303; HeadingY = 380; BarY = 464; CaptionY = 1378; Right = 956 }
+        # Landscape phones stay inside the 120 px side margins (x 120 to 960) so the cut survives platform UI.
+        if ($Landscape) { $l.MaxW = 840; $l.MaxH = 540; $l.CenterY = 905 } else { $l.MaxW = 600; $l.MaxH = 830; $l.CenterY = 925 }
+    } else {
+        $l = [ordered]@{ Width = 1920; Height = 1080; BrandX = 108; BrandY = 58; Tile = 46; BrandFont = 34
+            CountX = 'w-text_w-108'; CountY = 66; HeadingY = 404; BarY = 372; CaptionY = 960; Right = 1812 }
+        if ($Landscape) { $l.MaxW = 1240; $l.MaxH = 560; $l.CenterY = 548; $l.HeadingY = 150; $l.BarY = 232 }
+        else { $l.MaxW = 910; $l.MaxH = 780; $l.CenterY = 500 }
+    }
+    $scale = [Math]::Min($l.MaxW / $SourceW, $l.MaxH / $SourceH)
+    $l.ScreenW = [int]([Math]::Floor($SourceW * $scale / 2) * 2)
+    $l.ScreenH = [int]([Math]::Floor($SourceH * $scale / 2) * 2)
+    $l.X = [int](($l.Width - $l.ScreenW) / 2)
+    $l.Y = [int]($l.CenterY - $l.ScreenH / 2)
+    return [pscustomobject]$l
+}
+
+function New-ShotArt([string]$Id, $Layout, [bool]$Vertical, [bool]$Landscape, [Drawing.Image]$Tile) {
+    # Backdrop (gradient, rings, brand row, accent bar, phone body) and a separate bezel with rounded display corners.
+    New-Card "$Id-bg.png" $Layout.Width $Layout.Height {
+        param($g, $w, $h)
+        Draw-Backdrop $g $w $h ($Layout.X + $Layout.ScreenW / 2) ($Layout.Y + $Layout.ScreenH / 2) 200
+        Draw-BrandRow $g $Tile $Layout.BrandX $Layout.BrandY $Layout.Tile $Layout.BrandFont
+        $rubyBrush = New-Object Drawing.SolidBrush((Hex $ruby))
+        $rim = New-Object Drawing.SolidBrush((Hex '#5B4A53'))
+        $shadow = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(80, 0, 0, 0))
+        try {
+            # Heading accent bar: centred under a centred heading, otherwise above the left-aligned one.
+            $centered = $Vertical -or $Landscape
+            $barX = $(if ($centered) { [int](($w - 68) / 2) } else { $Layout.BrandX })
+            $g.FillRectangle($rubyBrush, $barX, $Layout.BarY, 68, 4)
+            $x = $Layout.X; $y = $Layout.Y; $pw = $Layout.ScreenW; $ph = $Layout.ScreenH
+            Round-Rectangle $g $shadow ($x - 26) ($y - 4) ($pw + 52) ($ph + 40) 40
+            Round-Rectangle $g $rim ($x - 18) ($y - 18) ($pw + 36) ($ph + 36) 34
+            $g.FillRectangle($rim, ($x + $pw + 18), ($y + 70), 4, 60)
+        } finally { $rubyBrush.Dispose(); $rim.Dispose(); $shadow.Dispose() }
+    }
+    New-Card "$Id-bezel.png" $Layout.Width $Layout.Height {
+        param($g, $w, $h)
+        $x = $Layout.X; $y = $Layout.Y; $pw = $Layout.ScreenW; $ph = $Layout.ScreenH
+        $g.Clear([Drawing.Color]::FromArgb(0, 0, 0, 0))
+        $black = New-Object Drawing.SolidBrush((Hex '#07090C'))
+        $hole = Round-Path $x $y $pw $ph 26
+        $ring = Round-Path ($x - 16) ($y - 16) ($pw + 32) ($ph + 32) 32
+        $region = New-Object Drawing.Region($ring)
+        try {
+            $region.Exclude($hole)
+            $g.FillRegion($black, $region)
+        } finally { $region.Dispose(); $hole.Dispose(); $ring.Dispose(); $black.Dispose() }
+    }
+}
+
+# ---- Manifest and sources ------------------------------------------------------------------------------------------
 
 $shots = @(Get-Content -LiteralPath (Join-Path $root 'docs/demo/shotlist.md') | ForEach-Object {
     if ($_ -match '^\| \d{2}-') {
@@ -127,8 +296,8 @@ $shots = @(Get-Content -LiteralPath (Join-Path $root 'docs/demo/shotlist.md') | 
         }
     }
 })
-if ($shots.Count -ne 13) { throw 'Expected 13 shots in docs/demo/shotlist.md.' }
-$duration = $intro + $outro + ($shots | Measure-Object Seconds -Sum).Sum - ($shots.Count + 1) * $fade
+if ($shots.Count -lt 6) { throw 'Expected the shots table in docs/demo/shotlist.md.' }
+$duration = $intro + $outro + ($shots | Measure-Object Seconds -Sum).Sum
 $null = New-Item -ItemType Directory -Path $output, $work, $frames -Force
 $ffmpeg = Find-FFmpeg
 $ffprobe = Join-Path (Split-Path -Parent $ffmpeg) 'ffprobe.exe'
@@ -140,7 +309,9 @@ foreach ($font in @(@('bold', 'segoeuib.ttf'), @('regular', 'segoeui.ttf'))) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Required Windows font is missing: $path" }
     Copy-Item -LiteralPath $path -Destination (Join-Path $work "font-$($font[0]).ttf") -Force
 }
+if (-not (Test-Path -LiteralPath $tilePath)) { throw "Missing brand tile: $tilePath" }
 Add-Type -AssemblyName System.Drawing
+$tile = [Drawing.Image]::FromFile($tilePath)
 $sources = @()
 foreach ($shot in $shots) {
     $clip = Join-Path $output "clips/$($shot.Id).mp4"
@@ -152,7 +323,9 @@ foreach ($shot in $shots) {
     $video = @($media.streams | Where-Object codec_type -eq 'video')[0]
     if (-not $video) { throw "No video or image stream: $path" }
     if (-not $still) {
-        if ($video.width -ne 1080 -or $video.height -ne 2400) { throw "Clip must be 1080x2400: $path" }
+        # Portrait or landscape 9:20 phone captures at any scale (capture-video.ps1 records half resolution).
+        $aspect = [double]$video.width / [double]$video.height
+        if ([Math]::Abs($aspect - 0.45) -gt 0.005 -and [Math]::Abs($aspect - 2.2222) -gt 0.01) { throw "Clip must be a 9:20 phone capture (portrait or landscape): $path" }
         if ([double]::Parse($media.format.duration, $culture) -lt ($shot.Seconds + 1)) {
             throw "Clip is too short for its one-second lead handle: $path"
         }
@@ -164,126 +337,101 @@ foreach ($shot in $shots) {
 }
 [IO.File]::WriteAllText((Join-Path $output 'sources.json'), ($sources | ConvertTo-Json), $utf8)
 
+# ---- Pictures ------------------------------------------------------------------------------------------------------
+
 # Relative filter paths avoid Windows drive-colon and apostrophe escaping in drawtext.
 Push-Location $work
 try {
     $encode = @('-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
         '-r', "$fps", '-threads', '2', '-video_track_timescale', '30000', '-movflags', '+faststart')
+    $starts = @{}
     foreach ($format in @('16x9', '9x16')) {
         $vertical = $format -eq '9x16'
         $width = 1920; $height = 1080
         if ($vertical) { $width = 1080; $height = 1920 }
         Write-Host "Rendering $format ($duration seconds)"
-        New-Backdrop "$format-title.png" $width $height $null
         $segments = @()
+
+        # Title cards are fully drawn by GDI+ (centred with measured text widths), so ffmpeg only fades them.
         foreach ($card in @('intro', 'outro')) {
             $id = "$format-$card"
-            $seconds = $intro
-            $filters = @()
+            New-TitleCard "$id.png" $width $height $card $vertical $tile
             if ($card -eq 'intro') {
-                if ($vertical) {
-                    $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 112 '(w-text_w)/2' 720 'F4CE69'
-                    $filters += Text-Lines "$id-tagline" @('Your games. Your screen.', 'Your stream.') 44 '(w-text_w)/2' 925
-                } else {
-                    $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 156 '(w-text_w)/2' 386 'F4CE69'
-                    $filters += Text-Filter "$id-tagline" 'Your games. Your screen. Your stream.' 46 '(w-text_w)/2' 610
-                }
+                $fade = "fade=t=in:st=0:d=$(Number $introFade)"; $seconds = $intro
             } else {
-                $seconds = $outro
-                if ($vertical) {
-                    $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 80 '(w-text_w)/2' 465 'F4CE69'
-                    $filters += Text-Filter "$id-cta" 'Start your stream.' 76 '(w-text_w)/2' 740
-                    $filters += Text-Filter "$id-get" 'Get RUBYLIGHT' 44 '(w-text_w)/2' 908 'F4CE69'
-                    $filters += Text-Lines "$id-url" @('https://github.com/RamazanKara', '/rubylight-android/releases') 34 '(w-text_w)/2' 1070 'BCC8CE' 'regular'
-                } else {
-                    $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 72 '(w-text_w)/2' 230 'F4CE69'
-                    $filters += Text-Filter "$id-cta" 'Start your stream.' 98 '(w-text_w)/2' 425
-                    $filters += Text-Filter "$id-get" 'Get RUBYLIGHT' 40 '(w-text_w)/2' 600 'F4CE69'
-                    $filters += Text-Filter "$id-url" $releases 34 '(w-text_w)/2' 710 'BCC8CE' 'regular'
-                }
+                $fade = "fade=t=out:st=$(Number ($outro - $outroFade)):d=$(Number $outroFade)"; $seconds = $outro
             }
-            $filters += 'setsar=1,format=yuv420p'
-            Invoke-FFmpeg (@('-loop', '1', '-framerate', "$fps", '-i', "$format-title.png", '-vf', ($filters -join ','),
+            Invoke-FFmpeg (@('-loop', '1', '-framerate', "$fps", '-i', "$id.png", '-vf', "$fade,setsar=1,format=yuv420p",
                 '-t', (Number $seconds)) + $encode + @("$id.mp4")) $id
         }
-        $segments += [pscustomobject]@{ Path = "$format-intro.mp4"; Seconds = $intro }
+        $segments += [pscustomobject]@{ Name = 'intro'; Path = "$format-intro.mp4"; Seconds = $intro }
         for ($index = 0; $index -lt $shots.Count; $index++) {
             $shot = $shots[$index]; $source = $sources[$index]
             $id = "$format-$($shot.Id)"
             $landscape = $source.Width -gt $source.Height
-            $maxW = 910; $maxH = 810; $centerY = 525
-            if ($vertical) { $maxW = 844; $maxH = 1180; $centerY = 920 }
-            $scale = [Math]::Min($maxW / $source.Width, $maxH / $source.Height)
-            $screenW = [int]([Math]::Floor($source.Width * $scale / 2) * 2)
-            $screenH = [int]([Math]::Floor($source.Height * $scale / 2) * 2)
-            $phone = [pscustomobject]@{
-                X = [int](($width - $screenW) / 2); Y = [int]($centerY - $screenH / 2)
-                Width = $screenW; Height = $screenH
-            }
-            New-Backdrop "$id-bg.png" $width $height $phone
-            $inputs = @('-loop', '1', '-framerate', "$fps", '-i', "$id-bg.png")
+            $layout = Get-Layout $vertical $landscape $source.Width $source.Height
+            New-ShotArt $id $layout $vertical $landscape $tile
+            $inputs = @('-loop', '1', '-framerate', "$fps", '-i', "$id-bg.png", '-loop', '1', '-framerate', "$fps", '-i', "$id-bezel.png")
             if ($source.Kind -eq 'storyboard') {
                 $inputs += @('-i', $source.Path)
                 $crop = ''
-                if ($shot.Crop -ne 'full') { $crop = "crop=$($shot.Crop)," }
-                $padW = [int]([Math]::Ceiling($screenW * 2.08 / 2) * 2)
-                $padH = [int]([Math]::Ceiling($screenH * 2.08 / 2) * 2)
+                if ($shot.Crop -ne 'full') { $crop = "$($shot.Crop)," }
+                $padW = [int]([Math]::Ceiling($layout.ScreenW * 2.08 / 2) * 2)
+                $padH = [int]([Math]::Ceiling($layout.ScreenH * 2.08 / 2) * 2)
                 $count = $shot.Seconds * $fps
                 $zoom = "1+0.03*on/($count-1)"
                 if ($index % 2 -eq 1) { $zoom = "1.03-0.03*on/($count-1)" }
-                $screen = "[1:v]${crop}scale=$($screenW * 2):$($screenH * 2):force_original_aspect_ratio=decrease:flags=lanczos," +
+                $screen = "[2:v]${crop}scale=$($layout.ScreenW * 2):$($layout.ScreenH * 2):force_original_aspect_ratio=decrease:flags=lanczos," +
                     "pad=${padW}:${padH}:(ow-iw)/2:(oh-ih)/2:color=0x111A1F," +
-                    "zoompan=z='$zoom':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=${count}:s=${screenW}x${screenH}:fps=${fps},setsar=1[screen]"
+                    "zoompan=z='$zoom':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=${count}:s=$($layout.ScreenW)x$($layout.ScreenH):fps=${fps},setsar=1[screen]"
             } else {
                 $inputs += @('-ss', '1', '-i', $source.Path)
-                $screen = "[1:v]trim=duration=$($shot.Seconds),setpts=PTS-STARTPTS,fps=${fps}," +
-                    "scale=${screenW}:${screenH}:flags=lanczos,setsar=1[screen]"
+                $screen = "[2:v]trim=duration=$($shot.Seconds),setpts=PTS-STARTPTS,fps=${fps}," +
+                    "scale=$($layout.ScreenW):$($layout.ScreenH):flags=lanczos,setsar=1[screen]"
             }
             $filters = @()
-            if ($vertical) {
-                $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 42 '108' 130 'F4CE69'
-                $filters += Text-Filter "$id-count" ('{0:00} / 13' -f ($index + 1)) 26 '824' 143 'BCC8CE' 'regular'
-                $filters += Text-Filter "$id-heading" $shot.Heading.Replace('~', ' ') 52 '(w-text_w)/2' 240
-                $filters += Text-Lines "$id-caption" @(Wrap-Caption $shot.Caption) 44 '(w-text_w)/2' 1610
-                if ($landscape) {
-                    $filters += Text-Lines "$id-callout" $shot.Callout.Split('~') 34 '(w-text_w)/2' 1320 'BCC8CE' 'regular'
-                }
+            $filters += Text-Filter "$id-count" ('{0:00} / {1:00}' -f ($index + 1), $shots.Count) 28 $layout.CountX $layout.CountY $muted 'regular'
+            $headingLines = $shot.Heading.Split('~')
+            if ($vertical -or $landscape) {
+                $filters += Text-Filter "$id-heading" $shot.Heading.Replace('~', ' ') 52 '(w-text_w)/2' $layout.HeadingY
             } else {
-                $filters += Text-Filter "$id-brand" 'RUBYLIGHT' 36 '108' 92 'F4CE69'
-                $filters += Text-Filter "$id-count" ('{0:00} / 13' -f ($index + 1)) 26 '1686' 99 'BCC8CE' 'regular'
-                $filters += Text-Lines "$id-heading" $shot.Heading.Split('~') 56 '108' 404
-                $filters += Text-Lines "$id-callout" $shot.Callout.Split('~') 27 '1450' 446 'BCC8CE' 'regular'
-                $filters += Text-Filter "$id-caption" $shot.Caption 42 '(w-text_w)/2' 960
+                $filters += Text-Lines "$id-heading" $headingLines 56 "$($layout.BrandX)" $layout.HeadingY
             }
-            $graph = "$screen;[0:v][screen]overlay=$($phone.X):$($phone.Y):shortest=1,$($filters -join ','),format=yuv420p,setsar=1[v]"
+            $calloutLines = $shot.Callout.Split('~')
+            if ($vertical -and $landscape) {
+                $filters += Text-Lines "$id-callout" $calloutLines 34 '(w-text_w)/2' ($layout.Y + $layout.ScreenH + 70) $muted 'regular'
+            } elseif ($landscape) {
+                $filters += Text-Filter "$id-callout" ($calloutLines -join '  ·  ') 30 '(w-text_w)/2' ($layout.Y + $layout.ScreenH + 38) $muted 'regular'
+            } elseif (-not $vertical) {
+                $filters += Text-Lines "$id-callout" $calloutLines 27 '1450' 446 $muted 'regular'
+            }
+            $captionLines = @(Wrap-Caption $shot.Caption)
+            $captionSize = $(if ($vertical) { 44 } else { 42 })
+            $captionTop = $layout.CaptionY - ($captionLines.Count - 1) * ($captionSize + 16)
+            $filters += Text-Lines "$id-caption" $captionLines $captionSize '(w-text_w)/2' $captionTop
+            $graph = "$screen;[0:v][screen]overlay=$($layout.X):$($layout.Y):shortest=1[phone];[phone][1:v]overlay=0:0:shortest=1," +
+                "$($filters -join ','),format=yuv420p,setsar=1[v]"
             [IO.File]::WriteAllText((Join-Path $work "$id.ffgraph"), $graph, $utf8)
-            Invoke-FFmpeg ($inputs + @('-filter_complex_threads', '2', '-filter_complex_script', "$id.ffgraph",
+            Invoke-FFmpeg ($inputs + @('-filter_complex_threads', '2', '-/filter_complex', "$id.ffgraph",
                 '-map', '[v]', '-t', (Number $shot.Seconds)) + $encode + @("$id.mp4")) $id
-            $segments += [pscustomobject]@{ Path = "$id.mp4"; Seconds = $shot.Seconds }
+            $segments += [pscustomobject]@{ Name = $shot.Id; Path = "$id.mp4"; Seconds = $shot.Seconds }
             Write-Host "  $($shot.Id): $($source.Kind)"
         }
-        $segments += [pscustomobject]@{ Path = "$format-outro.mp4"; Seconds = $outro }
+        $segments += [pscustomobject]@{ Name = 'outro'; Path = "$format-outro.mp4"; Seconds = $outro }
 
-        # A balanced tree bounds each crossfade to two decoders instead of buffering every shot.
-        $round = 0
-        while ($segments.Count -gt 1) {
-            $next = @()
-            for ($i = 0; $i -lt $segments.Count; $i += 2) {
-                if ($i + 1 -eq $segments.Count) { $next += $segments[$i]; continue }
-                $a = $segments[$i]; $b = $segments[$i + 1]
-                $id = "$format-join-$round-$i"
-                $seconds = $a.Seconds + $b.Seconds - $fade
-                $graph = "[0:v]settb=AVTB,setpts=PTS-STARTPTS[a];[1:v]settb=AVTB,setpts=PTS-STARTPTS[b];" +
-                    "[a][b]xfade=transition=fade:duration=$(Number $fade):offset=$(Number ($a.Seconds - $fade)),format=yuv420p[v]"
-                Invoke-FFmpeg (@('-i', $a.Path, '-i', $b.Path, '-filter_complex_threads', '2', '-filter_complex', $graph,
-                    '-map', '[v]', '-t', (Number $seconds)) + $encode + @("$id.mp4")) $id
-                $next += [pscustomobject]@{ Path = "$id.mp4"; Seconds = $seconds }
-            }
-            $segments = $next
-            $round++
-        }
-        Copy-Item -LiteralPath $segments[0].Path -Destination "$format-picture.mp4" -Force
+        # Hard cuts: every segment is encoded with identical settings, so they join losslessly. (A crossfade would
+        # leave a few frames of doubled captions and UI text.) Record where each shot starts for the review frames.
+        $at = 0.0
+        $mid = @{}
+        foreach ($segment in $segments) { $mid[$segment.Name] = $at; $at += $segment.Seconds }
+        $starts[$format] = $mid
+        $list = ($segments | ForEach-Object { "file '$($_.Path)'" }) -join "`n"
+        [IO.File]::WriteAllText((Join-Path $work "$format-concat.txt"), $list, $utf8)
+        Invoke-FFmpeg @('-f', 'concat', '-safe', '0', '-i', "$format-concat.txt", '-c', 'copy', "$format-picture.mp4") "$format-join"
     }
+
+    # Start times of every segment, for the README GIF and the review frames.
+    [IO.File]::WriteAllText((Join-Path $output 'segments.json'), ($starts | ConvertTo-Json -Depth 4), $utf8)
 
     Write-Host 'Synthesizing the ambient bed and normalizing loudness'
     $length = Number $duration
@@ -304,6 +452,10 @@ try {
         "measured_LRA=$($levels.input_lra):measured_thresh=$($levels.input_thresh):offset=$($levels.target_offset):linear=true:print_format=json"
     Invoke-FFmpeg @('-i', 'music-raw.wav', '-af', $normalize, '-ar', '48000', '-c:a', 'pcm_s24le', 'music.wav') 'loudness-normalized'
 
+    # Eight review frames per video: both title cards and a mid-shot frame of six shots, including every stream
+    # shot with an overlay (the part of the picture most likely to collide with the sample's own text).
+    $review = @(@('intro', 1.8), @('01-launch', 2.0), @('04-library', 2.5), @('06-compact', 3.0), @('11-touch', 2.5),
+        @('12-pip', 5.3), @('13-performance', 5.0), @('outro', 2.5))
     foreach ($format in @('16x9', '9x16')) {
         $final = Join-Path $output "demo-$format.mp4"
         Invoke-FFmpeg @('-i', "$format-picture.mp4", '-i', 'music.wav', '-map', '0:v:0', '-map', '1:a:0',
@@ -320,13 +472,15 @@ try {
                 $video.width -ne $expectedW -or $video.height -ne $expectedH -or
                 [Math]::Abs($actualDuration - $duration) -gt 0.1) { throw "Export validation failed: $final" }
         [IO.File]::WriteAllText((Join-Path $output "demo-$format.ffprobe.json"), ($media | ConvertTo-Json -Depth 12), $utf8)
-        Invoke-FFmpeg @('-ss', '1', '-i', $final, '-frames:v', '1', '-update', '1', (Join-Path $output "poster-$format.png")) "$format-poster"
-        for ($i = 0; $i -lt 8; $i++) {
-            $time = 0.8 + ($actualDuration - 1.6) * $i / 7
-            $name = 'demo-{0}-{1:00}.png' -f $format, ($i + 1)
-            Invoke-FFmpeg @('-ss', (Number $time), '-i', $final, '-frames:v', '1', '-update', '1', (Join-Path $frames $name)) "$format-frame-$i"
+        Invoke-FFmpeg @('-ss', '1.8', '-i', $final, '-frames:v', '1', '-update', '1', (Join-Path $output "poster-$format.png")) "$format-poster"
+        $number = 0
+        foreach ($item in $review) {
+            $number++
+            $time = $starts[$format][$item[0]] + $item[1]
+            $name = 'demo-{0}-{1:00}-{2}.png' -f $format, $number, $item[0]
+            Invoke-FFmpeg @('-ss', (Number $time), '-i', $final, '-frames:v', '1', '-update', '1', (Join-Path $frames $name)) "$format-frame-$number"
         }
         Invoke-FFmpeg @('-i', $final, '-vn', '-af', 'loudnorm=I=-20:TP=-2:LRA=7:print_format=json', '-f', 'null', '-') "$format-audio-check"
         Write-Host "Exported $final and eight review frames"
     }
-} finally { Pop-Location }
+} finally { Pop-Location; $tile.Dispose() }
