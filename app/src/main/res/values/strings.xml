@@ -323,7 +323,7 @@
     <string name="title_virtual_display">Host virtual display</string>
     <string name="summary_virtual_display">Match the stream’s size and frame rate on the PC.</string>
     <string name="title_vrr">Variable refresh (VRR)</string>
-    <string name="summary_vrr">Match the screen to the game’s frame rate.</string>
+    <string name="summary_vrr">Match the screen to the game’s frame rate. Turns off frame timing with a Rubylight PC.</string>
     <string name="title_virtual_display_scale">Host render scale</string>
     <string name="summary_virtual_display_scale">At 100 percent, PC and stream resolutions match.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>

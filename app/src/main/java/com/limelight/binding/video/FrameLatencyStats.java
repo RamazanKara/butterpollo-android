@@ -95,10 +95,23 @@ class FrameLatencyStats {
         // The unsigned wire value is in 100 us units; zero means unavailable.
         frame.hostProcessingNs = hostProcessingLatency * 100000L;
         pending.put(ptsUs, frame);
-        addSample(0, enqueueNs, inputNs);
         if (frame.hostProcessingNs != 0) {
             addDuration(4, frame.hostProcessingNs);
         }
+    }
+
+    // queueInputBuffer() has returned: decode time starts here, like other Moonlight clients count
+    // it, and the queue call itself belongs to the queue wait. A frame whose output already came
+    // (the decoder beat the bookkeeping) keeps its earlier start.
+    synchronized void onDecoderQueued(long ptsUs, long queuedNs) {
+        Frame frame = pending.get(ptsUs);
+        if (frame == null) {
+            return;
+        }
+        if (frame.outputNs == 0) {
+            frame.inputNs = queuedNs;
+        }
+        addSample(0, frame.enqueueNs, frame.inputNs);
     }
 
     synchronized void onDecoderOutput(int index, long ptsUs, long outputNs) {

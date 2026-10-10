@@ -279,7 +279,7 @@
     <string name="title_virtual_display">Virtuelles Host-Display</string>
     <string name="summary_virtual_display">Passe Auflösung und Bildrate am PC an den Stream an.</string>
     <string name="title_vrr">Variable Bildrate (VRR)</string>
-    <string name="summary_vrr">Passe das Display an die Bildrate des Spiels an.</string>
+    <string name="summary_vrr">Passe das Display an die Bildrate des Spiels an. Schaltet das Frame-Timing mit einem Rubylight-PC ab.</string>
     <string name="title_virtual_display_scale">Host-Skalierung</string>
     <string name="summary_virtual_display_scale">Bei 100 Prozent passt die PC-Auflösung zum Stream.</string>
     <string name="latency_values">%1$.2f / %2$.2f / %3$.2f (n=%4$d)</string>

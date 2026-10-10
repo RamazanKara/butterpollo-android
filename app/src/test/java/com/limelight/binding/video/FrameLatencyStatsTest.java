@@ -20,6 +20,7 @@ public class FrameLatencyStatsTest {
             long now = 1000000000L + i * 1000000L;
             stats.onFrameReceived(now);
             stats.onDecoderInput(i, i, now, now, now, (char) 0);
+            stats.onDecoderQueued(i, now);
             stats.onDecoderOutput(0, i, now);
             stats.onOutputReleased(0, now, true, true);
             if (i % 1000 == 0) stats.expire(now);
@@ -34,6 +35,7 @@ public class FrameLatencyStatsTest {
         for (int i = 0; i < 5000; i++) {
             long timeNs = 1000000000L + i * 1000000L;
             stats.onDecoderInput(i, i, timeNs, timeNs, timeNs, (char) 0);
+            stats.onDecoderQueued(i, timeNs);
             stats.onDecoderOutput(0, i, timeNs);
             stats.onOutputReleased(0, timeNs, true, true);
         }
@@ -45,6 +47,7 @@ public class FrameLatencyStatsTest {
     public void timingSplitExcludesPacketAssemblyAndKeepsFractionalMilliseconds() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 123, 1000000, 15000000, 20000000, (char) 0);
+        stats.onDecoderQueued(123, 20000000);
         stats.onDecoderOutput(0, 123, 22750000);
         stats.onOutputReleased(0, 23000000, true, true);
         stats.onFrameRendered(123, 27250000);
@@ -73,6 +76,7 @@ public class FrameLatencyStatsTest {
         for (int i = 1; i <= 4; i++) {
             stats.onFrameReceived(1000000);
             stats.onDecoderInput(i, i, 1000000, 2000000, 3000000, (char) 0);
+            stats.onDecoderQueued(i, 3000000);
         }
         stats.onDecoderOutput(0, 1, 4000000);
         stats.onOutputReleased(0, 5000000, false, true);
@@ -95,6 +99,7 @@ public class FrameLatencyStatsTest {
         stats.discardPending("codec_reset");
         assertEquals(3, stats.getAverageDecoderLatency());
         stats.onDecoderInput(5, 5, 20000000, 21000000, 22000000, (char) 0);
+        stats.onDecoderQueued(5, 22000000);
         stats.onDecoderOutput(0, 5, 31000000);
         assertEquals(9, stats.takeDecodeTimeMs(), 0);
         assertEquals(5, stats.getAverageDecoderLatency());
@@ -106,6 +111,7 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (long enqueueNs : new long[] {0, 4000000}) {
             stats.onDecoderInput(1, 1, 1000000, enqueueNs, 3000000, (char) 0);
+            stats.onDecoderQueued(1, 3000000);
             stats.onDecoderOutput(0, 1, 4000000);
             stats.onOutputReleased(0, 5000000, false, true);
         }
@@ -123,16 +129,20 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         assertEquals(-1, stats.takeDecodeTimeMs(), 0);
         stats.onDecoderInput(1, 1000, 1000000, 1000000, 2000000, (char) 0);
+        stats.onDecoderQueued(1000, 2000000);
         assertEquals(-1, stats.takeDecodeTimeMs(), 0);
         stats.onDecoderOutput(1, 1000, 6000000);
         stats.onDecoderInput(2, 2000, 7000000, 7000000, 8000000, (char) 0);
+        stats.onDecoderQueued(2000, 8000000);
         stats.onDecoderOutput(2, 2000, 14000000);
         assertEquals(5, stats.takeDecodeTimeMs(), 0);
         assertEquals(-1, stats.takeDecodeTimeMs(), 0);
         stats.onDecoderInput(3, 3000, 15000000, 15000000, 16000000, (char) 0);
+        stats.onDecoderQueued(3000, 16000000);
         stats.onDecoderOutput(3, 3000, 14000000);
         assertEquals(-1, stats.takeDecodeTimeMs(), 0);
         stats.onDecoderInput(4, 4000, 20000000, 20000000, 21000000, (char) 0);
+        stats.onDecoderQueued(4000, 21000000);
         stats.onDecoderOutput(4, 4000, 22000000);
         stats.discardPending("stopped");
         assertEquals(-1, stats.takeDecodeTimeMs(), 0);
@@ -142,9 +152,11 @@ public class FrameLatencyStatsTest {
     public void reusedOutputIndexKeepsBothPendingRenderCallbacks() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(10, 200);
         stats.onDecoderOutput(0, 10, 300);
         stats.onOutputReleased(0, 400, true, true);
         stats.onDecoderInput(2, 20, 500, 500, 600, (char) 0);
+        stats.onDecoderQueued(20, 600);
         stats.onDecoderOutput(0, 20, 700);
         stats.onFrameRendered(10, 450);
         stats.onOutputReleased(0, 800, true, true);
@@ -161,9 +173,11 @@ public class FrameLatencyStatsTest {
     public void lateCallbacksAfterCodecResetCannotCompleteNewBuffers() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(10, 200);
         stats.onDecoderOutput(0, 10, 300);
         stats.discardPending("codec_reset");
         stats.onDecoderInput(2, 20, 500, 500, 600, (char) 0);
+        stats.onDecoderQueued(20, 600);
         stats.onDecoderOutput(0, 20, 700);
         stats.onFrameRendered(10, 800);
         stats.onOutputReleased(0, 900, false, true);
@@ -181,9 +195,11 @@ public class FrameLatencyStatsTest {
     public void absentCallbacksExpireWithoutInventingRenderMeasurements() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(10, 200);
         stats.onDecoderOutput(0, 10, 300);
         stats.onOutputReleased(0, 400, true, true);
         stats.onDecoderInput(2, 20, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(20, 200);
         stats.expire(5000000400L);
         stats.onFrameRendered(10, 5000000300L);
 
@@ -199,6 +215,7 @@ public class FrameLatencyStatsTest {
     public void invalidClockOrderIsExcludedFromPercentiles() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 300, 300, 200, (char) 0);
+        stats.onDecoderQueued(10, 200);
         stats.onDecoderOutput(0, 10, 100);
         stats.onOutputReleased(0, 400, true, true);
         stats.onFrameRendered(10, 500);
@@ -215,6 +232,7 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (int i = 0; i < 15000; i++) {
             stats.onDecoderInput(i, i, 100, 100, 200, (char) 0);
+            stats.onDecoderQueued(i, 200);
         }
         StringWriter overflowCsv = new StringWriter();
         stats.writeCsv(overflowCsv);
@@ -232,6 +250,7 @@ public class FrameLatencyStatsTest {
     public void blockedCsvIoDoesNotBlockDecoderCallbacks() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 10, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(10, 200);
         stats.discardPending("stream_ended");
         CountDownLatch writing = new CountDownLatch(1);
         CountDownLatch resume = new CountDownLatch(1);
@@ -260,6 +279,7 @@ public class FrameLatencyStatsTest {
             assertTrue(writing.await(5, TimeUnit.SECONDS));
             executor.submit(() -> {
                 stats.onDecoderInput(2, 20, 500, 500, 600, (char) 0);
+                stats.onDecoderQueued(20, 600);
                 stats.onDecoderOutput(0, 20, 700);
                 stats.onOutputReleased(0, 800, true, true);
                 stats.onFrameRendered(20, 900);
@@ -277,6 +297,7 @@ public class FrameLatencyStatsTest {
     public void completedGpuFenceDoesNotInventDisplayTiming() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(9, 9, 1000000, 1000000, 2000000, (char) 0);
+        stats.onDecoderQueued(9, 2000000);
         stats.onDecoderOutput(0, 9, 3500000);
         stats.onOutputReleased(0, 6000000, true, false);
         assertArrayEquals(new double[] {1, 1.5, 1.5, 1.5}, stats.summarize()[1], 0.00001);
@@ -291,6 +312,7 @@ public class FrameLatencyStatsTest {
     public void hostDurationIsIndependentOfClientClockAndSurvivesCsvExport() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(42, 123, 1000000, 1000000, 2000000, (char) 123);
+        stats.onDecoderQueued(123, 2000000);
         stats.onDecoderOutput(0, 123, 5000000);
         stats.onOutputReleased(0, 6000000, true, true);
         stats.onFrameRendered(123, 7000000);
@@ -306,6 +328,7 @@ public class FrameLatencyStatsTest {
     public void missingHostTimingIsBlankNotZeroLatency() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 1, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(1, 200);
         stats.discardPending("stopped");
         assertEquals(0, stats.summarize()[4][0], 0);
         StringWriter csv = new StringWriter();
@@ -317,10 +340,12 @@ public class FrameLatencyStatsTest {
     public void wireTimingIsUnsignedAndWindowIsBounded() {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(1, 1, 100, 100, 200, (char) 65535);
+        stats.onDecoderQueued(1, 200);
         assertEquals(6553.5, stats.summarize()[4][1], 0.00001);
         stats.discardPending("stopped");
         for (int i = 0; i < FrameLatencyStats.WINDOW_SIZE; i++) {
             stats.onDecoderInput(i, i, 100, 100, 200, (char) 10);
+            stats.onDecoderQueued(i, 200);
             stats.discardPending("stopped");
         }
         assertArrayEquals(new double[] {600, 1, 1, 1}, stats.summarize()[4], 0.00001);
@@ -346,6 +371,7 @@ public class FrameLatencyStatsTest {
                 FrameLatencyStats.CSV_HEADER);
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onDecoderInput(42, 123, 1000000, 1000000, 2000000, (char) 123);
+        stats.onDecoderQueued(123, 2000000);
         stats.onDecoderOutput(0, 123, 5000000);
         stats.onOutputReleased(0, 6000000, true, true);
         stats.onFrameRendered(123, 9000000);
@@ -362,6 +388,7 @@ public class FrameLatencyStatsTest {
         for (int i = 1; i <= 2; i++) {
             long start = i * 10000000L;
             stats.onDecoderInput(i, i, start, start, start + 1000000, (char) 0);
+            stats.onDecoderQueued(i, start + 1000000);
             stats.onDecoderOutput(0, i, start + 3000000);
             stats.onOutputReleased(0, start + 4000000, true, true);
         }
@@ -385,6 +412,7 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (int i = 1; i <= 3; i++) {
             stats.onDecoderInput(i, i, 1000000, 1000000, 2000000, (char) 0);
+            stats.onDecoderQueued(i, 2000000);
             stats.onDecoderOutput(0, i, 3000000);
             stats.onOutputReleased(0, 4000000, i != 2, i != 3);
         }
@@ -408,6 +436,7 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (int i = 1; i <= 3; i++) {
             stats.onDecoderInput(i, i, 1000000, 1000000, 2000000, (char) 0);
+            stats.onDecoderQueued(i, 2000000);
             if (i != 3) stats.onDecoderOutput(0, i, i == 1 ? 1500000 : 3000000);
             stats.onOutputReleased(0, 4000000, true, true);
             stats.onFrameRendered(i, i == 2 ? 2500000 : 5000000);
@@ -428,16 +457,19 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         for (int i = 1; i <= 100; i++) {
             stats.onDecoderInput(i, i, 1000000, 1000000, 2000000, (char) 0);
+            stats.onDecoderQueued(i, 2000000);
             stats.onDecoderOutput(0, i, 3000000);
             stats.onOutputReleased(0, 3000000, true, true);
             stats.onFrameRendered(i, 3000000 + i * 1000000L);
             stats.onDecoderInput(i + 100, i + 100, 1000000, 1000000, 2000000, (char) 0);
+            stats.onDecoderQueued(i + 100, 2000000);
             stats.discard(i + 100, "dropped");
         }
         assertArrayEquals(new double[] {100, 50.5, 95, 99}, stats.summarize()[2], 0.00001);
         assertArrayEquals(new double[] {100, 52.5, 97, 101}, stats.summarize()[3], 0.00001);
         for (int i = 0; i < FrameLatencyStats.WINDOW_SIZE; i++) {
             stats.onDecoderInput(i, i, 1000000, 1000000, 2000000, (char) 0);
+            stats.onDecoderQueued(i, 2000000);
             stats.onDecoderOutput(0, i, 3000000);
             stats.onOutputReleased(0, 3000000, true, true);
             stats.onFrameRendered(i, 3000000);
@@ -452,6 +484,7 @@ public class FrameLatencyStatsTest {
         for (int i = 1; i <= 3; i++) {
             long start = i * 20000000L;
             stats.onDecoderInput(i, i, start, start, start + 1000000, (char) 0);
+            stats.onDecoderQueued(i, start + 1000000);
             stats.onDecoderOutput(0, i, start + 3000000);
             stats.onOutputReleased(0, start + 4000000, true, i != 3);
         }
@@ -475,12 +508,14 @@ public class FrameLatencyStatsTest {
         for (int i = 1; i <= 3; i++) {
             long start = i * 10000000L;
             stats.onDecoderInput(i, i, start, start, start + 1000000, (char) 0);
+            stats.onDecoderQueued(i, start + 1000000);
             stats.onDecoderOutput(0, i, start + 2000000);
             stats.onOutputReleased(0, start + 3000000, i != 2, false);
         }
         assertEquals(100, stats.takeOutputFrameRate(), 0.00001);
         stats.discardPending("codec_reset");
         stats.onDecoderInput(4, 4, 40000000, 40000000, 41000000, (char) 0);
+        stats.onDecoderQueued(4, 41000000);
         stats.onDecoderOutput(0, 4, 42000000);
         stats.onOutputReleased(0, 43000000, true, false);
         assertEquals(0, stats.takeOutputFrameRate(), 0);
@@ -500,6 +535,7 @@ public class FrameLatencyStatsTest {
         for (int i = 0; i < 4; i++) {
             if (i != 0) start += 16683350;
             stats.onDecoderInput(i, i, start, start, start, (char) 0);
+            stats.onDecoderQueued(i, start);
             stats.onDecoderOutput(0, i, start + 1000000);
             stats.onOutputReleased(0, start + 2000000, true, false);
         }
@@ -507,6 +543,7 @@ public class FrameLatencyStatsTest {
         for (int i = 4; i < 7; i++) {
             start += 25000000;
             stats.onDecoderInput(i, i, start, start, start, (char) 0);
+            stats.onDecoderQueued(i, start);
             stats.onDecoderOutput(0, i, start + 1000000);
             stats.onOutputReleased(0, start + 2000000, true, false);
         }
@@ -517,9 +554,11 @@ public class FrameLatencyStatsTest {
     public void vrrInvalidReleaseTimesAndUnreleasedFramesDoNotInventIntervals() throws Exception {
         FrameLatencyStats stats = new FrameLatencyStats(true);
         stats.onDecoderInput(1, 1, 100, 100, 200, (char) 0);
+        stats.onDecoderQueued(1, 200);
         stats.onDecoderOutput(0, 1, 300);
         stats.onOutputReleased(0, 250, true, false);
         stats.onDecoderInput(2, 2, 400, 400, 500, (char) 0);
+        stats.onDecoderQueued(2, 500);
         stats.discardPending("codec_reset");
         assertEquals(0, stats.takeOutputFrameRate(), 0);
         StringWriter csv = new StringWriter();
@@ -536,6 +575,7 @@ public class FrameLatencyStatsTest {
         for (int i = 0; i < 120; i++) {
             long outputNs = 1000000000L + i * 8333333L;
             stats.onDecoderInput(i, i, outputNs - 2000000, outputNs - 2000000, outputNs - 1000000, (char) 0);
+            stats.onDecoderQueued(i, outputNs - 1000000);
             stats.onDecoderOutput(i, i, outputNs);
         }
         assertEquals(120, stats.takeOutputFrameRate(), 0.001);
@@ -554,6 +594,7 @@ public class FrameLatencyStatsTest {
             long receiveNs = startNs + i * 8333333L;
             stats.onFrameReceived(receiveNs);
             stats.onDecoderInput(i, i, receiveNs, receiveNs, receiveNs, (char) 0);
+            stats.onDecoderQueued(i, receiveNs);
             stats.onDecoderOutput(0, i, receiveNs);
             stats.onOutputReleased(0, receiveNs, true, true);
         }
@@ -588,6 +629,7 @@ public class FrameLatencyStatsTest {
         for (int i = 1; i <= 4; i++) {
             stats.onFrameReceived(i * 1000000L);
             stats.onDecoderInput(i, i, i * 1000000L, i * 1000000L, i * 1000000L, (char) 0);
+            stats.onDecoderQueued(i, i * 1000000L);
             stats.onDecoderOutput(0, i, i * 1000000L);
             stats.onOutputReleased(0, 1000000000L, i != 2, i != 3);
         }
@@ -604,6 +646,7 @@ public class FrameLatencyStatsTest {
         FrameLatencyStats stats = new FrameLatencyStats();
         stats.onFrameReceived(1000000);
         stats.onDecoderInput(1, 1, 1000000, 1000000, 2000000, (char) 0);
+        stats.onDecoderQueued(1, 2000000);
         stats.onDecoderOutput(0, 1, 3000000);
         stats.onOutputReleased(0, 4000000, true, false);
         assertEquals(-1, stats.getFrameRates(5000000)[2], 0);

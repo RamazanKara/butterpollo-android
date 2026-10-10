@@ -262,6 +262,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private Handler choreographerHandler;
     private final Object vsyncMonitor = new Object();
     private long vsyncTimeNs;
+    // The panel's top refresh period, which phase-lock reports carry; 0 until the first vsync.
+    private long phaseIntervalNs;
     private long vsyncIntervalNs;
     private long vsyncPresentationDeadlineNs;
     private final boolean useArr;
@@ -1327,7 +1329,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             if (prefs.enableYuv444 && (format & MoonBridge.VIDEO_FORMAT_MASK_YUV444) == 0) {
                 activity.runOnUiThread(() -> Toast.makeText(context, R.string.yuv444_fallback, Toast.LENGTH_LONG).show());
             }
-            latencyThread = new HandlerThread("Video - Latency", Process.THREAD_PRIORITY_BACKGROUND);
+            // Default, not background: the decode thread shares the timing lock with this one.
+            latencyThread = new HandlerThread("Video - Latency", Process.THREAD_PRIORITY_DEFAULT);
             latencyThread.start();
             latencyHandler = new Handler(latencyThread.getLooper());
             latencyHandler.post(new Runnable() {
@@ -1662,7 +1665,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (useArr) return;
         long slackNs, intervalNs;
         synchronized (vsyncMonitor) {
-            intervalNs = vsyncIntervalNs;
+            intervalNs = phaseIntervalNs != 0 ? phaseIntervalNs : vsyncIntervalNs;
             slackNs = latchSlackNs(readyNs, vsyncTimeNs, intervalNs, vsyncPresentationDeadlineNs);
         }
         if (slackNs >= 0) MoonBridge.reportFrameSlack(slackNs, intervalNs);
@@ -1689,8 +1692,14 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     display.getMode().getRefreshRate() : display.getRefreshRate();
             vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
             vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
+            if (phaseIntervalNs == 0) {
+                // Phase lock aims at the panel's top rate, which the stream votes for, not the
+                // rate an LTPO panel rests at between frames.
+                phaseIntervalNs = (long) (1000000000.0 / DisplayFrameRatePolicy.maxRefreshRate(display));
+            }
         }
-        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
+        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED ||
+                (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             // Other modes render from the decoder thread; this callback only tracks vsync.
             Choreographer.getInstance().postFrameCallback(this);
             return;
@@ -1737,7 +1746,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private void startChoreographerThread() {
         // Every pacing mode tracks vsync for phase-lock reports; only balanced renders here.
         // We use a separate thread to avoid any main thread delays from delaying rendering
-        choreographerHandlerThread = new HandlerThread("Video - Choreographer", Process.THREAD_PRIORITY_DEFAULT + Process.THREAD_PRIORITY_MORE_FAVORABLE);
+        choreographerHandlerThread = new HandlerThread("Video - Choreographer", Process.THREAD_PRIORITY_DISPLAY);
         choreographerHandlerThread.start();
 
         // Start the frame callbacks
@@ -1755,6 +1764,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         rendererThread = new Thread() {
             @Override
             public void run() {
+                // Frames leave the decoder for the display from here.
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);
                 try (DecoderPerformanceHints performanceHints =
                              new DecoderPerformanceHints(context, prefs.phonePerformanceHints, refreshRate)) {
                     BufferInfo info = new BufferInfo();
@@ -1851,7 +1862,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
         };
         rendererThread.setName("Video - Renderer (MediaCodec)");
-        rendererThread.setPriority(Thread.NORM_PRIORITY + 2);
         rendererThread.start();
     }
 
@@ -1926,7 +1936,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     @Override
     public void start() {
-        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) return;
+        if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
+            // The Vulkan renderer presents on its own; vsync is still tracked for phase-lock reports.
+            startChoreographerThread();
+            return;
+        }
         startRendererThread();
         startChoreographerThread();
     }
@@ -1941,6 +1955,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             // Vulkan teardown and HDR transitions may wait on the GPU; keep the UI off that lock.
+            // The vsync tracker still has to end, or stop() would wait for it forever.
+            quitChoreographerThread();
             return;
         }
 
@@ -1955,6 +1971,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             codecRecoveryMonitor.notifyAll();
         }
 
+        quitChoreographerThread();
+    }
+
+    private void quitChoreographerThread() {
         // Post a quit message to the Choreographer looper (if we have one)
         if (choreographerHandler != null) {
             choreographerHandler.post(new Runnable() {
@@ -2096,6 +2116,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             videoDecoder.queueInputBuffer(nextInputBufferIndex,
                     0, nextInputBuffer.position(),
                     timestampUs, codecFlags);
+            if ((codecFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
+                frameLatencyStats.onDecoderQueued(timestampUs, System.nanoTime());
+            }
 
             // We need a new buffer now
             nextInputBufferIndex = -1;
@@ -2276,6 +2299,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
             lastTimestampUs = ptsUs;
             frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, enqueueTimeNs, inputNs, frameHostProcessingLatency);
+            frameLatencyStats.onDecoderQueued(ptsUs, inputNs);
             // Newest frame wins: every PyroWave frame is intra-only, so when a newer one is already
             // waiting, decoding this one would only delay it. A phone that falls behind catches up
             // at once instead of working through a backlog.

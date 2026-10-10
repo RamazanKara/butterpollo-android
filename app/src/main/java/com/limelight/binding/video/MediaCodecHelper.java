@@ -619,6 +619,12 @@ public class MediaCodecHelper {
                     videoFormat.setInteger("vendor.qti-ext-dec-low-latency.enable", 1);
                     setNewOption = true;
                 }
+                if (tryNumber < 3) {
+                    // Snapdragon 8 Gen 2 and newer: a software output fence releases frames sooner.
+                    videoFormat.setInteger("vendor.qti-ext-output-sw-fence-enable.value", 1);
+                    videoFormat.setInteger("vendor.qti-ext-output-fence.enable", 1);
+                    videoFormat.setInteger("vendor.qti-ext-output-fence.fence_type", 1);
+                }
             }
             else if (isDecoderInList(kirinDecoderPrefixes, decoderInfo.getName())) {
                 if (tryNumber < 4) {
