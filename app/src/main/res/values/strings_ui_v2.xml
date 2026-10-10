@@ -2,7 +2,6 @@
     <string name="settings_section_advanced">Advanced</string>
     <string name="settings_advanced_summary">Decoder, input, network and diagnostics</string>
     <string name="settings_custom">Custom</string>
-    <string name="settings_preset_default">Default</string>
     <string name="setting_help">About %1$s</string>
     <string name="stream_presets_help_title">About presets</string>
     <string name="settings_overlay_audio_summary">Overlay %1$s · %2$s</string>
@@ -19,9 +18,7 @@
     <string name="stream_quit_app">Quit app</string>
     <string name="stream_bitrate_manual">Set bitrate</string>
     <string-array name="stream_preset_names">
-        <item>Balanced</item>
-        <item>Low latency</item>
-        <item>Best quality</item>
+        <item>Native (recommended)</item>
         <item>Battery saver</item>
     </string-array>
     <string name="applist_menu_show_app">Show app</string>

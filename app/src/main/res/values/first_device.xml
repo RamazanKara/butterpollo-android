@@ -12,7 +12,7 @@
     <string name="stream_restore_help">Stream interrupted.\nOpen your PC’s app list to resume.</string>
     <string name="stream_presets">Presets</string>
     <string name="stream_presets_summary">Choose settings for speed, quality or battery life.</string>
-    <string name="stream_presets_help">Sets video and upscaling together.\nPC profiles still take priority.</string>
+    <string name="stream_presets_help">Native streams at this screen\'s resolution and refresh rate with every latency setting on.\nBattery saver keeps that resolution at 30 fps.\nPC profiles still take priority.</string>
     <string name="stream_preset_applied">Preset applied; PC profiles take priority.</string>
     <string-array name="stream_preset_descriptions">
         <item>Balanced · 15 Mbps, screen FPS, upscaling off</item>

@@ -5,9 +5,11 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.preference.PreferenceManager;
+import android.hardware.display.DisplayManager;
 import android.view.Display;
 
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.binding.video.DisplayFrameRatePolicy;
 import com.limelight.binding.video.UpscalingPolicy;
 
 public class PreferenceConfiguration {
@@ -31,6 +33,8 @@ public class PreferenceConfiguration {
     static final String RESOLUTION_PREF_STRING = "list_resolution";
     static final String FPS_PREF_STRING = "list_fps";
     static final String BITRATE_PREF_STRING = "seekbar_bitrate_kbps";
+    static final String PREFS_VERSION_PREF_STRING = "prefs_version";
+    static final int NATIVE_DEFAULTS_VERSION = 2;
     static final String BITRATE_PREF_OLD_STRING = "seekbar_bitrate";
     private static final String STRETCH_PREF_STRING = "checkbox_stretch_video";
     private static final String SOPS_PREF_STRING = "checkbox_enable_sops";
@@ -501,8 +505,74 @@ public class PreferenceConfiguration {
         return config;
     }
 
+    // Largest mode of the built-in screen, landscape first; null when the screen can't be read.
+    public static String nativeResolution(Context context) {
+        Display display = defaultDisplay(context);
+        if (display == null) {
+            return null;
+        }
+        int width, height;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            width = height = 0;
+            for (Display.Mode mode : display.getSupportedModes()) {
+                if ((long) mode.getPhysicalWidth() * mode.getPhysicalHeight() > (long) width * height) {
+                    width = mode.getPhysicalWidth();
+                    height = mode.getPhysicalHeight();
+                }
+            }
+        } else {
+            android.graphics.Point size = new android.graphics.Point();
+            display.getRealSize(size);
+            width = size.x;
+            height = size.y;
+        }
+        if (width <= 0 || height <= 0) {
+            return null;
+        }
+        return Math.max(width, height) + "x" + Math.min(width, height);
+    }
+
+    public static float panelMaxRefreshRate(Context context) {
+        Display display = defaultDisplay(context);
+        return display == null ? 60 : DisplayFrameRatePolicy.maxRefreshRate(display);
+    }
+
+    private static Display defaultDisplay(Context context) {
+        DisplayManager displays = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+        return displays == null ? null : displays.getDisplay(Display.DEFAULT_DISPLAY);
+    }
+
+    // Older installs hold the XML defaults written on first launch (720p60, latency switches off).
+    // Move them once to the phone's native resolution and refresh rate with every latency switch on.
+    // Codec, HDR, 4:4:4 and VRR choices stay as they are.
+    static boolean migrateToNativeDefaults(SharedPreferences prefs, String nativeResolution, float panelMaxHz) {
+        if (nativeResolution == null || prefs.getInt(PREFS_VERSION_PREF_STRING, 0) >= NATIVE_DEFAULTS_VERSION) {
+            return false;
+        }
+        String fps = Integer.toString(DisplayFrameRatePolicy.streamFrameRate(panelMaxHz));
+        SharedPreferences.Editor editor = prefs.edit()
+                .putString(RESOLUTION_PREF_STRING, nativeResolution)
+                .putString(FPS_PREF_STRING, fps)
+                .putInt(BITRATE_PREF_STRING, getDefaultBitrate(nativeResolution, fps))
+                .remove(BITRATE_PREF_OLD_STRING)
+                .putString(FRAME_PACING_PREF_STRING, DEFAULT_FRAME_PACING)
+                .putString(UPSCALING_PREF_STRING, "off")
+                .putInt(PREFS_VERSION_PREF_STRING, NATIVE_DEFAULTS_VERSION);
+        for (String key : StreamPreset.LATENCY_SWITCHES) {
+            editor.putBoolean(key, true);
+        }
+        editor.apply();
+        return true;
+    }
+
+    public static void migrateToNativeDefaults(Context context) {
+        migrateToNativeDefaults(PreferenceManager.getDefaultSharedPreferences(context),
+                nativeResolution(context), panelMaxRefreshRate(context));
+    }
+
     public static PreferenceConfiguration readPreferences(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        migrateToNativeDefaults(context);
         PreferenceConfiguration config = new PreferenceConfiguration();
 
         // Migrate legacy preferences to the new locations
@@ -669,15 +739,15 @@ public class PreferenceConfiguration {
         config.codecLowLatency = prefs.getBoolean(CODEC_LOW_LATENCY_PREF_STRING, true);
         config.vendorLowLatency = prefs.getBoolean(VENDOR_LOW_LATENCY_PREF_STRING, true);
         config.codecPerformance = prefs.getBoolean(CODEC_PERFORMANCE_PREF_STRING, true);
-        config.phonePerformanceHints = prefs.getBoolean(PHONE_PERFORMANCE_HINTS_PREF_STRING, false);
-        config.gpuMaxClocks = prefs.getBoolean(GPU_MAX_CLOCKS_PREF_STRING, false);
-        config.pyroWaveFrontBuffer = prefs.getBoolean(PYROWAVE_FRONT_BUFFER_PREF_STRING, false);
-        config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, false);
+        config.phonePerformanceHints = prefs.getBoolean(PHONE_PERFORMANCE_HINTS_PREF_STRING, true);
+        config.gpuMaxClocks = prefs.getBoolean(GPU_MAX_CLOCKS_PREF_STRING, true);
+        config.pyroWaveFrontBuffer = prefs.getBoolean(PYROWAVE_FRONT_BUFFER_PREF_STRING, true);
+        config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, true);
         // SurfaceView preserves HDR metadata and avoids TextureView's extra composition step.
         config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&
                 config.videoFormat != FormatOption.FORCE_PYROWAVE;
-        config.unbatchedInput = prefs.getBoolean(UNBATCHED_INPUT_PREF_STRING, false);
-        config.networkPriority = prefs.getBoolean(NETWORK_PRIORITY_PREF_STRING, false);
+        config.unbatchedInput = prefs.getBoolean(UNBATCHED_INPUT_PREF_STRING, true);
+        config.networkPriority = prefs.getBoolean(NETWORK_PRIORITY_PREF_STRING, true);
         config.virtualDisplay = prefs.getBoolean(VIRTUAL_DISPLAY_PREF_STRING, false);
         config.virtualDisplayScale = Math.max(50, Math.min(200, prefs.getInt(VIRTUAL_DISPLAY_SCALE_PREF_STRING, 100)));
         config.enableYuv444 = prefs.getBoolean(YUV444_PREF_STRING, false);

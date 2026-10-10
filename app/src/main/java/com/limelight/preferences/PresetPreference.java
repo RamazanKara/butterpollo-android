@@ -25,24 +25,24 @@ public class PresetPreference extends Preference {
     protected void onBindView(View view) {
         super.onBindView(view);
         float refresh = DisplayFrameRatePolicy.maxRefreshRate(((Activity) getContext()).getWindowManager().getDefaultDisplay());
+        String nativeResolution = PreferenceConfiguration.nativeResolution(getContext());
         ChipGroup group = view.findViewById(R.id.preset_chips);
         group.removeAllViews();
         String[] names = getContext().getResources().getStringArray(R.array.stream_preset_names);
-        String selected = getContext().getString(StreamPreset.isUntouched(getSharedPreferences())
-                ? R.string.settings_preset_default : R.string.settings_custom);
-        for (StreamPreset preset : StreamPreset.values()) {
+        String selected = getContext().getString(R.string.settings_custom);
+        for (StreamPreset preset : nativeResolution == null ? new StreamPreset[0] : StreamPreset.values()) {
             Chip chip = new Chip(getContext());
             chip.setId(View.generateViewId());
             chip.setText(names[preset.ordinal()]);
             chip.setCheckable(true);
             chip.setEnsureMinTouchTargetSize(true);
             group.addView(chip);
-            if (preset.matches(getSharedPreferences(), refresh)) {
+            if (preset.matches(getSharedPreferences(), nativeResolution, refresh)) {
                 chip.setChecked(true);
                 selected = names[preset.ordinal()];
             }
             chip.setOnClickListener(v -> {
-                preset.apply(getSharedPreferences(), refresh);
+                preset.apply(getSharedPreferences(), nativeResolution, refresh);
                 notifyChanged();
             });
         }

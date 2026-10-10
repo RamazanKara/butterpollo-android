@@ -110,8 +110,6 @@
     <string name="category_basic_settings">Grundeinstellungen</string>
     <string name="title_resolution_list">Videoauflösung</string>
     <string name="summary_resolution_list">Eine höhere Auflösung macht das Bild schärfer.</string>
-    <string name="title_native_res_dialog">Native Auflösung</string>
-    <string name="text_native_res_dialog">PC muss Auflösung und FPS unterstützen.\nNutze ggf. ein virtuelles Display.</string>
     <string name="title_fps_list">Bildrate</string>
     <string name="summary_fps_list">Mehr Bilder pro Sekunde machen Bewegungen flüssiger.</string>
     <string name="title_seekbar_bitrate">Bitrate</string>
@@ -128,7 +126,6 @@
     <string name="resolution_prefix_native_landscape">(Querformat)</string>
     <string name="resolution_prefix_native_portrait">(Hochformat)</string>
     <string name="fps_suffix_fps">FPS</string>
-    <string name="title_native_fps_dialog">Native Bildrate</string>
     <string name="category_audio_settings">Audio</string>
     <string name="title_audio_config_list">Surround-Sound</string>
     <string name="summary_audio_config_list">Nutze 5.1- oder 7.1-Sound im Heimkino.</string>
@@ -307,7 +304,7 @@
     <string name="title_pyrowave_front_buffer">Front-Buffer-Rendering für PyroWave</string>
     <string name="summary_pyrowave_front_buffer">Zeichnet jedes PyroWave-Bild direkt ins Bild auf dem Display und umgeht Androids Anzeigewarteschlange. Geringste Latenz; bei schnellen Bewegungen kann eine Trennlinie sichtbar sein. Experimentell, braucht Treiberunterstützung.</string>
     <string name="title_drop_late_frames">Nur neueste Frames behalten</string>
-    <string name="summary_drop_late_frames">Senke die Latenz mit ausgewogenem Frame-Pacing.</string>
+    <string name="summary_drop_late_frames">Überspringt Frames, die nicht mehr rechtzeitig auf den Bildschirm kommen.</string>
     <string name="title_texture_view">Alternative Videoanzeige</string>
     <string name="summary_texture_view">Probiere dies bei schwarzem oder flackerndem Bild.</string>
     <string name="title_unbatched_input">Maus und Stift ohne Wartezeit</string>
