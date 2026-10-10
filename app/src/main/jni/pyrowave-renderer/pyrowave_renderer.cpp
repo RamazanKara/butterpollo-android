@@ -1158,103 +1158,16 @@ namespace {
             return true;
         }
 
-        // SGSR needs the converted RGB frame as a texture: the CSC pass renders into an
-        // RGBA8 image at stream size, and SGSR scales that image into the swapchain.
+        // SGSR reads the YCbCr planes through the same descriptor set as the direct path and
+        // converts colour itself, so upscaling costs one pass with no intermediate image.
         bool createUpscalerResources() {
-            const VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-            VkFormatProperties formatProps;
-            vk.GetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
-            const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-            if ((formatProps.optimalTilingFeatures & required) != required ||
-                !createImage(upscaleSource, width, height, format,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)) {
-                return false;
-            }
-
-            VkAttachmentDescription attachment = {};
-            attachment.format = format;
-            attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;  // The CSC pass covers every pixel.
-            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            VkAttachmentReference colorRef = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &colorRef;
-            VkSubpassDependency dependencies[2] = {};
-            // The previous frame's SGSR reads finish before this frame overwrites the image...
-            dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependencies[0].dstSubpass = 0;
-            dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            // ...and this frame's writes are visible to SGSR.
-            dependencies[1].srcSubpass = 0;
-            dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            VkRenderPassCreateInfo rpInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-            rpInfo.attachmentCount = 1;
-            rpInfo.pAttachments = &attachment;
-            rpInfo.subpassCount = 1;
-            rpInfo.pSubpasses = &subpass;
-            rpInfo.dependencyCount = 2;
-            rpInfo.pDependencies = dependencies;
-            if (!check(vk.CreateRenderPass(device, &rpInfo, nullptr, &cscRenderPass), "vkCreateRenderPass(csc)")) return false;
-
-            VkFramebufferCreateInfo fbInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
-            fbInfo.renderPass = cscRenderPass;
-            fbInfo.attachmentCount = 1;
-            fbInfo.pAttachments = &upscaleSource.view;
-            fbInfo.width = width;
-            fbInfo.height = height;
-            fbInfo.layers = 1;
-            if (!check(vk.CreateFramebuffer(device, &fbInfo, nullptr, &cscFramebuffer), "vkCreateFramebuffer(csc)")) return false;
-            cscPipeline = buildPipeline(planar_csc_frag_spv, sizeof(planar_csc_frag_spv), pipelineLayout, cscRenderPass);
-            if (cscPipeline == VK_NULL_HANDLE) return false;
-
-            VkDescriptorSetLayoutBinding binding = {};
-            binding.binding = 0;
-            binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            binding.descriptorCount = 1;
-            binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            VkDescriptorSetLayoutCreateInfo layoutInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-            layoutInfo.bindingCount = 1;
-            layoutInfo.pBindings = &binding;
-            if (!check(vk.CreateDescriptorSetLayout(device, &layoutInfo, nullptr, &upscaleSetLayout), "vkCreateDescriptorSetLayout(sgsr)")) return false;
             VkPushConstantRange range = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SgsrParams)};
             VkPipelineLayoutCreateInfo plInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
             plInfo.setLayoutCount = 1;
-            plInfo.pSetLayouts = &upscaleSetLayout;
+            plInfo.pSetLayouts = &setLayout;
             plInfo.pushConstantRangeCount = 1;
             plInfo.pPushConstantRanges = &range;
             if (!check(vk.CreatePipelineLayout(device, &plInfo, nullptr, &upscaleLayout), "vkCreatePipelineLayout(sgsr)")) return false;
-            VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1};
-            VkDescriptorPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-            poolInfo.maxSets = 1;
-            poolInfo.poolSizeCount = 1;
-            poolInfo.pPoolSizes = &poolSize;
-            if (!check(vk.CreateDescriptorPool(device, &poolInfo, nullptr, &upscalePool), "vkCreateDescriptorPool(sgsr)")) return false;
-            VkDescriptorSetAllocateInfo setInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-            setInfo.descriptorPool = upscalePool;
-            setInfo.descriptorSetCount = 1;
-            setInfo.pSetLayouts = &upscaleSetLayout;
-            if (!check(vk.AllocateDescriptorSets(device, &setInfo, &upscaleSet), "vkAllocateDescriptorSets(sgsr)")) return false;
-            VkDescriptorImageInfo imageInfo = {sampler, upscaleSource.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-            VkWriteDescriptorSet write = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            write.dstSet = upscaleSet;
-            write.dstBinding = 0;
-            write.descriptorCount = 1;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            write.pImageInfo = &imageInfo;
-            vk.UpdateDescriptorSets(device, 1, &write, 0, nullptr);
             upscalePipeline = buildPipeline(sgsr_frag_spv, sizeof(sgsr_frag_spv), upscaleLayout, renderPass);
             LOGI("SGSR upscaling %s", upscalePipeline != VK_NULL_HANDLE ? "ready" : "failed");
             return upscalePipeline != VK_NULL_HANDLE;
@@ -1457,23 +1370,6 @@ namespace {
             const int32_t color[] = {tenBit, hdr, fullRange};
             // Upscale only when the stream is shown larger than it is and the frame is SDR.
             upscaling = upscalePipeline != VK_NULL_HANDLE && !hdr && scale > 1.01f;
-            if (upscaling) {
-                VkRenderPassBeginInfo cscBegin = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-                cscBegin.renderPass = cscRenderPass;
-                cscBegin.framebuffer = cscFramebuffer;
-                cscBegin.renderArea = {{0, 0}, {width, height}};
-                vk.CmdBeginRenderPass(commandBuffer, &cscBegin, VK_SUBPASS_CONTENTS_INLINE);
-                VkViewport full = {0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f};
-                VkRect2D fullScissor = {{0, 0}, {width, height}};
-                vk.CmdSetViewport(commandBuffer, 0, 1, &full);
-                vk.CmdSetScissor(commandBuffer, 0, 1, &fullScissor);
-                vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cscPipeline);
-                vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-                                         &descriptorSet, 0, nullptr);
-                vk.CmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), color);
-                vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
-                vk.CmdEndRenderPass(commandBuffer);
-            }
             vk.CmdBeginRenderPass(commandBuffer, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
             VkViewport viewport = {};
@@ -1487,10 +1383,10 @@ namespace {
             vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
             if (upscaling) {
                 const SgsrParams params = {{1.0f / float(width), 1.0f / float(height), float(width), float(height)},
-                                           edgeSharpness};
+                                           edgeSharpness, fullRange};
                 vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscalePipeline);
                 vk.CmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, upscaleLayout, 0, 1,
-                                         &upscaleSet, 0, nullptr);
+                                         &descriptorSet, 0, nullptr);
                 vk.CmdPushConstants(commandBuffer, upscaleLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(params), &params);
             } else {
                 vk.CmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -1584,16 +1480,8 @@ namespace {
                 if (queryPool != VK_NULL_HANDLE) vk.DestroyQueryPool(device, queryPool, nullptr);
                 if (commandPool != VK_NULL_HANDLE) vk.DestroyCommandPool(device, commandPool, nullptr);
                 if (pipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, pipeline, nullptr);
-                if (cscPipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, cscPipeline, nullptr);
                 if (upscalePipeline != VK_NULL_HANDLE) vk.DestroyPipeline(device, upscalePipeline, nullptr);
-                if (upscalePool != VK_NULL_HANDLE) vk.DestroyDescriptorPool(device, upscalePool, nullptr);
                 if (upscaleLayout != VK_NULL_HANDLE) vk.DestroyPipelineLayout(device, upscaleLayout, nullptr);
-                if (upscaleSetLayout != VK_NULL_HANDLE) vk.DestroyDescriptorSetLayout(device, upscaleSetLayout, nullptr);
-                if (cscFramebuffer != VK_NULL_HANDLE) vk.DestroyFramebuffer(device, cscFramebuffer, nullptr);
-                if (cscRenderPass != VK_NULL_HANDLE) vk.DestroyRenderPass(device, cscRenderPass, nullptr);
-                if (upscaleSource.view != VK_NULL_HANDLE) vk.DestroyImageView(device, upscaleSource.view, nullptr);
-                if (upscaleSource.image != VK_NULL_HANDLE) vk.DestroyImage(device, upscaleSource.image, nullptr);
-                if (upscaleSource.memory != VK_NULL_HANDLE) vk.FreeMemory(device, upscaleSource.memory, nullptr);
                 if (descriptorPool != VK_NULL_HANDLE) vk.DestroyDescriptorPool(device, descriptorPool, nullptr);
                 if (pipelineLayout != VK_NULL_HANDLE) vk.DestroyPipelineLayout(device, pipelineLayout, nullptr);
                 if (setLayout != VK_NULL_HANDLE) vk.DestroyDescriptorSetLayout(device, setLayout, nullptr);
@@ -1679,17 +1567,11 @@ namespace {
         struct SgsrParams {
             float viewportInfo[4];
             float edgeSharpness;
+            int32_t fullRange;
         };
         int upscaleMode = UPSCALE_OFF;
         float edgeSharpness = 1.5f;
-        Plane upscaleSource;
-        VkRenderPass cscRenderPass = VK_NULL_HANDLE;
-        VkFramebuffer cscFramebuffer = VK_NULL_HANDLE;
-        VkPipeline cscPipeline = VK_NULL_HANDLE;
-        VkDescriptorSetLayout upscaleSetLayout = VK_NULL_HANDLE;
         VkPipelineLayout upscaleLayout = VK_NULL_HANDLE;
-        VkDescriptorPool upscalePool = VK_NULL_HANDLE;
-        VkDescriptorSet upscaleSet = VK_NULL_HANDLE;
         VkPipeline upscalePipeline = VK_NULL_HANDLE;
         VkDeviceQueueGlobalPriorityCreateInfoEXT globalPriority = {};
         bool highPriorityQueue = false;
