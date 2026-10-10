@@ -5,7 +5,7 @@
 <p align="center">Stream your PC games and desktop to Android, with ultra-low latency and the controls you love.</p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" width="720" alt="Rubylight demo: find your PC, choose stream presets, inspect the overlay, and map your controller.">
+  <img src="docs/assets/demo.gif" width="720" alt="Rubylight demo: open your game library, tap a game to start your stream, and keep the performance overlay in view.">
 </p>
 
 <p align="center"><a href="https://github.com/RamazanKara/rubylight-android/releases">Watch the full demo →</a></p>
@@ -15,10 +15,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/shots/pc-list.png" width="160" alt="PC list with a saved host ready to pair">
-  <img src="docs/assets/shots/presets.png" width="160" alt="Stream settings with bitrate presets and fine adjustment">
-  <img src="docs/assets/shots/overlay.png" width="160" alt="Performance overlay with network, decode and host timing fields">
-  <img src="docs/assets/shots/controller.png" width="160" alt="Controller button mapping with per-controller assignments">
+  <img src="docs/assets/shots/pc-list.png" width="160" alt="Computers list showing online, offline and unpaired PCs">
+  <img src="docs/assets/shots/library.png" width="160" alt="Game library with cover art and a running game">
+  <img src="docs/assets/shots/overlay.png" width="160" alt="Stream with the advanced performance overlay open">
+  <img src="docs/assets/shots/presets.png" width="160" alt="Stream settings with Balanced, Low latency, Best quality and Battery saver presets">
 </p>
 
 ## Features
