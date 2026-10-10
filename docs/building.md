@@ -4,9 +4,9 @@
 
 ## Install a published or development build
 
-Get published APKs from [Rubylight releases](https://github.com/RamazanKara/rubylight-android/releases). For a development build, open a successful [Android debug workflow](https://github.com/RamazanKara/rubylight-android/actions/workflows/android.yml), download the `butterpollo-debug` artifact and extract `app-nonRoot-debug.apk`. GitHub requires sign-in for workflow artifacts. Open the APK on Android 5.0 or newer and allow installation from the app opening it; no root is needed. With USB debugging enabled, `adb install -r app-nonRoot-debug.apk` also installs it.
+Get published APKs from [Rubylight releases](https://github.com/RamazanKara/rubylight-android/releases), or build one yourself as described below. Open the APK on Android 5.0 or newer and allow installation from the app opening it; no root is needed. With USB debugging enabled, `adb install -r app-nonRoot-debug.apk` also installs it.
 
-Updates require the same signing key. Debug APKs from different CI runs may use different keys; changing keys requires uninstalling the old app, which removes settings and pairing identity. The normal package ID remains `com.butterpollo.client`.
+Updates require the same signing key. Debug APKs built on different machines use different keys; changing keys requires uninstalling the old app, which removes settings and pairing identity. The normal package ID remains `com.butterpollo.client`.
 
 ## Toolchain and source
 
@@ -93,19 +93,19 @@ With no signing values, **release APKs and bundles use the debug key**, and Grad
 Create a signing key once and retain it for future updates. JDK 17 supplies `keytool`; it prompts for the keystore password:
 
 ```sh
-keytool -genkeypair -keystore butterpollo.keystore -alias butterpollo -keyalg RSA -keysize 3072 -validity 10000
+keytool -genkeypair -keystore rubylight.keystore -alias rubylight -keyalg RSA -keysize 3072 -validity 10000
 ```
 
-An unsigned APK produced outside the normal Gradle signing path cannot be installed directly. With Android SDK Build Tools on your PATH, copy it to `butterpollo-unsigned.apk`, align it, sign with the same key and verify:
+An unsigned APK produced outside the normal Gradle signing path cannot be installed directly. With Android SDK Build Tools on your PATH, copy it to `rubylight-unsigned.apk`, align it, sign with the same key and verify:
 
 ```sh
-zipalign -P 16 -f 4 butterpollo-unsigned.apk butterpollo-aligned.apk
-apksigner sign --ks butterpollo.keystore --ks-key-alias butterpollo --out butterpollo.apk butterpollo-aligned.apk
-apksigner verify --verbose butterpollo.apk
-adb install -r butterpollo.apk
+zipalign -P 16 -f 4 rubylight-unsigned.apk rubylight-aligned.apk
+apksigner sign --ks rubylight.keystore --ks-key-alias rubylight --out rubylight.apk rubylight-aligned.apk
+apksigner verify --verbose rubylight.apk
+adb install -r rubylight.apk
 ```
 
-See Android's [APK signing instructions](https://developer.android.com/tools/apksigner). The CI does not contain production signing secrets.
+See Android's [APK signing instructions](https://developer.android.com/tools/apksigner).
 
 Build the release APK and bundle directly:
 
@@ -121,7 +121,7 @@ Or use the existing artifact helper after the checks pass:
 
 The Linux helper is `bash scripts/build-release.sh`. Both helpers build an arm64 APK and a bundle with the default ABIs, then print SHA-256 hashes and byte sizes. They do not publish. Preserve `app/build/outputs/mapping/nonRootRelease/mapping.txt` and native debug symbols for the matching release.
 
-The Android workflow builds debug on pushes to `main`. Manual dispatch with a nonempty `prerelease_tag` also runs the emulator smoke test and publishes a debug-signed arm64 prerelease. It is not a production signing pipeline.
+Releases are built and published from a local machine with `gh release create`. Test prereleases carry a debug-signed arm64 APK; store uploads use the release key.
 
 ## Documentation checks
 
