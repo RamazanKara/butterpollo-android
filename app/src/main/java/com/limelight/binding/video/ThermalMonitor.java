@@ -32,7 +32,8 @@ public final class ThermalMonitor {
 
     public synchronized int level() {
         long now = SystemClock.uptimeMillis();
-        if (powerManager == null || now - lastPollMs < POLL_MS) return level;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || powerManager == null ||
+                now - lastPollMs < POLL_MS) return level;
         lastPollMs = now;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
