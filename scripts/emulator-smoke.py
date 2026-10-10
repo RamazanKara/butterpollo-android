@@ -76,6 +76,27 @@ def find(label, scroll=False):
     raise AssertionError(f"UI node missing: {label}")
 
 
+def find_text(pattern):
+    for _ in range(8):
+        for node in tree().iter("node"):
+            if re.search(pattern, node.get("text") or ""):
+                return node
+        time.sleep(0.5)
+    raise AssertionError(f"No UI text matches: {pattern}")
+
+
+def native_resolution():
+    """The panel's largest mode, landscape first, as the app stores it."""
+    sizes = re.findall(r"width=(\d+), height=(\d+)", adb("shell", "dumpsys", "display"))
+    width, height = max(((int(w), int(h)) for w, h in sizes), key=lambda size: size[0] * size[1])
+    return f"{max(width, height)}x{min(width, height)}"
+
+
+def pref_value(root, name):
+    node = next((n for n in root if n.get("name") == name), None)
+    return None if node is None else node.get("value", node.text)
+
+
 def tap(label, scroll=False):
     x1, y1, x2, y2 = bounds(find(label, scroll))
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
@@ -356,6 +377,15 @@ def main():
             adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.PcView")
             find("Connect to your PC")
             screenshot("01-launch")
+            native = native_resolution()
+            latency_switches = ("checkbox_codec_low_latency", "checkbox_vendor_low_latency",
+                                "checkbox_phone_performance_hints", "checkbox_gpu_max_clocks",
+                                "checkbox_pyrowave_front_buffer", "checkbox_drop_late_frames",
+                                "checkbox_unbatched_input", "checkbox_network_priority")
+            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "2" and
+                  pref_value(root, "list_resolution") == native and pref_value(root, "frame_pacing") == "latency" and
+                  all(pref_value(root, key) == "true" for key in latency_switches),
+                  f"Fresh install is not at native {native} with every latency setting on")
             tap("android:id/button1")
             tap(f"{PACKAGE}:id/discovery_add")
             tap(f"{PACKAGE}:id/hostTextView")
@@ -406,10 +436,10 @@ def main():
             tap("Battery saver")
             prefs(f"{PACKAGE}_preferences", lambda root: any(
                 n.get("name") == "list_fps" and n.text == "30" for n in root), "Battery saver was not applied")
-            tap("Balanced")
-            prefs(f"{PACKAGE}_preferences", lambda root: any(
-                n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "15000" for n in root),
-                "Balanced was not applied")
+            tap("Native (recommended)")
+            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "list_resolution") == native and
+                  pref_value(root, "list_fps") != "30" and pref_value(root, "checkbox_reduce_refresh_rate") == "false",
+                  "Native was not applied")
             tap("Stream")
             find("Video resolution")
             screenshot("05-video-settings")
@@ -435,9 +465,9 @@ def main():
             for _ in range(3):
                 adb("shell", "input", "keyevent", "4")
                 time.sleep(1)
-                if any("720p · 60 FPS · 81 Mbps · Automatic" in n.get("text", "") for n in tree().iter("node")):
+                if any(" FPS · 81 Mbps · Automatic" in n.get("text", "") for n in tree().iter("node")):
                     break
-            find("720p · 60 FPS · 81 Mbps · Automatic")
+            find_text(r"^\d+×\d+ · \d+ FPS · 81 Mbps · Automatic$")
             find("Custom")
             tap("Stream")
             vrr = "Variable refresh (VRR)"
@@ -470,12 +500,12 @@ def main():
             hints = "Phone performance hints"
             tap(hints, scroll=True)
             prefs(f"{PACKAGE}_preferences", lambda root: any(
-                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "true" for n in root),
-                "Phone performance hints were not off by default or could not be enabled")
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
+                "Phone performance hints were not on by default or could not be disabled")
             tap(hints)
             prefs(f"{PACKAGE}_preferences", lambda root: any(
-                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "false" for n in root),
-                "Phone performance hints could not be disabled")
+                n.get("name") == "checkbox_phone_performance_hints" and n.get("value") == "true" for n in root),
+                "Phone performance hints could not be enabled")
             screenshot("13-advanced-settings")
             tap("Navigate up")
             tap("Overlay & audio")
@@ -518,7 +548,10 @@ def main():
             tap("Reset all settings", scroll=True)
             tap("android:id/button1")
             tap("Navigate up")
-            find("720p · 60 FPS · 10 Mbps · Automatic")
+            find_text(r"^\d+×\d+ · \d+ FPS · \d+ Mbps · Automatic$")
+            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "list_resolution") == native and
+                  pref_value(root, "checkbox_pyrowave_front_buffer") == "true",
+                  "Reset did not return to native resolution with latency settings on")
             prefs(f"{PACKAGE}_preferences", lambda root: not any(
                 n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),
                 "Reset kept the overlay setting")
@@ -572,8 +605,8 @@ def main():
                     text = node.get("text", "")
                     for section in ("Video\n", "\n\nNetwork\n", "\n\nDecode\n", "\n\nHost\n"):
                         assert section in text, node.attrib
-                    assert "FEATURE_LowLatency: true" in text, node.attrib
-                    assert "Queue wait (enqueue → input)" in text, node.attrib
+                    assert "Low latency mode: " in text, node.attrib
+                    assert "Queue wait: " in text, node.attrib
                     screenshot("overlay-advanced" + suffix)
                     x1, y1, x2, y2 = bounds(node)
                     x, y = str(x1 + 20), str(y1 + 20)
@@ -588,7 +621,7 @@ def main():
             if app_crashes:
                 raise AssertionError("Emulator crash buffer is not clean")
             overlay_result = "overlay rendering" if DEBUGGABLE else "overlay settings (live rendering needs a paired host)"
-            print(f"PASS: pairing guide and PIN prompt, manual discovery, OTP and details dialogs, host profile validation/save/reset, grouped sheets, settings screens and search at 393/412 dp and font scale 1.3, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, {overlay_result} and rotation; screenshots: {SHOTS}", flush=True)
+            print(f"PASS: native {native} and latency defaults on a fresh install, pairing guide and PIN prompt, manual discovery, OTP and details dialogs, host profile validation/save/reset, grouped sheets, settings screens and search at 393/412 dp and font scale 1.3, VRR toggle/persistence, PyroWave readiness, bitrate, controller mapping, reset, frontend entries, unpaired export menu, {overlay_result} and rotation; screenshots: {SHOTS}", flush=True)
         finally:
             try:
                 LOGS.joinpath("logcat.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
