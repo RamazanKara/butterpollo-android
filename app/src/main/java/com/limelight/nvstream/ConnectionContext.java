@@ -1,6 +1,7 @@
 package com.limelight.nvstream;
 
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.preferences.HostDisplayChoice;
 
 import java.security.cert.X509Certificate;
 
@@ -22,6 +23,8 @@ public class ConnectionContext {
     public int serverCodecModeSupport;
     public boolean serverSupportsVirtualDisplay;
     public boolean serverSupportsFractionalRefreshRate;
+    // This device's "Display on the PC" choice for this host, read once the host is known
+    public HostDisplayChoice hostDisplay = HostDisplayChoice.HOST_DEFAULT;
 
     // This is the sessionUrl0 tag from /resume and /launch
     public String rtspSessionUrl;

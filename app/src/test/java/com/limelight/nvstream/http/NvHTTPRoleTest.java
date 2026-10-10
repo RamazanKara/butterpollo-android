@@ -2,6 +2,7 @@ package com.limelight.nvstream.http;
 
 import com.limelight.nvstream.ConnectionContext;
 import com.limelight.nvstream.StreamConfiguration;
+import com.limelight.preferences.HostDisplayChoice;
 
 import org.junit.Test;
 
@@ -124,6 +125,27 @@ public class NvHTTPRoleTest {
                 assertEquals(app.getAppUuid(), query.queryParameter("appuuid"));
             }
         }
+    }
+
+    @Test
+    public void onlyAStreamSendsTheDisplayChoice() throws Exception {
+        List<NvApp> remote = apps("remote-applist");
+        for (NvApp app : new NvApp[] {remote.get(2), remote.get(1)}) {
+            ConnectionContext context = context(app);
+            context.hostDisplay = HostDisplayChoice.PHYSICAL;
+            for (String verb : new String[] {"launch", "resume"}) {
+                assertNull(query(context, verb).queryParameter("hostDisplay"));
+            }
+        }
+        ConnectionContext context = context(remote.get(0));
+        context.hostDisplay = HostDisplayChoice.EXTENDED;
+        for (String verb : new String[] {"launch", "resume"}) {
+            HttpUrl query = query(context, verb);
+            assertEquals("extended", query.queryParameter("hostDisplay"));
+            assertEquals("1", query.queryParameter("virtualDisplay"));
+        }
+        context.isNvidiaServerSoftware = true;
+        assertNull(query(context, "launch").queryParameter("hostDisplay"));
     }
 
     @Test

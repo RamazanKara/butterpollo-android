@@ -59,6 +59,7 @@ import com.limelight.LimeLog;
 import com.limelight.nvstream.ConnectionContext;
 import com.limelight.nvstream.http.PairingManager.PairState;
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.preferences.HostDisplayChoice;
 
 import okhttp3.ConnectionPool;
 import okhttp3.Call;
@@ -1005,6 +1006,10 @@ public class NvHTTP {
             launchRate = String.format(java.util.Locale.ROOT, "%.2f", refreshX100 / 100.0);
         }
 
+        // GFE never receives the display choice; other hosts ignore a parameter they don't know.
+        HostDisplayChoice hostDisplay = context.isNvidiaServerSoftware || context.hostDisplay == null ?
+                HostDisplayChoice.HOST_DEFAULT : context.hostDisplay.forRole(role);
+
         boolean enableSops = context.streamConfig.getSops();
         if (context.isNvidiaServerSoftware) {
             // Using an unsupported resolution (not 720p, 1080p, or 4K) causes
@@ -1027,8 +1032,11 @@ public class NvHTTP {
                             .build().encodedQuery()) +
             (role == NvApp.Role.REMOTE_MONITOR ? "&remote_monitor=1" : inputOnly ? "&input_only=1" : "") +
             "&mode=" + context.negotiatedWidth + "x" + context.negotiatedHeight + "x" + launchRate +
-            (!inputOnly && context.streamConfig.getVirtualDisplay() && context.serverSupportsVirtualDisplay ?
+            (!inputOnly && hostDisplay.requestsVirtualDisplay(context.streamConfig.getVirtualDisplay()) &&
+                    context.serverSupportsVirtualDisplay ?
                     "&virtualDisplay=1&scaleFactor=" + context.streamConfig.getVirtualDisplayScale() : "") +
+            (hostDisplay.wireValue == null ? "" :
+                    "&" + HostDisplayChoice.LAUNCH_PARAMETER + "=" + hostDisplay.wireValue) +
             // Rubylight and Vibepollo pace a VRR stream at the game's frame rate (Nonary's 1000 Hz
             // virtual display mode). Other hosts ignore the parameter; GFE never receives it.
             (!inputOnly && context.streamConfig.getVrr() && !context.isNvidiaServerSoftware ? "&vrr=1" : "") +

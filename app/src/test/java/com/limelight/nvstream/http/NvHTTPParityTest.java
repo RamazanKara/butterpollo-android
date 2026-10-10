@@ -2,6 +2,7 @@ package com.limelight.nvstream.http;
 
 import com.limelight.nvstream.ConnectionContext;
 import com.limelight.nvstream.StreamConfiguration;
+import com.limelight.preferences.HostDisplayChoice;
 
 import org.junit.Test;
 
@@ -580,6 +581,58 @@ public class NvHTTPParityTest {
         context.streamConfig = new StreamConfiguration.Builder().build();
         assertNull(query(context, false).queryParameter("virtualDisplay"));
         assertNull(query(context, false).queryParameter("scaleFactor"));
+    }
+
+    @Test
+    public void displayChoiceIsSentWithItsVirtualDisplayRequest() throws Exception {
+        for (HostDisplayChoice choice : new HostDisplayChoice[] {HostDisplayChoice.EXCLUSIVE,
+                HostDisplayChoice.EXTENDED_PRIMARY, HostDisplayChoice.EXTENDED}) {
+            ConnectionContext context = context("butterpollo-serverinfo.xml");
+            // The choice asks for a virtual display even with the setting off, so hosts that
+            // don't know hostDisplay still give one.
+            context.streamConfig = new StreamConfiguration.Builder().setLaunchRefreshRate(120)
+                    .setVirtualDisplay(false, 125).build();
+            context.hostDisplay = choice;
+            HttpUrl query = query(context, false);
+            assertEquals(choice.wireValue, query.queryParameter("hostDisplay"));
+            assertEquals("1", query.queryParameter("virtualDisplay"));
+            assertEquals("125", query.queryParameter("scaleFactor"));
+        }
+    }
+
+    @Test
+    public void physicalChoiceOverridesTheVirtualDisplaySetting() throws Exception {
+        ConnectionContext context = context("butterpollo-serverinfo.xml");
+        context.hostDisplay = HostDisplayChoice.PHYSICAL;
+        HttpUrl query = query(context, false);
+        assertEquals("physical", query.queryParameter("hostDisplay"));
+        assertNull(query.queryParameter("virtualDisplay"));
+        assertNull(query.queryParameter("scaleFactor"));
+    }
+
+    @Test
+    public void hostDefaultSendsNoChoiceAndKeepsTheVirtualDisplaySetting() throws Exception {
+        ConnectionContext context = context("butterpollo-serverinfo.xml");
+        assertEquals(HostDisplayChoice.HOST_DEFAULT, context.hostDisplay);
+        HttpUrl query = query(context, false);
+        assertNull(query.queryParameter("hostDisplay"));
+        assertEquals("1", query.queryParameter("virtualDisplay"));
+        context.hostDisplay = null;
+        assertNull(query(context, false).queryParameter("hostDisplay"));
+    }
+
+    @Test
+    public void otherHostsGetTheChoiceBesideTheirOwnVirtualDisplayRequest() throws Exception {
+        ConnectionContext context = context("apollo-serverinfo.xml");
+        context.hostDisplay = HostDisplayChoice.EXCLUSIVE;
+        HttpUrl query = query(context, false);
+        assertEquals("exclusive", query.queryParameter("hostDisplay"));
+        assertEquals("1", query.queryParameter("virtualDisplay"));
+        context = context("sunshine-serverinfo.xml");
+        context.hostDisplay = HostDisplayChoice.EXCLUSIVE;
+        query = query(context, false);
+        assertEquals("exclusive", query.queryParameter("hostDisplay"));
+        assertNull(query.queryParameter("virtualDisplay"));
     }
 
     @Test
