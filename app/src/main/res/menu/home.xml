@@ -1,4 +1,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item android:id="@+id/settingsButton" android:title="@string/settings" android:icon="@drawable/ic_settings" app:showAsAction="always" />
-    <item android:id="@+id/helpButton" android:title="@string/help" android:icon="@drawable/ic_help" app:showAsAction="always" />
+    <!-- The vector icons are white; tint them with the theme's on-surface colour so they stay visible on light and dark toolbars. -->
+    <item android:id="@+id/settingsButton" android:title="@string/settings" android:icon="@drawable/ic_settings"
+        app:iconTint="?attr/colorOnSurface" app:showAsAction="always" />
+    <item android:id="@+id/helpButton" android:title="@string/help" android:icon="@drawable/ic_help"
+        app:iconTint="?attr/colorOnSurface" app:showAsAction="always" />
 </menu>

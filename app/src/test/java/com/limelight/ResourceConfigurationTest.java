@@ -17,6 +17,7 @@ import static org.junit.Assert.*;
 
 public class ResourceConfigurationTest {
     private static final String ANDROID = "http://schemas.android.com/apk/res/android";
+    private static final String APP = "http://schemas.android.com/apk/res-auto";
 
     private static Document read(String path) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -70,6 +71,53 @@ public class ResourceConfigurationTest {
         assertEquals(platformLanguages, legacyLanguages);
 
         assertEquals(Set.of("en", "de"), platformLanguages);
+    }
+
+    @Test
+    public void everyMenuIconIsTintedWithTheThemeOnSurfaceColour() throws Exception {
+        File[] menus = new File("src/main/res/menu").listFiles((dir, name) -> name.endsWith(".xml"));
+        assertNotNull(menus);
+        assertTrue(menus.length > 0);
+        int icons = 0;
+        for (File menu : menus) {
+            NodeList items = read("res/menu/" + menu.getName()).getElementsByTagName("item");
+            for (int i = 0; i < items.getLength(); i++) {
+                Element item = (Element) items.item(i);
+                if (!item.hasAttributeNS(ANDROID, "icon")) continue;
+                icons++;
+                assertEquals(menu.getName() + " " + item.getAttributeNS(ANDROID, "id"),
+                        "?attr/colorOnSurface", item.getAttributeNS(APP, "iconTint"));
+            }
+        }
+        assertTrue(icons >= 3);
+    }
+
+    @Test
+    public void toolbarsTintTheirNavigationIconWithTheThemeOnSurfaceColour() throws Exception {
+        NodeList styles = read("res/values/styles.xml").getElementsByTagName("style");
+        String toolbarStyle = null;
+        for (int i = 0; i < styles.getLength(); i++) {
+            Element style = (Element) styles.item(i);
+            if (!style.getAttribute("name").equals("AppTheme")) continue;
+            NodeList items = style.getElementsByTagName("item");
+            for (int j = 0; j < items.getLength(); j++) {
+                Element item = (Element) items.item(j);
+                if (item.getAttribute("name").equals("toolbarStyle")) toolbarStyle = item.getTextContent();
+            }
+        }
+        assertEquals("@style/Widget.Butterpollo.Toolbar", toolbarStyle);
+        boolean tinted = false;
+        for (int i = 0; i < styles.getLength(); i++) {
+            Element style = (Element) styles.item(i);
+            if (!style.getAttribute("name").equals("Widget.Butterpollo.Toolbar")) continue;
+            NodeList items = style.getElementsByTagName("item");
+            for (int j = 0; j < items.getLength(); j++) {
+                Element item = (Element) items.item(j);
+                tinted |= item.getAttribute("name").equals("navigationIconTint") &&
+                        item.getTextContent().equals("?attr/colorOnSurface");
+            }
+        }
+        assertTrue(tinted);
     }
 
     @Test
