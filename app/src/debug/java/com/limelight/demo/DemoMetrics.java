@@ -21,7 +21,7 @@ final class DemoMetrics {
                 context.getString(R.string.stream_auto_bitrate_status, 40.0 + Math.sin(tick * 0.3));
         String decoder = context.getString(R.string.perf_overlay_decoder, "AV1 (scripted)") + '\n' +
                 context.getString(R.string.perf_overlay_dectime, decode) + '\n' +
-                context.getString(R.string.perf_overlay_low_latency, context.getString(R.string.yes)) +
+                context.getString(R.string.perf_overlay_low_latency, context.getString(R.string.perf_overlay_low_latency_android_vendor)) +
                 "\nHost encode: 3.1 ms\nQueue: 0.4 ms · render: 1.2 ms\nSample playback: 1080p60 SDR";
         listener.onPerfUpdate(video, network, decoder, PerformanceOverlay.compactText(context, fps, 8, decode, 0.1f));
     }

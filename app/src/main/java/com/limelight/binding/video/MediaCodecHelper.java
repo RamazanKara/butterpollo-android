@@ -8,6 +8,9 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,7 +47,6 @@ public class MediaCodecHelper {
     private static final List<String> kirinDecoderPrefixes;
     private static final List<String> exynosDecoderPrefixes;
     private static final List<String> amlogicDecoderPrefixes;
-    private static final List<String> knownVendorLowLatencyOptions;
 
     public static final boolean SHOULD_BYPASS_SOFTWARE_BLOCK =
             Build.HARDWARE.equals("ranchu") || Build.HARDWARE.equals("cheets") || Build.BRAND.equals("Android-x86");
@@ -213,15 +215,6 @@ public class MediaCodecHelper {
         useFourSlicesPrefixes.add("c2.android");
 
         // Old Qualcomm decoders are detected at runtime
-    }
-
-    static {
-        knownVendorLowLatencyOptions = new LinkedList<>();
-
-        knownVendorLowLatencyOptions.add("vendor.qti-ext-dec-low-latency.enable");
-        knownVendorLowLatencyOptions.add("vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-req");
-        knownVendorLowLatencyOptions.add("vendor.rtc-ext-dec-low-latency.enable");
-        knownVendorLowLatencyOptions.add("vendor.low-latency.enable");
     }
 
     static {
@@ -449,30 +442,60 @@ public class MediaCodecHelper {
         return false;
     }
 
-    private static boolean decoderSupportsKnownVendorLowLatencyOption(String decoderName) {
-        // It's only possible to probe vendor parameters on Android 12 and above.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaCodec testCodec = null;
-            try {
-                // Unfortunately we have to create an actual codec instance to get supported options.
-                testCodec = MediaCodec.createByCodecName(decoderName);
+    private static final Map<String, List<String>> vendorParameterCache = new ConcurrentHashMap<>();
+    private static final Set<String> unprobeableDecoders = ConcurrentHashMap.newKeySet();
 
-                // See if any of the vendor parameters match ones we know about
-                for (String supportedOption : testCodec.getSupportedVendorParameters()) {
-                    for (String knownLowLatencyOption : knownVendorLowLatencyOptions) {
-                        if (supportedOption.equalsIgnoreCase(knownLowLatencyOption)) {
-                            LimeLog.info(decoderName + " supports known low latency option: " + supportedOption);
-                            return true;
-                        }
-                    }
+    /**
+     * Integer vendor parameters the decoder declares, or null below Android 12 or when the codec
+     * can't be probed. Cached per decoder because probing creates a codec instance.
+     */
+    static List<String> getIntegerVendorParameters(String decoderName) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return null;
+        }
+        if (unprobeableDecoders.contains(decoderName)) {
+            return null;
+        }
+        List<String> cached = vendorParameterCache.get(decoderName);
+        if (cached != null) {
+            return cached;
+        }
+        MediaCodec testCodec = null;
+        List<String> params = new ArrayList<>();
+        try {
+            // Unfortunately we have to create an actual codec instance to get supported options.
+            testCodec = MediaCodec.createByCodecName(decoderName);
+            for (String name : testCodec.getSupportedVendorParameters()) {
+                MediaCodec.ParameterDescriptor descriptor = testCodec.getParameterDescriptor(name);
+                if (descriptor != null && descriptor.getType() == MediaFormat.TYPE_INTEGER) {
+                    params.add(name);
                 }
-            } catch (Exception e) {
-                // Tolerate buggy codecs
-                e.printStackTrace();
-            } finally {
-                if (testCodec != null) {
-                    testCodec.release();
-                }
+            }
+            LimeLog.info(decoderName + " integer vendor parameters: " + params);
+        } catch (Exception e) {
+            // Tolerate buggy codecs
+            e.printStackTrace();
+            unprobeableDecoders.add(decoderName);
+            return null;
+        } finally {
+            if (testCodec != null) {
+                testCodec.release();
+            }
+        }
+        params = Collections.unmodifiableList(params);
+        vendorParameterCache.put(decoderName, params);
+        return params;
+    }
+
+    private static boolean decoderSupportsKnownVendorLowLatencyOption(String decoderName) {
+        List<String> params = getIntegerVendorParameters(decoderName);
+        if (params == null) {
+            return false;
+        }
+        for (String key : VendorLowLatencyKeys.forSupported(params).keySet()) {
+            if (VendorLowLatencyKeys.isCoreSwitch(key)) {
+                LimeLog.info(decoderName + " supports low latency option: " + key);
+                return true;
             }
         }
         return false;
@@ -501,15 +524,13 @@ public class MediaCodecHelper {
         boolean setNewOption = false;
 
         boolean useVendorOptions = vendorLowLatency;
-        if (lowLatency && tryNumber < 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                decoderSupportsAndroidRLowLatency(decoderInfo, videoFormat.getString(MediaFormat.KEY_MIME))) {
-            // Official Android 11+ low latency option (KEY_LOW_LATENCY).
+        if (lowLatency && tryNumber < 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Official Android 11+ low latency option (KEY_LOW_LATENCY). Many decoders honour it
+            // without advertising FEATURE_LowLatency, and decoders that don't know it ignore it.
+            // Vendor keys stay on as well: on Snapdragon 8 Gen 2 and newer the standard flag alone
+            // leaves the output fence in place, which costs several milliseconds per frame.
             videoFormat.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
             setNewOption = true;
-
-            // Prefer advertised standard support to vendor keys on the first attempt.
-            // Performance hints remain independently controlled.
-            useVendorOptions = false;
         }
 
         if (useVendorOptions && tryNumber < 2 &&
@@ -548,10 +569,22 @@ public class MediaCodecHelper {
         //
         // MediaCodec vendor extension support was introduced in Android 8.0:
         // https://cs.android.com/android/_/android/platform/frameworks/av/+/01c10f8cdcd58d1e7025f426a72e6e75ba5d7fc2
-        if (useVendorOptions && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        List<String> vendorParams = useVendorOptions ? getIntegerVendorParameters(decoderInfo.getName()) : null;
+        if (vendorParams != null && !vendorParams.isEmpty() && tryNumber < 5) {
+            // Android 12+: set exactly the low-latency keys this decoder declares. The full set goes
+            // first; the last vendor try keeps only the low-latency switches themselves.
+            for (Map.Entry<String, Integer> key : VendorLowLatencyKeys.forSupported(vendorParams).entrySet()) {
+                if (tryNumber < 4 || VendorLowLatencyKeys.isCoreSwitch(key.getKey())) {
+                    videoFormat.setInteger(key.getKey(), key.getValue());
+                    setNewOption = true;
+                }
+            }
+        }
+        else if (useVendorOptions && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Try vendor-specific low latency options
             //
-            // NOTE: Update knownVendorLowLatencyOptions if you modify this code!
+            // Used below Android 12, where declared vendor parameters can't be listed.
+            // NOTE: Update VendorLowLatencyKeys.KNOWN if you modify this code!
             if (isDecoderInList(qualcommDecoderPrefixes, decoderInfo.getName())) {
                 // Examples of Qualcomm's vendor extensions for Snapdragon 845:
                 // https://cs.android.com/android/platform/superproject/+/master:hardware/qcom/sdm845/media/mm-video-v4l2/vidc/vdec/src/omx_vdec_extensions.hpp
@@ -596,26 +629,45 @@ public class MediaCodecHelper {
         return setNewOption;
     }
 
-    static String[] getDecoderLowLatencyOptions(MediaFormat requested, MediaFormat accepted) {
-        List<String> keys = new ArrayList<>(knownVendorLowLatencyOptions);
-        keys.add("low-latency");
-        keys.add("vdec-lowlatency");
-        keys.add("vendor.qti-ext-dec-picture-order.enable");
+    /**
+     * Splits the requested low-latency keys into ones the decoder confirmed (echoed back, declared
+     * as a vendor parameter, or advertised as FEATURE_LowLatency) and ones nothing confirms.
+     * Element 2 is the mode: "android+vendor", "android", "vendor" or "off".
+     */
+    static String[] getDecoderLowLatencyOptions(MediaFormat requested, MediaFormat accepted,
+                                                List<String> vendorParams, boolean featureLowLatency) {
+        List<String> keys = new ArrayList<>(VendorLowLatencyKeys.KNOWN.keySet());
+        keys.add(0, MediaFormat.KEY_LOW_LATENCY);
+        keys.add(1, "vdec-lowlatency");
         keys.add("vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-rdy");
-        List<String> confirmed = new ArrayList<>();
-        List<String> unconfirmed = new ArrayList<>();
-        for (String key : keys) {
-            if (requested.containsKey(key)) {
-                int value = requested.getInteger(key);
-                if (accepted.containsKey(key) && value == accepted.getInteger(key)) {
-                    confirmed.add(key + "=" + value);
-                } else {
-                    unconfirmed.add(key + "=" + value);
+        if (vendorParams != null) {
+            for (String param : vendorParams) {
+                if (!keys.contains(param)) {
+                    keys.add(param);
                 }
             }
         }
+        List<String> confirmed = new ArrayList<>();
+        List<String> unconfirmed = new ArrayList<>();
+        boolean android = false, vendor = false;
+        for (String key : keys) {
+            if (!requested.containsKey(key)) {
+                continue;
+            }
+            int value = requested.getInteger(key);
+            boolean echoed = accepted != null && accepted.containsKey(key) && value == accepted.getInteger(key);
+            boolean ok = echoed || (key.equals(MediaFormat.KEY_LOW_LATENCY) ? featureLowLatency
+                    : vendorParams != null && vendorParams.contains(key));
+            (ok ? confirmed : unconfirmed).add(key + "=" + value);
+            if (ok && key.equals(MediaFormat.KEY_LOW_LATENCY)) {
+                android = true;
+            } else if (ok && VendorLowLatencyKeys.isCoreSwitch(key)) {
+                vendor = true;
+            }
+        }
+        String mode = android && vendor ? "android+vendor" : android ? "android" : vendor ? "vendor" : "off";
         return new String[] { confirmed.isEmpty() ? "none" : String.join(", ", confirmed),
-                unconfirmed.isEmpty() ? "none" : String.join(", ", unconfirmed) };
+                unconfirmed.isEmpty() ? "none" : String.join(", ", unconfirmed), mode };
     }
 
     public static boolean decoderSupportsFusedIdrFrame(MediaCodecInfo decoderInfo, String mimeType) {

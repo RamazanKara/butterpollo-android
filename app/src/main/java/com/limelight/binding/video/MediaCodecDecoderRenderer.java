@@ -34,6 +34,7 @@ import android.media.MediaFormat;
 import android.media.MediaCodec.BufferInfo;
 import android.media.MediaCodec.CodecException;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -874,10 +875,39 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         setFrameRenderedListener();
 
-        // Vendor parameters are applied at start; only echoed values confirm acceptance.
+        reassertLowLatencyParameters(format);
+
+        // Vendor parameters are applied at start; echoed or declared values confirm acceptance.
         inputFormat = videoDecoder.getInputFormat();
         LimeLog.info("Input format: "+inputFormat);
         updateDecoderDiagnostics();
+    }
+
+    // Some decoders only honour low-latency settings sent after start, so send them again at runtime.
+    private void reassertLowLatencyParameters(MediaFormat format) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return;
+        }
+        Bundle params = new Bundle();
+        if (format.containsKey(MediaFormat.KEY_LOW_LATENCY)) {
+            params.putInt(MediaCodec.PARAMETER_KEY_LOW_LATENCY, format.getInteger(MediaFormat.KEY_LOW_LATENCY));
+        }
+        List<String> vendorParams = MediaCodecHelper.getIntegerVendorParameters(videoDecoder.getName());
+        if (vendorParams != null) {
+            for (String key : vendorParams) {
+                if (format.containsKey(key)) {
+                    params.putInt(key, format.getInteger(key));
+                }
+            }
+        }
+        if (params.isEmpty()) {
+            return;
+        }
+        try {
+            videoDecoder.setParameters(params);
+        } catch (Exception e) {
+            LimeLog.warning("Decoder rejected runtime low-latency parameters: " + e);
+        }
     }
 
     private void updateDecoderDiagnostics() {
@@ -886,12 +916,19 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")");
         } else {
             String mimeType = configuredFormat.getString(MediaFormat.KEY_MIME);
-            String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat);
+            String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat,
+                    MediaCodecHelper.getIntegerVendorParameters(videoDecoder.getName()),
+                    MediaCodecHelper.decoderSupportsAndroidRLowLatency(videoDecoder.getCodecInfo(), mimeType));
+            int mode;
+            switch (options[2]) {
+                case "android+vendor": mode = R.string.perf_overlay_low_latency_android_vendor; break;
+                case "android": mode = R.string.perf_overlay_low_latency_android; break;
+                case "vendor": mode = R.string.perf_overlay_low_latency_vendor; break;
+                default: mode = R.string.perf_overlay_low_latency_off; break;
+            }
             decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
                     videoDecoder.getName() + " (" + mimeType + ")") + '\n' +
-                    context.getString(R.string.perf_overlay_low_latency,
-                            context.getString(MediaCodecHelper.decoderSupportsAndroidRLowLatency(videoDecoder.getCodecInfo(), mimeType)
-                                    ? R.string.yes : R.string.no)) + '\n' +
+                    context.getString(R.string.perf_overlay_low_latency, context.getString(mode)) + '\n' +
                     context.getString(R.string.perf_overlay_low_latency_keys, options[0]) + '\n' +
                     context.getString(R.string.perf_overlay_low_latency_unconfirmed, options[1]);
         }

@@ -38,7 +38,11 @@
     <string name="perf_overlay_releasedfps">Released to display: %1$.2f FPS</string>
     <string name="perf_overlay_shownfps">Displayed: %1$s</string>
     <string name="perf_overlay_presentdrops">Estimated display drops: %1$d</string>
-    <string name="perf_overlay_low_latency">Low latency supported: %1$s</string>
+    <string name="perf_overlay_low_latency">Low latency mode: %1$s</string>
+    <string name="perf_overlay_low_latency_android_vendor">Android + chip vendor</string>
+    <string name="perf_overlay_low_latency_android">Android</string>
+    <string name="perf_overlay_low_latency_vendor">chip vendor</string>
+    <string name="perf_overlay_low_latency_off">off</string>
     <string name="perf_overlay_low_latency_keys">Decoder settings accepted: %1$s</string>
     <string name="perf_overlay_low_latency_unconfirmed">Decoder settings unconfirmed: %1$s</string>
     <string name="perf_overlay_phone_hints">Phone performance hints: %1$s</string>
