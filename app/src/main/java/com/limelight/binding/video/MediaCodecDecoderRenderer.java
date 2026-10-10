@@ -1513,11 +1513,6 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             vsyncIntervalNs = (long) (1000000000.0 / physicalRefreshRate);
             vsyncPresentationDeadlineNs = display.getPresentationDeadlineNanos();
         }
-        if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY) {
-            Choreographer.getInstance().postFrameCallback(this);
-            return;
-        }
-
         frameTimeNanos -= activity.getWindowManager().getDefaultDisplay().getAppVsyncOffsetNanos();
 
         // Don't render unless a new frame is due. This prevents microstutter when streaming
@@ -1558,8 +1553,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     }
 
     private void startChoreographerThread() {
-        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED &&
-                !(prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY && prefs.codecLowLatency && !useArr)) {
+        if (prefs.framePacing != PreferenceConfiguration.FRAME_PACING_BALANCED) {
             // Not using Choreographer in this pacing mode
             return;
         }
@@ -1626,10 +1620,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     }
                                     else {
                                         // Use a PTS that will cause this frame to be dropped if another comes in within
-                                        // the same V-sync period
-                                        releaseOutputFrame(lastIndex,
-                                                prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MIN_LATENCY && prefs.codecLowLatency ?
-                                                        nextVsyncTimeNs() : System.nanoTime());
+                                        // the same V-sync period. "Now" lets the compositor take it at its very next
+                                        // latch; a computed vsync target that errs late (a conservative deadline, a
+                                        // drifting phase estimate) holds frames back a whole refresh.
+                                        releaseOutputFrame(lastIndex, System.nanoTime());
                                     }
 
                                     activeWindowVideoStats.totalFramesRendered++;
