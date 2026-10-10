@@ -3,10 +3,9 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const optionalVideos = new Set(['assets/demo-16x9.mp4', 'assets/demo-9x16.mp4']);
+const maxImageBytes = 6 * 1024 * 1024;
 const external = new Set();
 const errors = [];
-const pendingVideos = new Set();
 let references = 0;
 
 async function walk(directory) {
@@ -72,13 +71,12 @@ async function check(file, value, attribute) {
       errors.push(label + ': missing anchor ' + value);
     }
   } catch {
-    if (attribute === 'data-src' && optionalVideos.has(local)) pendingVideos.add(local);
-    else errors.push(label + ': missing file ' + value);
+    errors.push(label + ': missing file ' + value);
   }
 }
 
 for (const [file, html] of documents) {
-  for (const match of html.matchAll(/\b(href|src|poster|data-src|data-portrait-poster)="([^"]*)"/g)) {
+  for (const match of html.matchAll(/\b(href|src|poster|data-src-portrait|data-poster-portrait)="([^"]*)"/g)) {
     await check(file, match[2], match[1]);
   }
   const og = html.match(/property="og:image" content="([^"]+)"/);
@@ -88,11 +86,17 @@ for (const file of (await walk(root)).filter(file => extname(file) === '.css')) 
   const css = await readFile(file, 'utf8');
   for (const match of css.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)/g)) await check(file, match[1], 'url');
 }
+let imageBytes = 0;
+for (const file of await walk(root)) {
+  if (['.mp4', '.webm'].includes(extname(file))) continue;
+  if (relative(root, file).startsWith('assets')) imageBytes += (await stat(file)).size;
+}
+if (imageBytes > maxImageBytes) errors.push('assets exceed ' + maxImageBytes + ' bytes excluding video: ' + imageBytes);
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
 } else {
   console.log('PASS: ' + pages.length + ' pages, ' + references + ' references; local files, anchors and repository doc paths.');
+  console.log('Assets excluding video: ' + (imageBytes / 1024).toFixed(0) + ' KiB (limit ' + (maxImageBytes / 1024) + ' KiB).');
 }
-if (pendingVideos.size) console.log('Expected future video files: ' + [...pendingVideos].join(', '));
 console.log('External URLs: ' + external.size + ' syntax-checked; remote availability is not checked.');

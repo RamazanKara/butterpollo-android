@@ -25,26 +25,30 @@ In another terminal:
 
 The checker validates local files, anchors, relative paths and linked repository
 documents. It checks external URL syntax without making network requests.
-Only the two future MP4 files below are allowed to be absent.
+It also fails when the assets, excluding video, exceed 6 MB.
 
 ## Media
 
-- `assets/settings.png`: copied and optimized from `docs/screenshots/11-controller-choose.png`.
-- `assets/controller.png`: copied and optimized from `docs/screenshots/12-controller-buttons.png`.
+- `assets/shot-library.webp`, `shot-pcs.webp`, `shot-presets.webp` and
+  `shot-upscaling.webp`: demo-mode captures from `docs/screenshots/demo/`
+  (`library.png`, `pc-list.png`, `settings-presets.png`,
+  `upscaling-options.png`), resized to 720 px wide.
+- `assets/shot-stream.webp`: `docs/screenshots/demo/landscape-compact.png`
+  with the side bars cropped to 16:9 and resized to 1600 × 900.
 - `assets/launcher.png` and `assets/favicon.png`: the launcher icon from
   `app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`.
 - `assets/og.png`: the 1200 × 630 raster export of `assets/og.svg`.
-- The screenshots retain their native resolution and pixels. Their PNG image data
-  is losslessly recompressed and unused metadata is removed.
-- The video posters are local SVG artwork.
+- `assets/demo-16x9.mp4` and `assets/demo-9x16.mp4`: the silent 47 s tour,
+  H.264 with the metadata at the start of the file. They are also attached to
+  the latest release. `assets/poster-16x9.webp` and `poster-9x16.webp` are the
+  posters, resized from the matching PNG frames.
+- Keep everything in `assets/` other than video under 6 MB in total. The link
+  checker enforces this.
 
-Add recorded footage as `assets/demo-16x9.mp4` and `assets/demo-9x16.mp4`.
-Use H.264 MP4 with the metadata at the beginning of the file for progressive
-playback. Keep the demo silent, or include captions for speech. No autoplay
-is used. Near the viewport, the page checks for the matching video, attaches
-its source and enables native controls. Until footage exists, the branded
-poster remains visible with no broken play control. Portrait uses the
-9:16 source and falls back to 16:9; desktop uses 16:9.
+The demo uses native controls, `preload="none"` and `playsinline`; nothing
+autoplays and no video bytes are fetched before play. The markup carries the
+16:9 source. `site.js` swaps in a fresh element with the 9:16 source and
+poster on screens up to 600 px wide, and only before playback starts.
 
 The privacy page follows `docs/PRIVACY.md`, including public network checks,
 local diagnostics, report sharing and Android backups. Endpoint names stay
@@ -60,7 +64,7 @@ HTML pages at 360, 768 and 1440 CSS pixels, in light and dark mode.
 - Consistent spacing, readable line lengths and visible keyboard focus.
 - Navigation, language links, skip links and in-page links work.
 - Reduced motion disables smooth scrolling.
-- Missing videos retain their poster; supplied videos expose working controls.
+- Videos show their poster and expose working controls; narrow screens get the 9:16 tour.
 
 ## Publish an orphan gh-pages branch
 
