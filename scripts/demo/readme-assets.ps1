@@ -51,12 +51,14 @@ function Save-Shot([string]$Source, [string]$Name, $Crop = $null, [int]$height =
     } finally { $g.Dispose(); $bitmap.Dispose(); $image.Dispose() }
 }
 
-# The row of four: Computers, library, a landscape stream with the compact overlay, and picture-in-picture.
-# The stream still is landscape (2400x1080); the phone-shaped tile shows its centre slice, which keeps the
-# one-line overlay at the top, the ship and the planet, and the small DEMO label at the bottom.
+# The four tiles: Computers, library, a landscape stream with the compact overlay, and picture-in-picture. All four are
+# the same 360x800 portrait size, so the README shows them as a 2x2 grid on a phone and one row of four on a desktop.
+# The stream still is landscape (2400x1080); its tile is a portrait slice of full height (x 970 to 1456 of the 2400x1080
+# still, 9:20 like the phone shots) that keeps the whole one-line overlay at the top (its text spans x 983 to 1447),
+# the ship in the middle and the small DEMO label at the bottom (x 978 to 1421).
 Save-Shot (Join-Path $stills 'pc-list.png') 'pc-list.png'
 Save-Shot (Join-Path $stills 'library.png') 'library.png'
-Save-Shot (Join-Path $stills 'landscape-compact.png') 'stream.png' @(920, 0, 780, 1080) 499
+Save-Shot (Join-Path $stills 'landscape-compact.png') 'stream.png' @(970, 0, 486, 1080)
 Save-Shot (Join-Path $stills 'pip.png') 'pip.png'
 foreach ($stale in 'overlay.png', 'presets.png') {
     $path = Join-Path $shots $stale
