@@ -8,7 +8,7 @@
   <img src="docs/assets/demo.gif" width="360" alt="Rubylight demo: open your game library, tap a game to start your stream, keep the performance overlay in view, and keep the stream floating in picture-in-picture.">
 </p>
 
-<p align="center"><a href="https://github.com/RamazanKara/rubylight-android/releases">Watch the full demo →</a></p>
+<p align="center"><a href="https://ramazankara.github.io/rubylight-android/#demo">Watch the full demo →</a></p>
 
 <p align="center">
   <a id="download" href="https://github.com/RamazanKara/rubylight-android/releases/latest"><img src="docs/assets/download.svg" width="260" height="52" alt="Download Rubylight for Android"></a>
