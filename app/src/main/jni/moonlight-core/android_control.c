@@ -80,3 +80,24 @@ Java_com_limelight_nvstream_jni_MoonBridge_getPhaseLockLeadUs(JNIEnv *env, jclas
     (void)env; (void)clazz;
     return atomic_load(&phaseLockLastLeadUs);
 }
+
+// Mid-stream reconfigure (protocol/core/src/control.rs): ask a Rubylight 2.2 host for a new
+// resolution or frame rate without reconnecting; it answers with an IDR at the new size. Sent
+// reliably, since a lost request would leave the stream at the old size. The caller checks that
+// the host advertised the message; the host validates the values again.
+JNIEXPORT jboolean JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_requestReconfigure(JNIEnv *env, jclass clazz,
+                                                             jint width, jint height, jint fpsMillihz) {
+    (void)env; (void)clazz;
+    if (width <= 0 || width > UINT16_MAX || height <= 0 || height > UINT16_MAX || fpsMillihz <= 0) {
+        return JNI_FALSE;
+    }
+    if (!encryptedControlStream || stopping || peer == NULL) {
+        return JNI_FALSE;
+    }
+    uint8_t request[RP_RECONFIGURE_BYTES];
+    rp_reconfigure_encode((uint16_t)width, (uint16_t)height, (uint32_t)fpsMillihz, request);
+    return sendMessageAndForget(RP_RECONFIGURE_MESSAGE_TYPE, (short)sizeof(request), request,
+                                CTRL_CHANNEL_GENERIC, ENET_PACKET_FLAG_RELIABLE, false)
+        ? JNI_TRUE : JNI_FALSE;
+}

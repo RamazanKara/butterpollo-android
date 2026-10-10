@@ -460,6 +460,14 @@ public class MoonBridge {
     // Integer.MIN_VALUE before the first one.
     public static native int getPhaseLockLeadUs();
 
+    // Rubylight 2.2 control message: change resolution or frame rate mid-stream.
+    public static final int CONTROL_MESSAGE_RECONFIGURE = 0x5532;
+
+    // Asks the host to continue at width x height and fpsMillihz / 1000 fps; it answers with an
+    // IDR at the new size. Only call when hostSupportsControlMessage(CONTROL_MESSAGE_RECONFIGURE).
+    // Returns false when the request could not be sent.
+    public static native boolean requestReconfigure(int width, int height, int fpsMillihz);
+
     // Negotiation stub, superseded by wip/2.2-net: there this becomes a native that reads the
     // host's SDP line a=x-rl-control. Until then no host is treated as accepting any of them.
     public static boolean hostSupportsControlMessage(int messageType) {
