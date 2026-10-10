@@ -58,8 +58,7 @@ public final class HostStreamSettings extends AppCompatActivity {
         MaterialToolbar toolbar = findViewById(R.id.host_profile_toolbar);
         toolbar.setSubtitle(getIntent().getStringExtra("host_name"));
         toolbar.setNavigationOnClickListener(v -> finish());
-        toolbar.getMenu().add(R.string.help).setIcon(R.drawable.ic_help)
-                .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+        toolbar.inflateMenu(R.menu.host_profile);
         toolbar.setOnMenuItemClickListener(item -> {
             new MaterialAlertDialogBuilder(this).setTitle(R.string.host_profile_menu)
                     .setMessage(R.string.host_profile_explanation).setPositiveButton(android.R.string.ok, null).show();
