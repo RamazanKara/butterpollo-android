@@ -1604,6 +1604,9 @@ namespace {
         // GPU decode time of the most recently completed frame, or 0 when unknown.
         uint32_t lastGpuDecodeUs = 0;
         uint64_t completedDecodeNs = 0;
+        // Average CPU waits per frame over the last stats interval, shown in the overlay.
+        float lastWaitPreviousMs = -1;
+        float lastWaitImageMs = -1;
         bool decodeStamped = false;
         uint64_t lastReleaseNs = 0;
         bool displayTimingSupported = false;
@@ -1700,6 +1703,8 @@ namespace {
                  stats.frames / seconds, stats.gpuDecodeUs / gpuFrames / 1000.0,
                  stats.fenceWaitUs / double(stats.frames) / 1000.0, stats.acquireWaitUs / double(stats.frames) / 1000.0,
                  stats.presentUs / double(stats.frames) / 1000.0);
+            lastWaitPreviousMs = float(stats.fenceWaitUs / double(stats.frames) / 1000.0);
+            lastWaitImageMs = float(stats.acquireWaitUs / double(stats.frames) / 1000.0);
             stats = {};
             stats.startUs = now;
 
@@ -1878,6 +1883,15 @@ JNIEXPORT jint JNICALL
 Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetLastGpuDecodeUs(JNIEnv *, jclass, jlong handle) {
     auto *renderer = reinterpret_cast<Renderer *>(handle);
     return renderer != nullptr ? jint(renderer->lastGpuDecodeUs) : 0;
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_limelight_binding_video_PyroWaveDecoderRenderer_nativeGetWaits(JNIEnv *env, jclass, jlong handle) {
+    auto *renderer = reinterpret_cast<Renderer *>(handle);
+    jfloat values[2] = {renderer->lastWaitPreviousMs, renderer->lastWaitImageMs};
+    jfloatArray result = env->NewFloatArray(2);
+    if (result != nullptr) env->SetFloatArrayRegion(result, 0, 2, values);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL

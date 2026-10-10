@@ -142,6 +142,12 @@ public final class PyroWaveDecoderRenderer {
         if (handle != 0) nativePollRenderedFrames(handle, stats);
     }
 
+    /** Average ms per frame spent waiting for the previous frame's draw and for a swapchain image. */
+    synchronized float[] getWaits() {
+        float[] waits = handle != 0 ? nativeGetWaits(handle) : null;
+        return waits != null ? waits : new float[] {-1, -1};
+    }
+
     synchronized int getLastGpuDecodeUs() {
         return handle != 0 ? nativeGetLastGpuDecodeUs(handle) : 0;
     }
@@ -202,6 +208,7 @@ public final class PyroWaveDecoderRenderer {
     private static native long nativeGetLastReleaseTimeNs(long handle);
     private static native boolean nativePollRenderedFrames(long handle, FrameLatencyStats stats);
     private static native int nativeGetLastGpuDecodeUs(long handle);
+    private static native float[] nativeGetWaits(long handle);
     private static native String nativeGetPresentMode(long handle);
     private static native float nativeGetLastRecordLossPercent(long handle);
     private static native void nativeSetHdrMode(long handle, boolean enabled, byte[] metadata);

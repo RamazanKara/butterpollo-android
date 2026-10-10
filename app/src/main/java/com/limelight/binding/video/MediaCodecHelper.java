@@ -516,6 +516,14 @@ public class MediaCodecHelper {
                 !isAdreno620;
     }
 
+    // "vdec-lowlatency" is read by the OMX layer of MediaTek and Amazon/Amlogic builds. Codec2
+    // decoders and other vendors' OMX components never see it, so it is not sent to them.
+    static boolean usesVdecLowLatency(String decoderName) {
+        String name = decoderName.toLowerCase(java.util.Locale.ROOT);
+        return name.startsWith("omx.") && !isDecoderInList(qualcommDecoderPrefixes, decoderName) &&
+                !isDecoderInList(exynosDecoderPrefixes, decoderName) && !isDecoderInList(kirinDecoderPrefixes, decoderName);
+    }
+
     public static boolean setDecoderLowLatencyOptions(MediaFormat videoFormat, MediaCodecInfo decoderInfo, int tryNumber,
                                                       boolean lowLatency, boolean vendorLowLatency, boolean performanceHints) {
         // Options here should be tried in the order of most to least risky. The decoder will use
@@ -533,7 +541,7 @@ public class MediaCodecHelper {
             setNewOption = true;
         }
 
-        if (useVendorOptions && tryNumber < 2 &&
+        if (useVendorOptions && tryNumber < 2 && usesVdecLowLatency(decoderInfo.getName()) &&
                 (!Build.MANUFACTURER.equalsIgnoreCase("xiaomi") || Build.VERSION.SDK_INT > Build.VERSION_CODES.M)) {
             // MediaTek decoders don't use vendor-defined keys for low latency mode. Instead, they have a modified
             // version of AOSP's ACodec.cpp which supports the "vdec-lowlatency" option. This option is passed down

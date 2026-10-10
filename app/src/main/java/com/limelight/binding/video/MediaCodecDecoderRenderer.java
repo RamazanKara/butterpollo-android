@@ -219,10 +219,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 (headroom >= 0 ? String.format(Locale.US, " (%.2f)", headroom) : "");
     }
 
-    static String formatPyroWaveStats(float recordLoss, float queueMs, float decodeMs, int gpuUs) {
+    static String formatPyroWaveStats(float recordLoss, float queueMs, int gpuUs) {
         return "PyroWave records missing: " + metric(recordLoss, "%") +
-                "\nQueue: " + metric(queueMs, " ms") + " | completed decode: " + metric(decodeMs, " ms") +
-                "\nGPU decode (last): " + metric(gpuUs > 0 ? gpuUs / 1000.0f : -1, " ms");
+                "\nQueue: " + metric(queueMs, " ms") + " | GPU decode (last): " +
+                metric(gpuUs > 0 ? gpuUs / 1000.0f : -1, " ms");
     }
 
     private static String metric(float value, String unit) {
@@ -2049,13 +2049,18 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 }
                 String network = context.getString(R.string.perf_overlay_netdrops, networkFrameLossPercent) + '\n' +
                         context.getString(R.string.perf_overlay_netlatency, (int)(rttInfo >> 32), (int)rttInfo);
-                StringBuilder decode = new StringBuilder(decoderDiagnostics).append('\n');
-                decode.append(decodeTimeMs >= 0 ? context.getString(R.string.perf_overlay_dectime, decodeTimeMs) :
-                        context.getString(R.string.latency_input_output) + ": " + context.getString(R.string.latency_unavailable));
+                StringBuilder decode = new StringBuilder(decoderDiagnostics);
+                // The timing block below already lists decode time; show it here only without that block.
+                if (latencyOverlay.isEmpty()) {
+                    decode.append('\n').append(decodeTimeMs >= 0 ? context.getString(R.string.perf_overlay_dectime, decodeTimeMs) :
+                            context.getString(R.string.latency_input_output) + ": " + context.getString(R.string.latency_unavailable));
+                }
                 if (!mediaCodec) {
                     int gpuUs = pyroWaveRenderer.getLastGpuDecodeUs();
-                    decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs,
-                            this.decodeTimeMs, gpuUs));
+                    float[] waits = pyroWaveRenderer.getWaits();
+                    decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs, gpuUs))
+                            .append("\nWaits per frame: previous frame ").append(metric(waits[0], " ms"))
+                            .append(" | screen image ").append(metric(waits[1], " ms"));
                 }
                 decode.append('\n').append(upscalingStats());
                 decode.append('\n').append(thermalStats());

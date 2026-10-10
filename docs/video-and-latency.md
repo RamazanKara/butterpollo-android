@@ -45,7 +45,7 @@ Choose **Stream → Upscaling** or override it in a PC profile.
 | FSR 1.0 | AMD EASU reconstruction followed by RCAS sharpening. |
 | SGSR 1 | Qualcomm's single-pass spatial reconstruction. |
 
-GPU upscaling is for lower-resolution MediaCodec SDR video on GLES 3.0 with the required external-image support. Native/larger input, HDR, 10-bit and PyroWave use direct output. GPU overload, repeated local drops, renderer errors or resize can cause direct-output fallback until reconnect.
+GPU upscaling is for lower-resolution MediaCodec SDR video on GLES 3.0 with the required external-image support. Native/larger input, HDR and 10-bit use direct output. PyroWave SDR streams use SGSR 1 inside the Vulkan renderer for both FSR and SGSR, reading the decoded planes directly in one pass. GPU overload, repeated local drops, renderer errors or resize can cause direct-output fallback until reconnect.
 
 Sharpening ranges from 0–100%, default 50%. At 0%, FSR bypasses extra sharpening; SGSR still performs spatial reconstruction. The setting applies next stream. Compare text, edges, motion, battery use and added time, not just a still image.
 
@@ -83,5 +83,7 @@ Compact includes PyroWave measurements. Advanced groups details into Video, Netw
 Enable **Automatic bitrate** in the stream's **Bitrate** menu on a supporting host. It is opt-in and saved per PC, separately for conventional codecs and PyroWave. Loss, RTT variation and completed decode headroom inform adaptation; PyroWave also considers queue delay. Recovery is gradual and missing measurements prevent increases. Manual session bitrate changes turn it off.
 
 Use **Settings → Advanced → Export latency CSV** to save the latest local frame timings. `queue_wait_ms`, `input_to_output_ms` and `output_to_render_ms` correspond to the stages above; unavailable measurements stay blank. The appended FPS sample separates received/released/shown FPS and estimated presentation drops. A full logging queue may omit rows.
+
+**Stream menu → Overlay → Measure input latency** measures input to screen during a stream: on a still host desktop with a visible pointer, it nudges the mouse 15 times and times each nudge until Android reports the host's answering frame on screen. It reports typical, best and slowest-10% values; a host that keeps sending frames on a still screen cannot be measured this way.
 
 **Settings → App → Latency benchmark** runs a 10-second hostless test of frame callbacks, timer wakeups and input dispatch age. It does not measure networking, decoding, physical controller polling, audio output, scanout or end-to-end stream latency.
