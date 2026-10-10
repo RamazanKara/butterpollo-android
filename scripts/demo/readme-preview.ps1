@@ -15,7 +15,10 @@ $edge = @('C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe', 'C:\Pr
     Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 if (-not $edge) { throw 'Microsoft Edge is required for the preview.' }
 $readme = Join-Path $Docs 'README.md'
-$body = & gh api markdown -f "text=$([IO.File]::ReadAllText($readme))" -f mode=gfm
+# gh prints UTF-8; decode it as such so the middle dots and arrows in the README are not turned into mojibake.
+$previousEncoding = [Console]::OutputEncoding
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+try { $body = & gh api markdown -f "text=$([IO.File]::ReadAllText($readme))" -f mode=gfm } finally { [Console]::OutputEncoding = $previousEncoding }
 if ($LASTEXITCODE -ne 0) { throw 'gh api markdown failed.' }
 $base = ([Uri](Join-Path $Docs '.')).AbsoluteUri
 $css = @'

@@ -96,13 +96,13 @@ The script then rotates to landscape and also saves `landscape-stream.png`, `lan
 on-screen controller is laid out for it. PNG dimensions are checked after pulling. These files are created by
 the caller; no empty-app placeholders are substituted.
 
-`capture-video.ps1` records all eleven [shots](shotlist.md) with
-`adb shell screenrecord` at half resolution (540x1200 portrait, 1200x540 landscape for the stream shots 05, 06, 07, 11 and 13;
+`capture-video.ps1` records all eight [shots](shotlist.md) with
+`adb shell screenrecord` at half resolution (540x1200 portrait, 1200x540 landscape for the stream shots 05 and 06;
 the emulator's software encoder cannot keep up at full size). screenrecord writes variable-rate video and a single
 frame for a static screen, so FFmpeg normalizes each take to 30 fps and holds the last frame. Clips go to
 `out/demo/clips/<shot-id>.mp4`, with one second of handles at each end. Shot 04
 shows the library directly (taps on a PC card do not navigate under `adb input` on the emulator), and shot 05 taps
-Racing Game while recording. Shot 12 presses Home while recording and leaves the PiP window in Android's default bottom-right corner (the demo home's rings are centred there); for it the script enables the debug app's plain dark `DemoHomeActivity` as the home screen (so the window floats over a clean background, not third-party launcher icons) and restores the device's launcher afterwards. Shot 13 long-presses the compact overlay to show the advanced list too. Logs stay beside the clips. Recording is silent.
+Racing Game while recording. Shot 12 presses Home while recording and leaves the PiP window in Android's default bottom-right corner (the demo home's rings are centred there); for it the script enables the debug app's plain dark `DemoHomeActivity` as the home screen (so the window floats over a clean background, not third-party launcher icons) and restores the device's launcher afterwards. The advanced overlay, touch controls and performance panel shots (07, 11, 13) were dropped from the tour after review, see the [shotlist](shotlist.md); their clips are not rendered. Logs stay beside the clips. Recording is silent.
 The older `capture.ps1` entry point forwards to this offline tour; its `-NoHost`
 option is now redundant.
 

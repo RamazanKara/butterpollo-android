@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $output = Join-Path $root 'out/demo'
 $work = Join-Path $output 'work'
-$frames = Join-Path $output 'frames-v2'
+$frames = Join-Path $output 'frames-v3'
 $utf8 = New-Object Text.UTF8Encoding($false)
 $culture = [Globalization.CultureInfo]::InvariantCulture
 $fps = 30
@@ -452,10 +452,10 @@ try {
         "measured_LRA=$($levels.input_lra):measured_thresh=$($levels.input_thresh):offset=$($levels.target_offset):linear=true:print_format=json"
     Invoke-FFmpeg @('-i', 'music-raw.wav', '-af', $normalize, '-ar', '48000', '-c:a', 'pcm_s24le', 'music.wav') 'loudness-normalized'
 
-    # Eight review frames per video: both title cards and a mid-shot frame of six shots, including every stream
-    # shot with an overlay (the part of the picture most likely to collide with the sample's own text).
-    $review = @(@('intro', 1.8), @('01-launch', 2.0), @('04-library', 2.5), @('06-compact', 3.0), @('11-touch', 2.5),
-        @('12-pip', 5.3), @('13-performance', 5.0), @('outro', 2.5))
+    # Eight review frames per video: both title cards and a mid-shot frame of six shots, including both stream shots
+    # (the part of the picture most likely to collide with the sample's own text) and picture-in-picture.
+    $review = @(@('intro', 1.8), @('01-launch', 2.0), @('04-library', 2.5), @('05-stream', 3.5), @('06-compact', 3.0),
+        @('09-upscaling', 2.5), @('12-pip', 5.3), @('outro', 2.5))
     foreach ($format in @('16x9', '9x16')) {
         $final = Join-Path $output "demo-$format.mp4"
         Invoke-FFmpeg @('-i', "$format-picture.mp4", '-i', 'music.wav', '-map', '0:v:0', '-map', '1:a:0',
