@@ -484,4 +484,12 @@ public class MoonBridge {
     // Encodes one frame of 48 kHz mono PCM as Opus and sends it to the host. Returns the
     // datagram length, or a negative value when the frame was not sent.
     public static native int sendMicrophonePcm(short[] pcm, int samples);
+
+    // Rubylight 2.2 control message: change resolution or frame rate mid-stream.
+    public static final int CONTROL_MESSAGE_RECONFIGURE = 0x5532;
+
+    // Asks the host to continue at width x height and fpsMillihz / 1000 fps; it answers with an
+    // IDR at the new size. Only call when hostSupportsControlMessage(CONTROL_MESSAGE_RECONFIGURE).
+    // Returns false when the request could not be sent.
+    public static native boolean requestReconfigure(int width, int height, int fpsMillihz);
 }

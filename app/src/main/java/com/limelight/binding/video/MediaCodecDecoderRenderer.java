@@ -74,6 +74,13 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private byte optimalSlicesPerFrame;
     private boolean refFrameInvalidationActive;
     private int initialWidth, initialHeight;
+    // Mid-stream reconfigure (0x5532): the adaptive-playback maximum, which grows when a larger
+    // size is asked for; the size the host was last asked for; and the size being shown.
+    private int maxDecodeWidth, maxDecodeHeight;
+    private volatile boolean reconfigureRequested;
+    private volatile int expectedWidth, expectedHeight;
+    private volatile int streamWidth, streamHeight;
+    private volatile StreamSizeListener streamSizeListener;
     private int videoFormat;
     private Surface renderTarget;
     private int renderWidth, renderHeight;
@@ -450,6 +457,143 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
 
         return decoderInfo;
+    }
+
+    public interface StreamSizeListener {
+        // Called on the renderer thread when frames of a new size come out of the decoder after
+        // a mid-stream reconfigure.
+        void onStreamSizeChanged(int width, int height);
+    }
+
+    public void setStreamSizeListener(StreamSizeListener listener) {
+        streamSizeListener = listener;
+    }
+
+    // The size of the frames being shown: the negotiated size until a reconfigure changes it.
+    public int[] getStreamSize() {
+        return new int[] {streamWidth, streamHeight};
+    }
+
+    // A decoder that can change size mid-stream, or null: PyroWave (its Vulkan path sizes its
+    // planes once), decoders without adaptive playback, and Android 7.1 and older, whose H.264
+    // SPS fixups assume the first size.
+    private MediaCodecInfo.VideoCapabilities reconfigureCapabilities() {
+        if (stopping || videoDecoder == null || configuredFormat == null || !adaptivePlayback ||
+                (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0 ||
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return null;
+        }
+        try {
+            return videoDecoder.getCodecInfo()
+                    .getCapabilitiesForType(configuredFormat.getString(MediaFormat.KEY_MIME))
+                    .getVideoCapabilities();
+        } catch (RuntimeException e) {
+            LimeLog.warning("Cannot read decoder sizes: " + e);
+            return null;
+        }
+    }
+
+    // {max width, max height, width alignment, height alignment} this stream's decoder can switch
+    // to mid-stream, or null when it cannot change size in place.
+    public int[] getReconfigureLimits() {
+        synchronized (codecRecoveryMonitor) {
+            MediaCodecInfo.VideoCapabilities caps = reconfigureCapabilities();
+            if (caps == null) {
+                return null;
+            }
+            int maxWidth = caps.getSupportedWidths().getUpper();
+            int maxHeight = caps.getSupportedHeights().getUpper();
+            if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_H264) != 0) {
+                // initializeDecoder() refuses H.264 above 4096 either way.
+                maxWidth = Math.min(maxWidth, 4096);
+                maxHeight = Math.min(maxHeight, 4096);
+            }
+            return new int[] {maxWidth, maxHeight, caps.getWidthAlignment(), caps.getHeightAlignment()};
+        }
+    }
+
+    // Gets the decoder ready for an IDR of width x height before the host is asked for one.
+    // Adaptive playback takes any size up to the configured maximum without a pause. A larger size
+    // raises the maximum to cover both sizes, which restarts the decoder once and asks for an IDR;
+    // either size can then arrive first. False when this decoder cannot take the size.
+    public boolean prepareForReconfigure(int width, int height, int fps) {
+        synchronized (codecRecoveryMonitor) {
+            MediaCodecInfo.VideoCapabilities caps = reconfigureCapabilities();
+            if (caps == null) {
+                return false;
+            }
+            int[] max = StreamResizePolicy.coveringMax(maxDecodeWidth, maxDecodeHeight, width, height);
+            if (!caps.isSizeSupported(width, height) || !caps.isSizeSupported(max[0], max[1])) {
+                LimeLog.warning("Decoder cannot switch to " + width + "x" + height + " within " +
+                        max[0] + "x" + max[1]);
+                return false;
+            }
+            boolean restart = false;
+            if (max[0] != maxDecodeWidth || max[1] != maxDecodeHeight) {
+                LimeLog.info("Decoder restarts for sizes up to " + max[0] + "x" + max[1] +
+                        " (was " + maxDecodeWidth + "x" + maxDecodeHeight + ")");
+                maxDecodeWidth = max[0];
+                maxDecodeHeight = max[1];
+                configuredFormat.setInteger(MediaFormat.KEY_MAX_WIDTH, maxDecodeWidth);
+                configuredFormat.setInteger(MediaFormat.KEY_MAX_HEIGHT, maxDecodeHeight);
+                restart = true;
+            }
+            if (upscaler != null && (width != initialWidth || height != initialHeight)) {
+                // The GLES upscaler is built for the first size; continue on direct output.
+                upscalingPolicy.fail(UpscalingPolicy.Reason.SIZE_CHANGED);
+                restart = true;
+            }
+            if (fps > 0 && fps != refreshRate) {
+                refreshRate = fps;
+                configuredFormat.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
+            }
+            if (restart) {
+                // An expected "recovery", like an HDR change.
+                codecRecoveryAttempts = 0;
+                if (!codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESTART)) {
+                    codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_FLUSH, CR_RECOVERY_TYPE_RESTART);
+                }
+            }
+            expectedWidth = width;
+            expectedHeight = height;
+            reconfigureRequested = true;
+            return true;
+        }
+    }
+
+    // Logs the size each decoder output format carries and, after a reconfigure, reports a new
+    // size once its frames come out.
+    private void updateShownSize() {
+        int[] visible;
+        try {
+            if (!outputFormat.containsKey(MediaFormat.KEY_WIDTH) || !outputFormat.containsKey(MediaFormat.KEY_HEIGHT)) {
+                return;
+            }
+            visible = StreamResizePolicy.visibleSize(outputFormat.getInteger(MediaFormat.KEY_WIDTH),
+                    outputFormat.getInteger(MediaFormat.KEY_HEIGHT),
+                    formatInteger(outputFormat, "crop-left"), formatInteger(outputFormat, "crop-right"),
+                    formatInteger(outputFormat, "crop-top"), formatInteger(outputFormat, "crop-bottom"));
+        } catch (RuntimeException e) {
+            LimeLog.warning("Cannot read decoded size: " + e);
+            return;
+        }
+        int[] shown = StreamResizePolicy.shownSize(visible[0], visible[1], expectedWidth, expectedHeight);
+        LimeLog.info("Decoded size: " + visible[0] + "x" + visible[1] + ", shown as " + shown[0] + "x" + shown[1]);
+        if (!reconfigureRequested || (shown[0] == streamWidth && shown[1] == streamHeight)) {
+            return;
+        }
+        LimeLog.info("Stream size changed from " + streamWidth + "x" + streamHeight + " to " +
+                shown[0] + "x" + shown[1] + " (asked for " + expectedWidth + "x" + expectedHeight + ")");
+        streamWidth = shown[0];
+        streamHeight = shown[1];
+        StreamSizeListener listener = streamSizeListener;
+        if (listener != null) {
+            listener.onStreamSizeChanged(shown[0], shown[1]);
+        }
+    }
+
+    private static int formatInteger(MediaFormat format, String key) {
+        return format.containsKey(key) ? format.getInteger(key) : -1;
     }
 
     public void setRenderTarget(Surface renderTarget, int width, int height) {
@@ -845,10 +989,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, refreshRate);
         }
 
-        // Populate keys for adaptive playback
+        // Populate keys for adaptive playback. The maximum starts at the stream size and only
+        // grows when a mid-stream reconfigure asks for more.
         if (adaptivePlayback) {
-            videoFormat.setInteger(MediaFormat.KEY_MAX_WIDTH, initialWidth);
-            videoFormat.setInteger(MediaFormat.KEY_MAX_HEIGHT, initialHeight);
+            videoFormat.setInteger(MediaFormat.KEY_MAX_WIDTH, maxDecodeWidth);
+            videoFormat.setInteger(MediaFormat.KEY_MAX_HEIGHT, maxDecodeHeight);
         }
 
         // Android 7.0 adds color options to the MediaFormat
@@ -1159,6 +1304,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             }
             this.initialWidth = width;
             this.initialHeight = height;
+            this.maxDecodeWidth = this.expectedWidth = this.streamWidth = width;
+            this.maxDecodeHeight = this.expectedHeight = this.streamHeight = height;
             this.videoFormat = format;
             this.refreshRate = redrawRate;
 
@@ -1688,6 +1835,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                 outputFormat = videoDecoder.getOutputFormat();
                                 LimeLog.info("New output format: " + outputFormat);
                                 checkUpscalingOutputFormat();
+                                updateShownSize();
                             }
                         } catch (IllegalStateException e) {
                             handleDecoderException(e);
@@ -2076,7 +2224,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 boolean mediaCodec = (videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) == 0;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 StringBuilder video = new StringBuilder();
-                video.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
+                video.append(context.getString(R.string.perf_overlay_streamdetails, streamWidth + "x" + streamHeight, fps.totalFps)).append('\n');
                 video.append(context.getString(R.string.perf_overlay_incomingfps,
                         mediaCodec ? frameRates[0] : fps.receivedFps)).append('\n');
                 video.append(context.getString(R.string.perf_overlay_releasedfps, frameRates[1])).append('\n');
