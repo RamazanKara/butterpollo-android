@@ -32,6 +32,16 @@ public class StreamPresetTest {
     }
 
     @Test
+    public void frontBufferStaysOptInBecauseItTears() {
+        assertFalse(java.util.Arrays.asList(StreamPreset.LATENCY_SWITCHES)
+                .contains(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING));
+        Map<String, Object> values = new HashMap<>();
+        values.put(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING, false);
+        StreamPreset.NATIVE.apply(preferences(values, new int[1]), PHONE, 120);
+        assertEquals(false, values.get(PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING));
+    }
+
+    @Test
     public void batterySaverKeepsNativeResolutionAt30Fps() {
         Map<String, Object> values = new HashMap<>();
         StreamPreset.BATTERY_SAVER.apply(preferences(values, new int[1]), PHONE, 144);

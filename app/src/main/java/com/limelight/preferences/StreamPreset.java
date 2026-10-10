@@ -11,12 +11,12 @@ public enum StreamPreset {
     BATTERY_SAVER;
 
     // Switches that cut latency. All are on by default, and Native turns them back on.
+    // Front-buffer rendering is not one of them: it tears, so it stays an opt-in.
     static final String[] LATENCY_SWITCHES = {
             "checkbox_codec_low_latency",
             "checkbox_vendor_low_latency",
             "checkbox_phone_performance_hints",
             PreferenceConfiguration.GPU_MAX_CLOCKS_PREF_STRING,
-            PreferenceConfiguration.PYROWAVE_FRONT_BUFFER_PREF_STRING,
             "checkbox_drop_late_frames",
             "checkbox_unbatched_input",
             "checkbox_network_priority",

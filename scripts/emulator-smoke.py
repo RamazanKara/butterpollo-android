@@ -380,11 +380,13 @@ def main():
             native = native_resolution()
             latency_switches = ("checkbox_codec_low_latency", "checkbox_vendor_low_latency",
                                 "checkbox_phone_performance_hints", "checkbox_gpu_max_clocks",
-                                "checkbox_pyrowave_front_buffer", "checkbox_drop_late_frames",
-                                "checkbox_unbatched_input", "checkbox_network_priority")
+                                "checkbox_drop_late_frames", "checkbox_unbatched_input",
+                                "checkbox_network_priority")
+            # Front-buffer rendering tears, so it stays off until the user turns it on.
             prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "2" and
                   pref_value(root, "list_resolution") == native and pref_value(root, "frame_pacing") == "latency" and
-                  all(pref_value(root, key) == "true" for key in latency_switches),
+                  all(pref_value(root, key) == "true" for key in latency_switches) and
+                  pref_value(root, "checkbox_pyrowave_front_buffer") == "false",
                   f"Fresh install is not at native {native} with every latency setting on")
             tap("android:id/button1")
             tap(f"{PACKAGE}:id/discovery_add")
@@ -550,7 +552,7 @@ def main():
             tap("Navigate up")
             find_text(r"^\d+×\d+ · \d+ FPS · \d+ Mbps · Automatic$")
             prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "list_resolution") == native and
-                  pref_value(root, "checkbox_pyrowave_front_buffer") == "true",
+                  pref_value(root, "checkbox_network_priority") == "true",
                   "Reset did not return to native resolution with latency settings on")
             prefs(f"{PACKAGE}_preferences", lambda root: not any(
                 n.get("name") == "checkbox_enable_perf_overlay" and n.get("value") == "true" for n in root),

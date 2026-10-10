@@ -741,7 +741,7 @@ public class PreferenceConfiguration {
         config.codecPerformance = prefs.getBoolean(CODEC_PERFORMANCE_PREF_STRING, true);
         config.phonePerformanceHints = prefs.getBoolean(PHONE_PERFORMANCE_HINTS_PREF_STRING, true);
         config.gpuMaxClocks = prefs.getBoolean(GPU_MAX_CLOCKS_PREF_STRING, true);
-        config.pyroWaveFrontBuffer = prefs.getBoolean(PYROWAVE_FRONT_BUFFER_PREF_STRING, true);
+        config.pyroWaveFrontBuffer = prefs.getBoolean(PYROWAVE_FRONT_BUFFER_PREF_STRING, false);
         config.dropLateFrames = prefs.getBoolean(DROP_LATE_FRAMES_PREF_STRING, true);
         // SurfaceView preserves HDR metadata and avoids TextureView's extra composition step.
         config.useTextureView = prefs.getBoolean(TEXTURE_VIEW_PREF_STRING, false) && !config.enableHdr &&
