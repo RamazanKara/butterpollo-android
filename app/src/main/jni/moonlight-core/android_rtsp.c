@@ -1,11 +1,13 @@
 #include "Limelight-internal.h"
 #include "Rtsp.h"
 #include "pyrowave_protocol.h"
+#include "android_microphone.h"
 
 int PyroWaveRecordsSupported;
 int PyroWaveRecordsEnabled;
 
-// Moonlight common-c 874ac954 (GPL-3.0), with Rubylight PyroWave negotiation.
+// Moonlight common-c 874ac954 (GPL-3.0), with Rubylight PyroWave negotiation and the
+// microphone negotiation of ClassicOldSong/moonlight-common-c 784fa1d0 (GPL-3.0).
 
 #define RTSP_CONNECT_TIMEOUT_SEC 10
 #define RTSP_RECEIVE_TIMEOUT_SEC 15
@@ -949,6 +951,8 @@ bool parseSdpAttributeToInt(const char* payload, const char* name, int* val) {
 // Perform RTSP Handshake with the streaming server machine as part of the connection process
 int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
     int ret;
+    bool micWanted = false;
+    uint16_t micOfferedPort = 0;
 
     LC_ASSERT(RtspPortNumber != 0);
 
@@ -958,6 +962,8 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
     hasSessionId = false;
     controlStreamId = APP_VERSION_AT_LEAST(7, 1, 431) ? "streamid=control/13/0" : "streamid=control/1/0";
     AudioEncryptionEnabled = false;
+    MicPortNumber = 0;
+    setMicrophoneState(MIC_STATE_OFF);
     encryptedRtspEnabled = serverInfo->rtspSessionUrl && strstr(serverInfo->rtspSessionUrl, "rtspenc://");
     encryptionCtx = PltCreateCryptoContext();
     decryptionCtx = PltCreateCryptoContext();
@@ -1175,6 +1181,24 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         }
         EncryptionFeaturesEnabled = 0;
 
+        // A host that takes a microphone offers mono Opus in an m=audio section and supports
+        // (and requests) microphone encryption. It never takes one unencrypted, so without
+        // encryption support the microphone is not set up at all.
+        if (AndroidMicRequested) {
+            if (!micParseOffer(response.payload, &micOfferedPort)) {
+                Limelog("Microphone: not offered by this host\n");
+                setMicrophoneState(MIC_STATE_NOT_OFFERED);
+            }
+            else if (!(EncryptionFeaturesSupported & SS_ENC_MICROPHONE)) {
+                Limelog("Microphone: offered without encryption support; not sending\n");
+                setMicrophoneState(MIC_STATE_UNAVAILABLE);
+            }
+            else {
+                Limelog("Microphone: offered by host\n");
+                micWanted = true;
+            }
+        }
+
         // Parse the Opus surround parameters out of the RTSP DESCRIBE response.
         ret = parseOpusConfigurations(&response);
         if (ret != 0) {
@@ -1365,6 +1389,41 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         freeMessage(&response);
     }
 
+    // The microphone is set up after the other streams and before ANNOUNCE, which then
+    // enables its encryption. A host that refuses it costs only the microphone.
+    if (micWanted) {
+        RTSP_MESSAGE response;
+        int error = -1;
+
+        if (!setupStream(&response,
+                         AppVersionQuad[0] >= 5 ? "streamid=mic/0/0" : "streamid=mic",
+                         &error)) {
+            Limelog("RTSP SETUP streamid=mic request failed: %d\n", error);
+            ret = error;
+            goto Exit;
+        }
+
+        if (response.message.response.statusCode != 200) {
+            Limelog("RTSP SETUP streamid=mic failed: %d (continuing without microphone)\n",
+                response.message.response.statusCode);
+            setMicrophoneState(MIC_STATE_UNAVAILABLE);
+            micWanted = false;
+        }
+        else {
+            LC_ASSERT(MicPortNumber == 0);
+            if (!parseServerPortFromTransport(&response, &MicPortNumber)) {
+                // The DESCRIBE offer names the port too; 48001 is the default base port + 12.
+                MicPortNumber = micOfferedPort != 0 ? micOfferedPort : 48001;
+                Limelog("Microphone port: %u (RTSP parsing failed)\n", MicPortNumber);
+            }
+            else {
+                Limelog("Microphone port: %u\n", MicPortNumber);
+            }
+        }
+
+        freeMessage(&response);
+    }
+
     {
         RTSP_MESSAGE response;
         int error = -1;
@@ -1445,6 +1504,26 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
                 ret = response.message.response.statusCode;
                 freeMessage(&response);
                 goto Exit;
+            }
+
+            freeMessage(&response);
+        }
+
+        if (MicPortNumber != 0) {
+            RTSP_MESSAGE response;
+            int error = -1;
+
+            if (!playStream(&response, "streamid=mic", &error)) {
+                Limelog("RTSP PLAY streamid=mic request failed: %d\n", error);
+                ret = error;
+                goto Exit;
+            }
+
+            if (response.message.response.statusCode != 200) {
+                Limelog("RTSP PLAY streamid=mic failed: %d (continuing without microphone)\n",
+                    response.message.response.statusCode);
+                MicPortNumber = 0;
+                setMicrophoneState(MIC_STATE_UNAVAILABLE);
             }
 
             freeMessage(&response);

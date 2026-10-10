@@ -1,6 +1,7 @@
 #include "Limelight-internal.h"
 #include <inttypes.h>
 #include "pyrowave_protocol.h"
+#include "android_microphone.h"
 
 // Moonlight common-c 874ac954 (GPL-3.0), with Rubylight PyroWave negotiation.
 
@@ -301,6 +302,13 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
             // we'll encrypt anyway (since we are capable of doing so) and print a warning.
             Limelog("Enabling audio encryption by host request despite client opt-out. Audio quality may suffer!");
             EncryptionFeaturesEnabled |= SS_ENC_AUDIO;
+        }
+
+        // Microphone encryption only when the user turned the microphone on and the host set it
+        // up (MicPortNumber comes from SETUP streamid=mic, which needs the host's support for
+        // it). Hosts never take the microphone unencrypted, so it is always on in that case.
+        if (MicPortNumber != 0 && (EncryptionFeaturesSupported & SS_ENC_MICROPHONE)) {
+            EncryptionFeaturesEnabled |= SS_ENC_MICROPHONE;
         }
 
         snprintf(payloadStr, sizeof(payloadStr), "%" PRIu32, EncryptionFeaturesEnabled);
