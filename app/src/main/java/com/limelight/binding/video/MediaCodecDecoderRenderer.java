@@ -126,6 +126,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private float pyroWaveLossTotal;
     private int pyroWaveLossSamples;
     private float pyroWaveQueueDelayTotal;
+    private int pyroWaveQueueSamples;
+    // Frames skipped because a newer one was already waiting, and frames decoded, per stats window.
+    private int pyroWaveSkippedFrames;
+    private int pyroWaveDecodedFrames;
+    private volatile float pyroWaveSkippedPercent = -1;
     private volatile float pyroWaveLossPercent = -1;
     private volatile float pyroWaveQueueDelayMs = -1;
     private volatile float decodeTimeMs = -1;
@@ -2007,9 +2012,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
             if (pyroWaveLossSamples != 0) {
                 pyroWaveLossPercent = pyroWaveLossTotal / pyroWaveLossSamples;
-                pyroWaveQueueDelayMs = pyroWaveQueueDelayTotal / pyroWaveLossSamples;
-                pyroWaveLossTotal = pyroWaveQueueDelayTotal = 0;
+                pyroWaveLossTotal = 0;
                 pyroWaveLossSamples = 0;
+            }
+            if (pyroWaveQueueSamples != 0) {
+                pyroWaveQueueDelayMs = pyroWaveQueueDelayTotal / pyroWaveQueueSamples;
+                pyroWaveQueueDelayTotal = 0;
+                pyroWaveQueueSamples = 0;
+            }
+            if (pyroWaveSkippedFrames + pyroWaveDecodedFrames != 0) {
+                pyroWaveSkippedPercent = 100f * pyroWaveSkippedFrames / (pyroWaveSkippedFrames + pyroWaveDecodedFrames);
+                pyroWaveSkippedFrames = pyroWaveDecodedFrames = 0;
             }
             decodeTimeMs = frameLatencyStats.takeDecodeTimeMs();
             thermalLevel = thermalMonitor.level();
@@ -2055,7 +2068,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     decode.append('\n').append(formatPyroWaveStats(pyroWaveLossPercent, pyroWaveQueueDelayMs, gpuUs))
                             .append("\nWaits per frame: free planes ").append(metric(waits[0], " ms"))
                             .append(" | screen image ").append(metric(waits[1], " ms"))
-                            .append("\nReplaced by a newer frame before display: ").append(metric(waits[2], "%"));
+                            .append("\nReplaced by a newer frame: before decode ").append(metric(pyroWaveSkippedPercent, "%"))
+                            .append(" | before display ").append(metric(waits[2], "%"));
                 }
                 decode.append('\n').append(upscalingStats());
                 decode.append('\n').append(thermalStats());
@@ -2074,9 +2088,22 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if ((videoFormat & MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0) {
             long inputNs = System.nanoTime();
             pyroWaveQueueDelayTotal += Math.max(0, inputNs - enqueueTimeNs) / 1000000.0f;
+            pyroWaveQueueSamples++;
             long ptsUs = Math.max(inputNs / 1000, lastTimestampUs + 1);
             lastTimestampUs = ptsUs;
             frameLatencyStats.onDecoderInput(frameNumber, ptsUs, receiveTimeNs, enqueueTimeNs, inputNs, frameHostProcessingLatency);
+            // Newest frame wins: every PyroWave frame is intra-only, so when a newer one is already
+            // waiting, decoding this one would only delay it. A phone that falls behind catches up
+            // at once instead of working through a backlog.
+            if (MoonBridge.getPendingVideoFrames() > 0) {
+                activeWindowVideoStats.totalFrames++;
+                activeWindowVideoStats.totalFramesReceived++;
+                pyroWaveSkippedFrames++;
+                frameLatencyStats.onFrameReceived(receiveTimeNs);
+                frameLatencyStats.discard(ptsUs, "replaced_before_decode");
+                return MoonBridge.DR_OK;
+            }
+            pyroWaveDecodedFrames++;
             long outputNs = pyroWaveRenderer.submitFrame(decodeUnitData, decodeUnitLength, ptsUs, frameLatencyStats,
                     context, prefs.phonePerformanceHints, refreshRate);
             pyroWaveLossTotal += pyroWaveRenderer.getLastRecordLossPercent();
