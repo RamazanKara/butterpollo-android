@@ -44,7 +44,7 @@ The Compact value is network round-trip time plus completed decode time. It excl
 
 ## Can I use my launcher?
 
-Rubylight exports game files for ES-DE and accepts Android intents from Daijisho, Pegasus and other frontends. See [frontends](frontends.md).
+Rubylight exports game files for ES-DE and accepts Android intents from Daijisho, Pegasus and other frontends. See [frontends](FRONTENDS.md).
 
 ## Does an update preserve pairing?
 
@@ -52,4 +52,4 @@ An update signed with the same key normally preserves the installation. Uninstal
 
 ## Does Rubylight upload diagnostics automatically?
 
-No. Problem reports are local until you choose a receiving app in Android's share sheet. See [report export](troubleshooting.md#export-a-problem-report) and [privacy](PRIVACY.md) for network checks, storage and backups.
+No. Problem reports are local until you choose a receiving app in Android's share sheet. See [report export](TROUBLESHOOTING.md#export-a-problem-report) and [privacy](PRIVACY.md) for network checks, storage and backups.

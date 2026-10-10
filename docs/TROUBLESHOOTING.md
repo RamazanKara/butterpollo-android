@@ -52,7 +52,7 @@ See [video and latency](video-and-latency.md#performance-overlay) for metric def
 | Reset did not remove a controller mapping or layout | Global reset intentionally preserves them. | Reset the controller in Controller buttons or use Reset controls layout. |
 | APK update is rejected | Different signing key or incompatible build. | Use an update signed by the installed app's key. Uninstalling permits a different key but removes local app data and pairing identity. |
 | PC will not wake | Missing MAC, NIC/firmware policy, Wi-Fi or routing limitation. | Pair once while awake; enable Wake-on-LAN; test Ethernet and sleep on the same subnet. |
-| Frontend cannot open a game file | Missing URI permission, invalid entry or unpaired PC. | Re-export after opening the paired PC's library; follow [frontend setup](frontends.md). |
+| Frontend cannot open a game file | Missing URI permission, invalid entry or unpaired PC. | Re-export after opening the paired PC's library; follow [frontend setup](FRONTENDS.md). |
 
 ## Connection test
 

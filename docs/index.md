@@ -9,9 +9,9 @@ Stream your PC games and desktop to the Android screen you want to use. Rubyligh
 | Understand a setting or choose a preset | [Settings reference](settings.md) |
 | Use a controller, touch, mouse or keyboard | [Controls](controls.md) |
 | Tune picture quality and response time | [Video and latency](video-and-latency.md) |
-| Fix a problem or export a report | [Troubleshooting](troubleshooting.md) |
+| Fix a problem or export a report | [Troubleshooting](TROUBLESHOOTING.md) |
 | Build and sign an APK | [Building](building.md) |
-| Launch games from ES-DE, Daijisho or Pegasus | [Frontends](frontends.md) |
+| Launch games from ES-DE, Daijisho or Pegasus | [Frontends](FRONTENDS.md) |
 | Find a short answer | [FAQ](faq.md) |
 
 Development references: [host parity matrix](PARITY-MATRIX.md), [detailed parity audit](BUTTERPOLLO_PARITY.md), [device checklist](device-checklist.md) and [documentation checks](building.md#documentation-checks).

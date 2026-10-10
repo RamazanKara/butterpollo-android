@@ -42,6 +42,6 @@
 ## Docs
 
 [Start here](docs/index.md) · [Quick start](docs/quick-start.md) · [Pairing](docs/pairing.md) · [Settings](docs/settings.md) · [Controls](docs/controls.md)<br>
-[Video & latency](docs/video-and-latency.md) · [Troubleshooting](docs/troubleshooting.md) · [Building](docs/building.md) · [Frontends](docs/frontends.md) · [FAQ](docs/faq.md)
+[Video & latency](docs/video-and-latency.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Building](docs/building.md) · [Frontends](docs/FRONTENDS.md) · [FAQ](docs/faq.md)
 
 [GPL-3.0](LICENSE.txt) · [Credits and third-party notices](docs/index.md#license-and-credits)

@@ -81,4 +81,4 @@ In Settings, Right opens the selected switch's help (Left in RTL). TV settings p
 | Three-finger tap in Trackpad/Direct mouse mode | Toggle the on-screen keyboard. |
 | Hold the performance overlay | Switch Compact/Advanced mode. |
 
-Rubylight can also pin app shortcuts to the Android launcher. For external game libraries and intent-based shortcuts, see [frontends](frontends.md).
+Rubylight can also pin app shortcuts to the Android launcher. For external game libraries and intent-based shortcuts, see [frontends](FRONTENDS.md).

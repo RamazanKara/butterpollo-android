@@ -32,4 +32,4 @@ Clipboard transfer is plain text, explicitly initiated in the foreground, and ne
 
 ## Next
 
-Use [presets and PC profiles](settings.md), set up your [controls](controls.md), or read the [symptom-based fixes](troubleshooting.md) if pairing or the stream fails.
+Use [presets and PC profiles](settings.md), set up your [controls](controls.md), or read the [symptom-based fixes](TROUBLESHOOTING.md) if pairing or the stream fails.
