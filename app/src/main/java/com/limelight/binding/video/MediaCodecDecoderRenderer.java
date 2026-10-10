@@ -133,6 +133,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private volatile float pyroWaveSkippedPercent = -1;
     private volatile float pyroWaveLossPercent = -1;
     private volatile float pyroWaveQueueDelayMs = -1;
+    private final QueueDelayTracker queueDelay = new QueueDelayTracker();
+    private volatile float queueDelayMs = -1;
     private volatile float decodeTimeMs = -1;
     private ThermalMonitor thermalMonitor;
     private volatile int thermalLevel = ThermalMonitor.NORMAL;
@@ -222,6 +224,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         float headroom = thermalMonitor.headroom();
         return context.getString(R.string.perf_overlay_thermal, context.getString(state)) +
                 (headroom >= 0 ? String.format(Locale.US, " (%.2f)", headroom) : "");
+    }
+
+    // Network queueing delay above its recent minimum, ms; -1 when unknown.
+    public float getQueueDelayMs() {
+        return queueDelayMs;
     }
 
     static String formatPyroWaveStats(float recordLoss, float queueMs, int gpuUs) {
@@ -2000,7 +2007,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     @Override
     public int submitDecodeUnit(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
                                 int frameNumber, int frameType, char frameHostProcessingLatency,
-                                long receiveTimeUs, long enqueueTimeUs, long receiveTimeNs) {
+                                long receiveTimeUs, long enqueueTimeUs, long receiveTimeNs,
+                                long presentationTimeUs) {
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
@@ -2026,6 +2034,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             ppsBuffers.clear();
         }
 
+        if (frameNumber != lastFrameNumber) {
+            queueDelay.onFrame(receiveTimeUs, presentationTimeUs);
+        }
         lastFrameNumber = frameNumber;
 
         // Flip stats windows roughly every second
@@ -2051,6 +2062,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 pyroWaveRenderer.restoreClocks();
                 updateDecoderDiagnostics();
             }
+            queueDelayMs = queueDelay.takeWindowMs();
             VideoStats lastTwo = new VideoStats();
             lastTwo.add(lastWindowVideoStats);
             lastTwo.add(activeWindowVideoStats);
