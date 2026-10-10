@@ -43,6 +43,16 @@ size_t rp_slack_window_len(const RpSlackWindow *window);
 // Writes the report message to out and clears the window; false below min_frames frames.
 bool rp_slack_window_report(RpSlackWindow *window, size_t min_frames, uint8_t *out);
 
+// Display HDR luminance (client to host, 2.2.0+). Luminance in nits, 0 when unknown.
+#define RP_DISPLAY_CAPS_MESSAGE_TYPE 0x5531
+#define RP_DISPLAY_CAPS_BYTES 16
+void rp_display_caps_encode(bool hdr, float max_nits, float max_average_nits, float min_nits, uint8_t *out);
+
+// Change resolution or frame rate mid-stream (client to host, 2.2.0+).
+#define RP_RECONFIGURE_MESSAGE_TYPE 0x5532
+#define RP_RECONFIGURE_BYTES 12
+void rp_reconfigure_encode(uint16_t width, uint16_t height, uint32_t fps_millihz, uint8_t *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 

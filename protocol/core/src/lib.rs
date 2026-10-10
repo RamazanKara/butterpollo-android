@@ -9,5 +9,6 @@
 
 extern crate alloc;
 
+pub mod control;
 pub mod phase_lock;
 pub mod pyrowave;

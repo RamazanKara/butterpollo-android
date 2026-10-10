@@ -10,6 +10,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::ffi::c_void;
 use core::slice;
+use rubylight_protocol::control::{DisplayCaps, Reconfigure, DISPLAY_CAPS_BYTES, RECONFIGURE_BYTES};
 use rubylight_protocol::phase_lock::{SlackWindow, REPORT_BYTES};
 use rubylight_protocol::pyrowave::{self, Records};
 
@@ -127,6 +128,33 @@ pub unsafe extern "C" fn rp_slack_window_report(window: *mut SlackWindow, min_fr
         }
         None => false,
     }
+}
+
+/// Writes the 16-byte display-caps message (0x5531) to `out`. Luminance in nits; 0 for a
+/// value the display does not report.
+///
+/// # Safety
+/// `out` points to `RP_DISPLAY_CAPS_BYTES` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rp_display_caps_encode(hdr: bool, max_nits: f32, max_average_nits: f32, min_nits: f32, out: *mut u8) {
+    let scale = |nits: f32, per_nit: f32| if nits.is_finite() && nits > 0.0 { (nits * per_nit + 0.5).min(u32::MAX as f32) as u32 } else { 0 };
+    let caps = DisplayCaps {
+        hdr,
+        max_centinits: scale(max_nits, 100.0),
+        max_average_centinits: scale(max_average_nits, 100.0),
+        min_decimillinits: scale(min_nits, 10_000.0),
+    };
+    core::ptr::copy_nonoverlapping(caps.encode().as_ptr(), out, DISPLAY_CAPS_BYTES);
+}
+
+/// Writes the 12-byte reconfigure message (0x5532) to `out`.
+///
+/// # Safety
+/// `out` points to `RP_RECONFIGURE_BYTES` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rp_reconfigure_encode(width: u16, height: u16, fps_millihz: u32, out: *mut u8) {
+    let request = Reconfigure { width, height, fps_millihz };
+    core::ptr::copy_nonoverlapping(request.encode().as_ptr(), out, RECONFIGURE_BYTES);
 }
 
 #[cfg(not(test))]
