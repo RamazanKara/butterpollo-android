@@ -5,7 +5,7 @@ https://github.com/joemossjr16/artemis-android-pyrowave/tree/387d3a5ce1e3df8d4a4
 GPL-3.0, as is this Moonlight-derived application (see LICENSE.txt).
 Rubylight changes: protocol, capability checks, 10-bit/HDR, timing and lifecycle.
 
-PyroWave 186f0393b77f7755953b5ecde994bb1cec2e4155 (MIT)
+PyroWave 502a3b52a39312ab82c85b1e2fc0e746faee91a4 (MIT)
 https://github.com/Themaister/pyrowave
 Includes the short-block fix attributed to Punktfunk by Rubylight.
 
@@ -30,7 +30,7 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Granite b6cffd5ce81f540f0855e6778428483e14763d9b (MIT)
+Granite fb178c8080d163419e8d20f10715c61c53c1ec9b (MIT)
 https://github.com/Themaister/Granite
 
 Copyright (c) 2017-2026 Hans-Kristian Arntzen

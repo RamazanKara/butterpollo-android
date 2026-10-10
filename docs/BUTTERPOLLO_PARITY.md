@@ -623,8 +623,8 @@ full MIT notices are included there. The necessary new runtime dependency is `li
 Both ARM64 and x86-64 libraries were rebuilt with Windows NDK 29, rather than copied from the fork.
 32-bit APKs retain the ordinary decoders and tolerate the absent Vulkan library.
 
-Pinned dependency sources: PyroWave `186f0393b77f7755953b5ecde994bb1cec2e4155`, Granite
-`b6cffd5ce81f540f0855e6778428483e14763d9b`, volk `47cddf7ed97b94118a08aacb548a411188e016cc`,
+Pinned dependency sources: PyroWave `502a3b52a39312ab82c85b1e2fc0e746faee91a4`, Granite
+`fb178c8080d163419e8d20f10715c61c53c1ec9b`, volk `47cddf7ed97b94118a08aacb548a411188e016cc`,
 Vulkan-Headers `6802bb4733b63ed5efd3adb308a6c885ef180ea1`. The decoder short-block patch from
 Rubylight `6772d401` is retained in `jni/pyrowave-renderer/patches/`. Sources/headers are MIT;
 the small Android renderer and common-c integration remain GPL-3.0.
@@ -714,13 +714,13 @@ executables; use a matching C API installation in `$PyroInstall`):
 ```powershell
 $Bench = Join-Path $env:TEMP 'bp-pyrowave-bench'
 New-Item -ItemType Directory -Force $Bench | Out-Null
-$PyroInstall = 'C:/Users/ramaz/git/pyrowave-build/install-186f0393'
-$VulkanHeaders = 'C:/Users/ramaz/git/pyrowave-build/src-186f0393/Granite/third_party/khronos/vulkan-headers/include'
+$PyroInstall = 'C:/Users/ramaz/git/pyrowave-build/install-502a3b52'
+$VulkanHeaders = 'C:/Users/ramaz/git/pyrowave-build/src-502a3b52/Granite/third_party/khronos/vulkan-headers/include'
 $env:PATH = 'C:/msys64/ucrt64/bin;' + $env:PATH
 g++ -std=c++17 -O2 app/src/test/native/pyrowave_frame_test.cpp -o "$Bench/frame-test.exe"
 & "$Bench/frame-test.exe"
 g++ -std=c++17 -O2 -Iapp/src/main/jni/pyrowave-renderer/prebuilt/include "-I$VulkanHeaders" app/src/test/native/pyrowave_benchmark.cpp "$PyroInstall/lib/libpyrowave-shared.dll.a" -o "$Bench/benchmark.exe"
-Copy-Item "$PyroInstall/bin/libpyrowave-shared-0.dll" $Bench
+Copy-Item "$PyroInstall/bin/libpyrowave-shared-1.dll" $Bench
 $p = Start-Process "$Bench/benchmark.exe" -WorkingDirectory $Bench -WindowStyle Hidden -PassThru -RedirectStandardOutput "$Bench/measurements.csv" -RedirectStandardError "$Bench/benchmark.log"
 $p.ProcessorAffinity = 3
 $p.WaitForExit()
@@ -744,11 +744,11 @@ $Ndk = "$Sdk/ndk/29.0.14206865"
 $env:PATH = "$Sdk/cmake/3.22.1/bin;" + $env:PATH
 git init $Source
 git -C $Source remote add origin https://github.com/Themaister/pyrowave.git
-git -C $Source fetch --depth 1 origin 186f0393b77f7755953b5ecde994bb1cec2e4155
+git -C $Source fetch --depth 1 origin 502a3b52a39312ab82c85b1e2fc0e746faee91a4
 git -C $Source checkout --detach FETCH_HEAD
 git init "$Source/Granite"
 git -C "$Source/Granite" remote add origin https://github.com/Themaister/Granite.git
-git -C "$Source/Granite" fetch --depth 1 origin b6cffd5ce81f540f0855e6778428483e14763d9b
+git -C "$Source/Granite" fetch --depth 1 origin fb178c8080d163419e8d20f10715c61c53c1ec9b
 git -C "$Source/Granite" checkout --detach FETCH_HEAD
 git -C "$Source/Granite" submodule update --init --jobs 2 third_party/volk third_party/khronos/vulkan-headers
 Get-ChildItem "$Repo/app/src/main/jni/pyrowave-renderer/patches/*.patch" | ForEach-Object { git -C $Source apply $_.FullName }
@@ -841,16 +841,16 @@ with `git clone --depth 1` into a temporary directory outside this repository; i
 Also inspected current upstream
 [PyroWave `c0b997f84ced7bd827ca737aa5145f4ec811de8d`](https://github.com/Themaister/pyrowave/tree/c0b997f84ced7bd827ca737aa5145f4ec811de8d)
 and the exact host compatibility target,
-[PyroWave `186f0393b77f7755953b5ecde994bb1cec2e4155`](https://github.com/Themaister/pyrowave/tree/186f0393b77f7755953b5ecde994bb1cec2e4155),
-C API 0.6.0, with Granite `b6cffd5ce81f540f0855e6778428483e14763d9b`.
+[PyroWave `502a3b52a39312ab82c85b1e2fc0e746faee91a4`](https://github.com/Themaister/pyrowave/tree/502a3b52a39312ab82c85b1e2fc0e746faee91a4),
+C API 1.0.0, with Granite `fb178c8080d163419e8d20f10715c61c53c1ec9b`.
 The host [build recipe](https://github.com/RamazanKara/Rubylight/blob/6772d4019c0837e372b801637f3bf1b57bea2765/scripts/build_pyrowave.sh)
 pins those revisions and three patches, including rejection of short decoder blocks. Any port must
 retain that fix: a duplicate block with zero payload length can otherwise leave the parse cursor
 stationary indefinitely.
 
 License is not the blocker. Hans-Kristian Arntzen's
-[PyroWave MIT license](https://github.com/Themaister/pyrowave/blob/186f0393b77f7755953b5ecde994bb1cec2e4155/LICENSE)
-and [Granite MIT license](https://github.com/Themaister/Granite/blob/b6cffd5ce81f540f0855e6778428483e14763d9b/LICENSE)
+[PyroWave MIT license](https://github.com/Themaister/pyrowave/blob/502a3b52a39312ab82c85b1e2fc0e746faee91a4/LICENSE)
+and [Granite MIT license](https://github.com/Themaister/Granite/blob/fb178c8080d163419e8d20f10715c61c53c1ec9b/LICENSE)
 allow reuse with their copyright and permission notices retained; the host also retains volk's notice.
 The Android reference port retains GPL-3.0. No decoder code, prebuilts or new dependencies are vendored
 here, and Moonlight's GPL-3.0 license and attribution remain intact.
@@ -867,13 +867,13 @@ here, and Moonlight's GPL-3.0 license and attribution remain intact.
   implements eight-bit limited-range BT.709. Importing that renderer unchanged would lose the
   requested precision and misinterpret HDR colour.
 - **Vulkan requirements:** the pinned
-  [C API](https://github.com/Themaister/pyrowave/blob/186f0393b77f7755953b5ecde994bb1cec2e4155/pyrowave.h)
-  and [decoder](https://github.com/Themaister/pyrowave/blob/186f0393b77f7755953b5ecde994bb1cec2e4155/pyrowave_decoder.cpp)
+  [C API](https://github.com/Themaister/pyrowave/blob/502a3b52a39312ab82c85b1e2fc0e746faee91a4/pyrowave.h)
+  and [decoder](https://github.com/Themaister/pyrowave/blob/502a3b52a39312ab82c85b1e2fc0e746faee91a4/pyrowave_decoder.cpp)
   require subgroup basic/vote/ballot/arithmetic/shuffle/shuffle-relative operations and compatible
   subgroup size control (wave4–128). Vulkan version alone is insufficient. The reference Android
   probe additionally checks shaderInt16, storageBuffer8BitAccess, timelineSemaphore,
   computeFullSubgroups and synchronization2. Those checks are conservative: upstream
-  [common code](https://github.com/Themaister/pyrowave/blob/186f0393b77f7755953b5ecde994bb1cec2e4155/pyrowave_common.cpp)
+  [common code](https://github.com/Themaister/pyrowave/blob/502a3b52a39312ab82c85b1e2fc0e746faee91a4/pyrowave_common.cpp)
   has a texel-buffer alternative to eight-bit storage when the device's texel-buffer limit is large
   enough; shaderFloat16 is optional. Missing one reference-port feature is not proof that every
   upstream decoder path is impossible. Upstream prefers fragment iDWT on proprietary Qualcomm
