@@ -4,6 +4,10 @@
 #include <vector>
 #include "../../main/jni/pyrowave-renderer/frame.h"
 #include "../../main/jni/moonlight-core/pyrowave_protocol.h"
+// The renderer now takes framing from the Rust protocol crate; this keeps the C++ reference
+// honest against the host vectors, and protocol/tests/differential.cpp checks the two agree.
+#include "../../../../protocol/tests/frame_reference.h"
+using namespace reference;
 
 static std::vector<std::vector<uint8_t>> recordPackets(unsigned sequence, uint8_t value) {
     // Host record_frame() at a 24-byte payload: padding fills the space before each 16-byte record.
