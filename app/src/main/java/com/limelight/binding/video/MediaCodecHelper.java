@@ -298,7 +298,7 @@ public class MediaCodecHelper {
         return getAdrenoRendererModelNumber(glRenderer) >= 400;
     }
 
-    public static void initialize(Context context, String glRenderer) {
+    public static synchronized void initialize(Context context, String glRenderer) {
         if (initialized) {
             return;
         }

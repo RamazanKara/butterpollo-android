@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
 
+import com.limelight.binding.video.DecoderBenchmark;
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.crypto.AndroidCryptoProvider;
 import com.limelight.computers.ComputerManagerListener;
@@ -188,6 +189,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Once per phone and app version: lets Automatic skip codecs that decode slower here.
+        DecoderBenchmark.runIfNeeded(this);
 
         if (savedInstanceState != null && savedInstanceState.containsKey("exportComputerUuid")) {
             exportComputer = new ComputerDetails();

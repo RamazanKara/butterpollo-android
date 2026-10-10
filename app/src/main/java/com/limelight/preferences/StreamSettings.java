@@ -50,6 +50,7 @@ import com.limelight.PcView;
 import com.limelight.R;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
+import com.limelight.binding.video.DecoderBenchmark;
 import com.limelight.binding.video.PyroWaveDecoderRenderer;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.UiHelper;
@@ -746,6 +747,10 @@ public class StreamSettings extends AppCompatActivity {
         private void updateCodecSummary(ListPreference codec, String value, boolean hdr) {
             CharSequence help = getString("forcepyrowave".equals(value) ?
                     PyroWaveDecoderRenderer.getReadinessSummary(hdr) : R.string.summary_video_format);
+            String measured = DecoderBenchmark.summary(getActivity());
+            if (measured != null && !"forcepyrowave".equals(value)) {
+                help = help + "\n\n" + getString(R.string.video_format_measured, measured);
+            }
             descriptions.put("video_format", help);
             codec.setDialogMessage(help);
         }

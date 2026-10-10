@@ -362,6 +362,24 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         return hevcDecoderInfo;
     }
 
+    // Automatic: leave out codecs this phone measurably decodes slower than another (DecoderBenchmark).
+    private void skipMeasuredSlowerCodecs(PreferenceConfiguration prefs, boolean requestedHdr) {
+        long[] us = {DecoderBenchmark.result(context, avcDecoder, "video/avc"),
+                DecoderBenchmark.result(context, hevcDecoder, "video/hevc"),
+                DecoderBenchmark.result(context, av1Decoder, "video/av01")};
+        boolean[] skip = DecoderBenchmark.slower(us, requestedHdr);
+        // 4:4:4 and over-4K streams need HEVC whatever its speed.
+        boolean needsHevc = prefs.enableYuv444 || prefs.width > 4096 || prefs.height > 4096;
+        if (skip[1] && hevcDecoder != null && !needsHevc) {
+            LimeLog.info("Skipping HEVC: measured " + us[1] + " us/frame on this phone");
+            hevcDecoder = null;
+        }
+        if (skip[2] && av1Decoder != null) {
+            LimeLog.info("Skipping AV1: measured " + us[2] + " us/frame on this phone");
+            av1Decoder = null;
+        }
+    }
+
     private MediaCodecInfo findAv1Decoder(PreferenceConfiguration prefs, boolean requestedHdr) {
         if (prefs.videoFormat != PreferenceConfiguration.FormatOption.FORCE_AV1 &&
                 prefs.videoFormat != PreferenceConfiguration.FormatOption.AUTO &&
@@ -581,6 +599,10 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         }
         else {
             LimeLog.info("No AV1 decoder found");
+        }
+
+        if (prefs.videoFormat == PreferenceConfiguration.FormatOption.AUTO) {
+            skipMeasuredSlowerCodecs(prefs, requestedHdr);
         }
 
         // Set attributes that are queried in getCapabilities(). This must be done here

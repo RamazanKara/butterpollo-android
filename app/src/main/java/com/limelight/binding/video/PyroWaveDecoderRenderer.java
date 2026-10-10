@@ -1,5 +1,6 @@
 package com.limelight.binding.video;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -94,6 +95,7 @@ public final class PyroWaveDecoderRenderer {
         return handle != 0;
     }
 
+    @SuppressLint("ApplySharedPref") // Must reach disk before a driver crash could kill the process.
     private void setMaxClocks(Context context, boolean enabled) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         boolean stale = prefs.getBoolean(MAX_CLOCKS_ACTIVE, false) && maxClocksContext == null;
@@ -168,6 +170,7 @@ public final class PyroWaveDecoderRenderer {
         if (handle != 0) nativeSetHdrMode(handle, enabled, metadata);
     }
 
+    @SuppressLint("ApplySharedPref")
     synchronized void cleanup() {
         if (performanceHints != null) {
             performanceHints.close();
