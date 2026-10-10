@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Rational;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.SurfaceHolder;
 import android.view.View;
@@ -33,6 +34,7 @@ import com.limelight.ui.StreamView;
 import java.io.IOException;
 
 public final class DemoGameActivity extends Activity implements SurfaceHolder.Callback, PerfOverlayListener {
+    static volatile boolean forceH264;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private StreamView stream;
     private TextView overlay, label;
@@ -58,6 +60,8 @@ public final class DemoGameActivity extends Activity implements SurfaceHolder.Ca
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN |
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        // The sample has no text input; keep the soft keyboard (and its navigation-bar buttons) off the stream.
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         setContentView(R.layout.activity_game);
         compact = state == null ? !"advanced".equals(getIntent().getStringExtra("state")) : state.getBoolean("compact");
         showControls = state == null ? "touch".equals(getIntent().getStringExtra("state")) : state.getBoolean("controls");
@@ -68,6 +72,7 @@ public final class DemoGameActivity extends Activity implements SurfaceHolder.Ca
         stream.getHolder().addCallback(this);
         overlay = findViewById(R.id.performanceOverlay);
         findViewById(R.id.performanceOverlayScroll).setVisibility(View.VISIBLE);
+        placeOverlay();
         overlay.setOnLongClickListener(view -> {
             setCompact(!compact);
             return true;
@@ -91,8 +96,25 @@ public final class DemoGameActivity extends Activity implements SurfaceHolder.Ca
 
     private void setCompact(boolean value) {
         compact = value;
+        placeOverlay();
         findViewById(R.id.performanceOverlayScroll).scrollTo(0, 0);
         DemoMetrics.update(this, this, tick);
+    }
+
+    /**
+     * The sample's own HUD (title panel top left, speed panel top right, shield bottom left) fills the corners of the
+     * landscape picture, so the overlay sits where the picture has no text: top centre for the one-line compact pill, and
+     * the vertical middle of the left edge for the full advanced list. In portrait the picture is a strip, and the
+     * corner over the black bar above it is free.
+     */
+    private void placeOverlay() {
+        View scroll = findViewById(R.id.performanceOverlayScroll);
+        boolean landscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) scroll.getLayoutParams();
+        params.gravity = !landscape ? Gravity.TOP | Gravity.START
+                : compact ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.CENTER_VERTICAL | Gravity.START;
+        scroll.setLayoutParams(params);
+        overlay.setTextSize(TypedValue.COMPLEX_UNIT_SP, !landscape ? 12 : compact ? 14 : 10);
     }
 
     @Override public void onPerfUpdate(String video, String network, String decode, CharSequence compactText) {
@@ -123,7 +145,9 @@ public final class DemoGameActivity extends Activity implements SurfaceHolder.Ca
     }
 
     private String sample() {
-        if (!fallback) {
+        // Launching the demo with "--es codec h264" forces the 8-bit sample for this process; software
+        // AV1/HEVC 10-bit playback renders corrupt on some emulators.
+        if (!fallback && !forceH264) {
             for (String[] candidate : new String[][] {{"video/av01", "av1"}, {"video/hevc", "hevc"}}) {
                 for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
                     if (info.isEncoder()) continue;
@@ -244,6 +268,7 @@ public final class DemoGameActivity extends Activity implements SurfaceHolder.Ca
 
     @Override public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
+        placeOverlay();
         controls.refreshLayout();
         if (showControls && (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode())) controls.show();
         else controls.hide();

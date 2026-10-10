@@ -77,8 +77,12 @@ the app. No host or physical controller is needed.
 .\scripts\demo\capture-video.ps1 -Shot 04-library,05-stream,12-pip
 ```
 
-The scripts temporarily set 1080x2400, density 420 and portrait rotation, then
-restore the prior overrides in `finally`. They force-stop only this package
+Run them with PowerShell 7 (`pwsh`). The scripts temporarily set 1080x2400, density 420, portrait rotation,
+a fixed status bar (SystemUI demo mode: 10:30, full battery and signal, no notification icons) and no soft
+keyboard for the emulator's virtual hardware keyboard, then restore the prior values in `finally`.
+On an emulator, software AV1/HEVC 10-bit playback can render corrupt, so every state is launched with
+`--es codec h264` to use the 8-bit sample (the codec extra is debug-only and sticks for the process).
+They force-stop only this package
 between states and at exit. They do not clear app data. Settings navigation and
 the library/stream tour taps use UIAutomator resource IDs, text and discovered
 bounds; missing UI stops capture and preserves `out/demo/capture/last-ui.xml`.
@@ -87,14 +91,18 @@ PiP capture checks that Android actually entered pinned window mode.
 Stills go to `docs/screenshots/demo/`: `pc-list.png`, `library.png`, `stream.png`,
 `stream-compact.png`, `stream-advanced.png`, `settings-presets.png`,
 `upscaling-options.png`, `controller.png`, `touch-controller.png`, `pip.png`.
-PNG dimensions are checked after pulling. These files are created by the caller;
-no empty-app placeholders are substituted.
+The script then rotates to landscape and also saves `landscape-stream.png`, `landscape-compact.png`,
+`landscape-advanced.png` and `landscape-touch.png` (2400x1080), where the sample fills the screen and the real
+on-screen controller is laid out for it. PNG dimensions are checked after pulling. These files are created by
+the caller; no empty-app placeholders are substituted.
 
-`capture-video.ps1` records all thirteen [shots](shotlist.md) with
-`adb shell screenrecord --size 1080x2400 --bit-rate 20000000`. Clips go to
+`capture-video.ps1` records all eleven [shots](shotlist.md) with
+`adb shell screenrecord` at half resolution (540x1200 portrait, 1200x540 landscape for the stream shots 05, 06, 07, 11 and 13;
+the emulator's software encoder cannot keep up at full size). screenrecord writes variable-rate video and a single
+frame for a static screen, so FFmpeg normalizes each take to 30 fps and holds the last frame. Clips go to
 `out/demo/clips/<shot-id>.mp4`, with one second of handles at each end. Shot 04
-taps into the library and shot 05 taps Racing Game while recording. Shot 12
-presses Home while recording. Logs stay beside the clips. Recording is silent.
+shows the library directly (taps on a PC card do not navigate under `adb input` on the emulator), and shot 05 taps
+Racing Game while recording. Shot 12 presses Home while recording and leaves the PiP window in Android's default bottom-right corner (the demo home's rings are centred there); for it the script enables the debug app's plain dark `DemoHomeActivity` as the home screen (so the window floats over a clean background, not third-party launcher icons) and restores the device's launcher afterwards. Shot 13 long-presses the compact overlay to show the advanced list too. Logs stay beside the clips. Recording is silent.
 The older `capture.ps1` entry point forwards to this offline tour; its `-NoHost`
 option is now redundant.
 
@@ -108,7 +116,27 @@ The existing edit remains available after capture:
 It uses the shotlist's new demo stills or the matching recorded clips and writes
 landscape/portrait exports, posters, review frames and `sources.json` under
 `out/demo/`. Review the outputs before using them in README/site/video assets.
-Stream shots preserve the real 16:9 surface inside the portrait viewport.
+Stream shots preserve the real 16:9 surface inside the portrait viewport; landscape clips get a landscape phone frame.
+The renderer needs an FFmpeg that supports `-/filter_complex` (FFmpeg 8 and later).
+
+The picture uses the README banner's palette (ruby #C41242 and white) and its ruby "R" tile
+(`scripts/demo/assets/r-tile.png`, cut from the banner by `extract-brand-tile.ps1`), joins shots with hard cuts
+(a crossfade would double the captions and UI text for a few frames) and keeps the 9:16 cut inside the usual
+platform safe areas: wordmark and headline below y=290, captions ending by y=1440, no text in the right 120 px.
+It writes `demo-16x9.mp4` (1920x1080) and `demo-9x16.mp4` (1080x1920), posters, eight review frames per video in
+`out/demo/frames-v2/` and `segments.json` (each shot's start time).
+
+## README assets
+
+```powershell
+.\scripts\demo\readme-assets.ps1 -Docs C:\path\to\readme-checkout   # shots/*.png and demo.gif under docs/assets
+.\scripts\demo\readme-preview.ps1 -Docs C:\path\to\readme-checkout  # 1440 px and 393 px README previews
+```
+
+`readme-assets.ps1` builds the four phone shots (Computers, library, the landscape stream's centre slice with the
+compact overlay, picture-in-picture) from the stills, and `demo.gif` from the rendered 9:16 video cropped to the phone
+column. `readme-preview.ps1` renders the README with GitHub's own markdown renderer (read-only) in headless Edge so
+legibility can be checked at phone width before pushing.
 
 ## Regenerate bundled assets
 

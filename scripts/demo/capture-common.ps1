@@ -21,11 +21,22 @@ function Invoke-Adb([string[]]$Arguments) {
     return ($result -join "`n")
 }
 
+function Find-FFmpeg {
+    $command = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    $winget = Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet'
+    $binary = Get-ChildItem -Path (Join-Path $winget 'Packages/Gyan.FFmpeg_*/*/bin/ffmpeg.exe') -ErrorAction SilentlyContinue |
+        Sort-Object FullName | Select-Object -Last 1
+    if ($binary) { return $binary.FullName }
+    throw 'FFmpeg is not accessible. Open a new shell with the installed FFmpeg bin directory on PATH.'
+}
+
 function Get-Ui {
     $null = Invoke-Adb @('shell', 'uiautomator', 'dump', '--compressed', "$remote/ui.xml")
-    $xml = Invoke-Adb @('shell', 'cat', "$remote/ui.xml")
-    [IO.File]::WriteAllText((Join-Path $work 'last-ui.xml'), $xml)
-    return [xml]$xml
+    # Pull the dump as bytes: piping it through the console would depend on the shell's output encoding.
+    $local = Join-Path $work 'last-ui.xml'
+    $null = Invoke-Adb @('pull', "$remote/ui.xml", $local)
+    return [xml][IO.File]::ReadAllText($local, [Text.Encoding]::UTF8)
 }
 
 function Get-Bounds($Node) {
@@ -35,6 +46,12 @@ function Get-Bounds($Node) {
 function Find-Ui([string]$Label, [switch]$Scroll) {
     for ($attempt = 0; $attempt -lt 12; $attempt++) {
         $tree = Get-Ui
+        $cling = $tree.SelectSingleNode('//node[@resource-id="android:id/immersive_cling_title"]')
+        if ($cling) {
+            # Android shows this one-time confirmation the first time the stream enters immersive mode.
+            $ok = $tree.SelectSingleNode('//node[@resource-id="android:id/ok"]')
+            if ($ok) { Tap-Node $ok; Start-Sleep -Milliseconds 600; continue }
+        }
         foreach ($node in $tree.SelectNodes('//node')) {
             $description = $node.GetAttribute('content-desc')
             if ($Label -in @($node.GetAttribute('text').Split("`n")[0], $description, $node.GetAttribute('resource-id')) -or
@@ -43,7 +60,8 @@ function Find-Ui([string]$Label, [switch]$Scroll) {
             }
         }
         if ($Scroll) {
-            $area = $tree.SelectSingleNode('//node[@scrollable="true"]')
+            # Only scroll the app's own list: right after launch the dump can still show the launcher.
+            $area = $tree.SelectSingleNode("//node[@scrollable='true' and @package='$package']")
             if ($area) {
                 $b = Get-Bounds $area
                 $x = [int](($b[0] + $b[2]) / 2)
@@ -68,14 +86,36 @@ function Tap-Ui([string]$Label, [switch]$Scroll) {
     Tap-Node (Find-Ui $Label -Scroll:$Scroll)
 }
 
+function Hide-Ime([switch]$WaitForShow) {
+    # The emulator's virtual hardware keyboard makes Android report an open input method (keyboard buttons in the
+    # navigation bar) over the stream; real phones do not. Back closes only that. With -WaitForShow, poll for it first.
+    for ($attempt = 0; $attempt -lt $(if ($WaitForShow) { 10 } else { 3 }); $attempt++) {
+        $ime = Invoke-Adb @('shell', 'dumpsys', 'input_method')
+        if ($ime -match 'mInputShown=true') {
+            $null = Invoke-Adb @('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+            Start-Sleep -Milliseconds 900
+            return
+        }
+        if (-not $WaitForShow) { return }
+        Start-Sleep -Milliseconds 200
+    }
+}
+
 function Open-DemoState([string]$State) {
     $launchState = if ($State -eq 'upscaling') { 'settings' } else { $State }
     $null = Invoke-Adb @('shell', 'am', 'force-stop', $package)
-    $result = Invoke-Adb @('shell', 'am', 'start', '-W', '-n', $component, '--es', 'state', $launchState)
+    # Key events (Back, D-pad) switch Android out of touch mode, which draws focus rings on the next screen; a tap on empty
+    # launcher wallpaper switches it back.
+    $null = Invoke-Adb @('shell', 'input', 'tap', '540', '1000')
+    Start-Sleep -Milliseconds 300
+    $result = Invoke-Adb @('shell', 'am', 'start', '-W', '-n', $component, '--es', 'state', $launchState, '--es', 'codec', 'h264')
     if ($result -match 'Error|Exception') { throw "Install the demo debug APK first: $result" }
+    $null = Invoke-Adb @('shell', 'wm', 'user-rotation', 'lock', $(if ($script:landscape) { '1' } else { '0' }))
+    Start-Sleep -Milliseconds 1500
     switch ($State) {
         'hosts' { $null = Find-Ui 'Living-room PC' }
-        'library' { $null = Find-Ui 'Racing Game' }
+        # In landscape the running game is in the second row of the grid: scroll it into view.
+        'library' { $null = Find-Ui 'Racing Game' -Scroll }
         'settings' { $null = Find-Ui 'Presets' }
         'controller' { $null = Find-Ui 'Demo wireless controller' }
         'upscaling' {
@@ -84,18 +124,71 @@ function Open-DemoState([string]$State) {
             $null = Find-Ui 'FSR 1.0'
         }
         default {
-            $null = Find-Ui 'DEMO · local sample · scripted stats'
+            $dot = [string][char]0x00B7
+            $null = Find-Ui "DEMO $dot local sample $dot scripted stats"
+            Hide-Ime
             Start-Sleep -Seconds 2
         }
     }
 }
 
+function Set-Orientation([bool]$Landscape) {
+    # The stream screen fills the width in landscape. Open-DemoState re-applies the lock once the app is in front:
+    # the launcher is portrait-only, so the window manager ignores a lock issued while it is on screen.
+    $script:landscape = $Landscape
+    $null = Invoke-Adb @('shell', 'wm', 'user-rotation', 'lock', $(if ($Landscape) { '1' } else { '0' }))
+    Start-Sleep -Seconds 1
+}
+
+function Enable-DemoHome {
+    # The emulator's launcher is full of third-party icons. For the PiP capture the debug app offers a plain dark
+    # home screen (DemoHomeActivity, disabled in the manifest and enabled by the app itself on request): enable it and make it the preferred home until
+    # Restore-Capture puts the device's own launcher back.
+    if ($script:demoHomeActive) { return }
+    $resolved = Invoke-Adb @('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN',
+        '-c', 'android.intent.category.HOME')
+    $script:oldHome = @($resolved -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[\w.]+/[\w.$]+$' }) | Select-Object -Last 1
+    $demoHome = "$package/com.limelight.demo.DemoHomeActivity"
+    $null = Invoke-Adb @('shell', 'am', 'start', '-W', '-n', $component, '--es', 'home', 'enable')
+    # The component state change lands a moment after the app's launcher activity has run; retry until it is a valid home.
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
+        Start-Sleep -Milliseconds 700
+        $listed = Invoke-Adb @('shell', 'cmd', 'package', 'query-activities', '--brief', '-a', 'android.intent.action.MAIN',
+            '-c', 'android.intent.category.HOME')
+        if ($listed -match 'DemoHomeActivity') { break }
+    }
+    $script:demoHomeActive = $true  # from here on Restore-Capture undoes it, even if the next call fails
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
+        try {
+            $null = Invoke-Adb @('shell', 'cmd', 'package', 'set-home-activity', $demoHome)
+            return
+        } catch {
+            $failure = $_.Exception.Message
+            Start-Sleep -Milliseconds 700
+        }
+    }
+    throw "Could not make the demo home screen the preferred home: $failure"
+}
+
+function Disable-DemoHome {
+    if (-not $script:demoHomeActive) { return }
+    $script:demoHomeActive = $false
+    if ($script:oldHome) { $null = Invoke-Adb @('shell', 'cmd', 'package', 'set-home-activity', $script:oldHome) }
+    $null = Invoke-Adb @('shell', 'am', 'start', '-W', '-n', $component, '--es', 'home', 'disable')
+}
+
 function Enter-DemoPip {
+    Enable-DemoHome
     $null = Invoke-Adb @('shell', 'input', 'keyevent', 'KEYCODE_HOME')
     for ($attempt = 0; $attempt -lt 10; $attempt++) {
         Start-Sleep -Milliseconds 500
         $activity = Invoke-Adb @('shell', 'dumpsys', 'activity', 'activities')
-        if ($activity -match 'mode=pinned|windowingMode=2|mIsInPipMode=true') { return }
+        if ($activity -match 'mode=pinned|windowingMode=2|mIsInPipMode=true') {
+            # The window settles in Android's default corner (bottom right); the demo home screen's rings are centred
+            # on that spot, so no dragging (which is timing dependent) is needed.
+            Start-Sleep -Seconds 2
+            return
+        }
     }
     throw 'PiP did not open. Use an Android 8+ phone/emulator with PiP support enabled.'
 }
@@ -111,9 +204,43 @@ function Initialize-Capture {
     $null = Invoke-Adb @('shell', 'wm', 'density', '420')
     $null = Invoke-Adb @('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
     $null = Invoke-Adb @('shell', 'settings', 'put', 'system', 'user_rotation', '0')
+    $script:landscape = $false
+    # The emulator reports a hardware keyboard but still pops up the soft keyboard over the stream; real phones do not.
+    $script:oldImeSetting = (Invoke-Adb @('shell', 'settings', 'get', 'secure', 'show_ime_with_hard_keyboard')).Trim()
+    $null = Invoke-Adb @('shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '0')
+    $null = Invoke-Adb @('shell', 'wm', 'user-rotation', 'lock', '0')
+    Enter-CleanStatusBar
+}
+
+function Enter-CleanStatusBar {
+    # SystemUI demo mode: fixed clock, full battery and signal, no notification icons.
+    $script:oldDemoAllowed = (Invoke-Adb @('shell', 'settings', 'get', 'global', 'sysui_demo_allowed')).Trim()
+    $null = Invoke-Adb @('shell', 'settings', 'put', 'global', 'sysui_demo_allowed', '1')
+    foreach ($demo in @(@('enter'), @('clock', '-e', 'hhmm', '1030'), @('battery', '-e', 'level', '100', '-e', 'plugged', 'false'),
+            @('network', '-e', 'wifi', 'show', '-e', 'level', '4', '-e', 'fully', 'true'),
+            @('network', '-e', 'mobile', 'show', '-e', 'datatype', 'none', '-e', 'level', '4', '-e', 'fully', 'true'),
+            @('notifications', '-e', 'visible', 'false'))) {
+        $null = Invoke-Adb (@('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command') + $demo)
+    }
+}
+
+function Exit-CleanStatusBar {
+    if ($null -eq $script:oldDemoAllowed) { return }
+    $null = Invoke-Adb @('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', 'exit')
+    if ($script:oldDemoAllowed -eq 'null') {
+        $null = Invoke-Adb @('shell', 'settings', 'delete', 'global', 'sysui_demo_allowed')
+    } else {
+        $null = Invoke-Adb @('shell', 'settings', 'put', 'global', 'sysui_demo_allowed', $script:oldDemoAllowed)
+    }
 }
 
 function Restore-Capture {
+    Disable-DemoHome
+    Exit-CleanStatusBar
+    if ($null -ne $script:oldImeSetting) {
+        if ($script:oldImeSetting -eq 'null') { $null = Invoke-Adb @('shell', 'settings', 'delete', 'secure', 'show_ime_with_hard_keyboard') }
+        else { $null = Invoke-Adb @('shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', $script:oldImeSetting) }
+    }
     if (-not $script:oldSize) { return }
     $null = Invoke-Adb @('shell', 'am', 'force-stop', $package)
     $size = if ($script:oldSize -match 'Override size: (\d+x\d+)') { $Matches[1] } else { 'reset' }
@@ -127,4 +254,7 @@ function Restore-Capture {
             $null = Invoke-Adb @('shell', 'settings', 'put', 'system', $setting[0], $setting[1])
         }
     }
+    # wm keeps its own lock after Set-Orientation; hand rotation back to the device's prior mode.
+    if ($script:oldAutoRotation -eq '1') { $null = Invoke-Adb @('shell', 'wm', 'user-rotation', 'free') }
+    else { $null = Invoke-Adb @('shell', 'wm', 'user-rotation', 'lock', $(if ($script:oldRotation -match '^\d$') { $script:oldRotation } else { '0' })) }
 }
