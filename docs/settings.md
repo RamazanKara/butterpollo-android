@@ -159,6 +159,20 @@ These controls are created in [HostStreamSettings.java](../app/src/main/java/com
 
 A new profile starts from the current effective settings, not a second set of factory defaults. Host device/app policy may override a request. Older profiles without VRR or upscaling fields inherit those fields globally.
 
+## Display on the PC
+
+Long-press a PC and choose **This PC → Display on the PC** to choose what the PC's displays do while this device streams from it. The choice is saved for that PC at once and applies from the next stream; it is separate from the stream profile and from **Use global settings**. It is created in [HostDisplaySettings.java](../app/src/main/java/com/limelight/preferences/HostDisplaySettings.java) and stored by [HostDisplayChoice.java](../app/src/main/java/com/limelight/preferences/HostDisplayChoice.java).
+
+| Choice | Sent to the PC | What the PC does |
+| --- | --- | --- |
+| Host default (initial) | Nothing | Follows the PC's display settings; **Host virtual display** still applies. |
+| Virtual display only (exclusive) | `hostDisplay=exclusive`, `virtualDisplay=1` | Adds a virtual display and switches the PC's monitors off during the stream. |
+| Additional virtual display, as main display | `hostDisplay=extended_primary`, `virtualDisplay=1` | Adds a virtual display beside the monitors and makes it the main display, so games open on it. |
+| Additional virtual display, PC display stays main | `hostDisplay=extended`, `virtualDisplay=1` | Adds a virtual display beside the monitors; the PC keeps its main display. |
+| Physical display (no virtual display) | `hostDisplay=physical` | Streams the PC's monitor, even when the PC or **Host virtual display** would add a virtual display. |
+
+The PC puts its displays back when the stream ends. The choice needs a Rubylight host with display choice support; other hosts ignore `hostDisplay` and give a virtual display only for the virtual choices, where they support one. Remote Monitor and Remote Input keep the PC's settings, and GameStream (GFE) PCs don't offer the entry.
+
 ## Settings available during a stream
 
 | Control | Default / persistence | Use |
@@ -172,4 +186,4 @@ A new profile starts from the current effective settings, not a second set of fa
 
 ## Reset scope
 
-**Settings → App → Reset all settings** restores the global preferences and touch-mode flags. It keeps paired PCs, per-PC stream profiles, controller button mappings, the on-screen layout and the selected app language. Reset a PC profile in its own screen, a controller in **Controller buttons**, and the layout with **Reset controls layout**.
+**Settings → App → Reset all settings** restores the global preferences and touch-mode flags. It keeps paired PCs, per-PC stream profiles and display choices, controller button mappings, the on-screen layout and the selected app language. Reset a PC profile in its own screen, a controller in **Controller buttons**, and the layout with **Reset controls layout**.

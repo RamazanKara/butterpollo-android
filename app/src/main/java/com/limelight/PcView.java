@@ -19,6 +19,7 @@ import com.limelight.nvstream.http.PairingManager.PairState;
 import com.limelight.nvstream.wol.WakeOnLanSender;
 import com.limelight.preferences.AddComputerManually;
 import com.limelight.preferences.GlPreferences;
+import com.limelight.preferences.HostDisplaySettings;
 import com.limelight.preferences.HostStreamSettings;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.preferences.StreamSettings;
@@ -141,6 +142,7 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
     private final static int BANDWIDTH_PROBE_ID = 14;
     private final static int OTP_PAIR_ID = 13;
     private final static int FRONTEND_EXPORT_ID = 15;
+    private final static int HOST_DISPLAY_ID = 16;
 
     private final static int PICK_ROMS_REQUEST = 1;
     private final static int PICK_ESDE_REQUEST = 2;
@@ -487,6 +489,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         });
         sheet.addSection(R.string.pc_sheet_this_pc);
         addPcAction(sheet, computer, HOST_SETTINGS_ID, R.drawable.ic_settings, R.string.host_profile_menu);
+        if (!computer.details.nvidiaServer) {
+            addPcAction(sheet, computer, HOST_DISPLAY_ID, R.drawable.ic_computer, R.string.host_display_menu);
+        }
         addPcAction(sheet, computer, BANDWIDTH_PROBE_ID, R.drawable.ic_network, R.string.connection_test_title);
         addPcAction(sheet, computer, WOL_ID, R.drawable.ic_power, R.string.pcview_menu_send_wol);
         if (online && paired) {
@@ -849,6 +854,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
             case HOST_SETTINGS_ID:
                 HostStreamSettings.show(this, computer.details.uuid, computer.details.name);
+                return true;
+
+            case HOST_DISPLAY_ID:
+                HostDisplaySettings.show(this, computer.details.uuid, computer.details.name);
                 return true;
 
             case BANDWIDTH_PROBE_ID:

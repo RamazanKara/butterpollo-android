@@ -50,6 +50,7 @@ import com.limelight.nvstream.http.NvHTTP;
 import com.limelight.nvstream.http.PairingManager;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.preferences.HostDisplayChoice;
 import com.limelight.preferences.PreferenceConfiguration;
 
 public class NvConnection {
@@ -409,7 +410,9 @@ public class NvConnection {
         hostDetails = details;
         context.isNvidiaServerSoftware = details.nvidiaServer;
         NvHTTP.readDisplayCapabilities(context, serverInfo);
-        if (context.streamConfig.getVirtualDisplay() && !context.serverSupportsVirtualDisplay) {
+        context.hostDisplay = HostDisplayChoice.load(appContext, details.uuid);
+        if (context.hostDisplay.forRole(context.streamConfig.getApp().getRole())
+                .requestsVirtualDisplay(context.streamConfig.getVirtualDisplay()) && !context.serverSupportsVirtualDisplay) {
             context.connListener.displayTransientMessage("Host virtual display unavailable. Using the host display configuration.");
         }
 
