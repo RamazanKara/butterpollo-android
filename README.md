@@ -17,7 +17,7 @@
 <p align="center">
   <img src="docs/assets/shots/pc-list.png" width="160" alt="Computers list showing online, offline and unpaired PCs">
   <img src="docs/assets/shots/library.png" width="160" alt="Game library with cover art and a running game">
-  <img src="docs/assets/shots/stream.png" width="257" alt="Landscape stream with the compact one-line performance overlay">
+  <img src="docs/assets/shots/stream.png" width="160" alt="Close-up of the stream with the compact one-line performance overlay">
   <img src="docs/assets/shots/pip.png" width="160" alt="The stream floating over the home screen in a picture-in-picture window">
 </p>
 
