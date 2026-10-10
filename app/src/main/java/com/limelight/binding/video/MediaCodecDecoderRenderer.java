@@ -1125,7 +1125,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
             decoderDiagnostics = context.getString(R.string.perf_overlay_decoder,
                     "PyroWave (Vulkan, " + pyroWaveRenderer.getPresentMode() + ")") + '\n' +
                     context.getString(R.string.perf_overlay_gpu_driver, pyroWaveRenderer.getDriver()) +
-                    (pyroWaveRenderer.hasMaxClocks() ? '\n' + context.getString(R.string.title_gpu_max_clocks) : "");
+                    (pyroWaveRenderer.hasMaxClocks() ? '\n' + context.getString(R.string.title_gpu_max_clocks) + ": " +
+                            context.getString(R.string.stream_enabled) : "");
         } else {
             String mimeType = configuredFormat.getString(MediaFormat.KEY_MIME);
             String[] options = MediaCodecHelper.getDecoderLowLatencyOptions(configuredFormat, inputFormat,
