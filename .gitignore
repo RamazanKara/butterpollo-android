@@ -45,3 +45,5 @@ app/.externalNativeBuild/
 
 # NDK stuff
 .cxx/
+# Python bytecode
+__pycache__/
