@@ -26,7 +26,7 @@ SERIAL = "emulator-5554"
 PACKAGE = "com.butterpollo.client"
 SHOTS = ROOT / "docs/screenshots/ui-v2"
 LOGS = ROOT / "app/build/emulator-smoke"
-HOST_NAME = "Rubylight smoke fixture"
+HOST_NAME = "Gaming PC"
 DEBUGGABLE = True
 
 
@@ -500,7 +500,7 @@ def main():
             tap("Navigate up")
             tap("Controls")
             tap("Controller buttons", scroll=True)
-            find("No controller chosen yet. Tap Map a button.")
+            find("Connect a controller, then tap “Map a button”.")
             tap("Map a button")
             find("Press the controller button to map. Back cancels.")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")

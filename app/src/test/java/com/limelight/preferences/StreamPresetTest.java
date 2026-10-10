@@ -124,10 +124,22 @@ public class StreamPresetTest {
         values.put("list_resolution", "1920x1080");
         SharedPreferences preferences = preferences(values, new int[1]);
         assertTrue(StreamPreset.isUntouched(preferences));
+        // PcView writes the XML defaults on first launch; stored defaults still count as untouched.
+        values.put("video_format", "auto");
+        values.put("list_fps", "60");
+        values.put("frame_pacing", "latency");
+        values.put("upscaling_mode", "off");
+        values.put("checkbox_vrr", false);
+        values.put("checkbox_codec_performance", true);
+        values.put("seekbar_bitrate_kbps", PreferenceConfiguration.getDefaultBitrate("1920x1080", "60"));
+        assertTrue(StreamPreset.isUntouched(preferences));
         StreamPreset.BALANCED.apply(preferences, 120);
         assertFalse(StreamPreset.isUntouched(preferences));
         values.clear();
         values.put("seekbar_bitrate_kbps", 20000);
+        assertFalse(StreamPreset.isUntouched(preferences));
+        values.clear();
+        values.put("checkbox_vrr", true);
         assertFalse(StreamPreset.isUntouched(preferences));
     }
 

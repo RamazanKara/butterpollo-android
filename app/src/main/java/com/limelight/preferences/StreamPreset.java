@@ -43,21 +43,23 @@ public enum StreamPreset {
                 !preferences.getBoolean("checkbox_phone_performance_hints", false);
     }
 
-    private static final String[] STREAM_KEYS = {
-            PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING, PreferenceConfiguration.BITRATE_PREF_STRING,
-            PreferenceConfiguration.FPS_PREF_STRING, "checkbox_vrr", PreferenceConfiguration.FRAME_PACING_PREF_STRING,
-            PreferenceConfiguration.UPSCALING_PREF_STRING, "checkbox_drop_late_frames", "checkbox_reduce_refresh_rate",
-            "checkbox_codec_performance", "checkbox_phone_performance_hints"
-    };
-
-    // True until the user picks a preset or changes any value a preset sets.
+    // True while every value a preset sets is still at its default. PcView writes the XML defaults
+    // on first launch, so presence of a key says nothing; compare values instead.
     static boolean isUntouched(SharedPreferences preferences) {
-        for (String key : STREAM_KEYS) {
-            if (preferences.contains(key)) {
-                return false;
-            }
-        }
-        return true;
+        String fps = preferences.getString(PreferenceConfiguration.FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS);
+        int defaultBitrate = PreferenceConfiguration.getDefaultBitrate(preferences.getString(
+                PreferenceConfiguration.RESOLUTION_PREF_STRING, PreferenceConfiguration.DEFAULT_RESOLUTION), fps);
+        return "auto".equals(preferences.getString(PreferenceConfiguration.VIDEO_FORMAT_PREF_STRING, "auto")) &&
+                preferences.getInt(PreferenceConfiguration.BITRATE_PREF_STRING, defaultBitrate) == defaultBitrate &&
+                PreferenceConfiguration.DEFAULT_FPS.equals(fps) &&
+                !preferences.getBoolean("checkbox_vrr", false) &&
+                PreferenceConfiguration.DEFAULT_FRAME_PACING.equals(preferences.getString(
+                        PreferenceConfiguration.FRAME_PACING_PREF_STRING, PreferenceConfiguration.DEFAULT_FRAME_PACING)) &&
+                "off".equals(preferences.getString(PreferenceConfiguration.UPSCALING_PREF_STRING, "off")) &&
+                !preferences.getBoolean("checkbox_drop_late_frames", false) &&
+                !preferences.getBoolean("checkbox_reduce_refresh_rate", false) &&
+                preferences.getBoolean("checkbox_codec_performance", true) &&
+                !preferences.getBoolean("checkbox_phone_performance_hints", false);
     }
 
     void apply(SharedPreferences preferences, float panelMaxHz) {
