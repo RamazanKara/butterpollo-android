@@ -1,4 +1,4 @@
-Native stream fixes against moonlight-common-c 874ac9548f1bd6f095ef2b435c42cdde460e7821.
+Native stream fixes against moonlight-common-c f900dd4767759c7b9d0e93bcea666b55c69ea62f (also applies to 874ac954).
 
 diff --git a/src/AudioStream.c b/src/AudioStream.c
 index 2fcc1f0e..8aacf95a 100644
