@@ -459,4 +459,10 @@ public class MoonBridge {
     // Early edge of the last phase-lock report in microseconds before the latch, or
     // Integer.MIN_VALUE before the first one.
     public static native int getPhaseLockLeadUs();
+
+    // Negotiation stub, superseded by wip/2.2-net: there this becomes a native that reads the
+    // host's SDP line a=x-rl-control. Until then no host is treated as accepting any of them.
+    public static boolean hostSupportsControlMessage(int messageType) {
+        return false;
+    }
 }
