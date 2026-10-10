@@ -262,6 +262,13 @@ public final class HostStreamSettings extends AppCompatActivity {
             return field;
         }
 
+        // Inline under the field (a TextInputLayout error), so it stays visible and screen readers announce it.
+        private void showError(EditText field, String error) {
+            View parent = (View) field.getParent();
+            while (!(parent instanceof TextInputLayout)) parent = (View) parent.getParent();
+            ((TextInputLayout) parent).setError(error);
+        }
+
         private void showSharpness() {
             LinearLayout form = form();
             TextView value = new TextView(activity);
@@ -329,6 +336,7 @@ public final class HostStreamSettings extends AppCompatActivity {
                                             activity.getWindowManager().getDefaultDisplay())))));
                 }
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                    showError(field, null);
                     try {
                         if (key.equals("refresh")) {
                             activity.draft.launchRefreshRateX100 = HostStreamProfile.parseRefreshRate(field.getText().toString());
@@ -342,7 +350,7 @@ public final class HostStreamSettings extends AppCompatActivity {
                         updateSummaries();
                         dialog.dismiss();
                     } catch (IllegalArgumentException e) {
-                        field.setError(getString(key.equals("refresh") ? R.string.host_profile_invalid_refresh : R.string.host_profile_invalid_bitrate));
+                        showError(field, getString(key.equals("refresh") ? R.string.host_profile_invalid_refresh : R.string.host_profile_invalid_bitrate));
                     }
                 });
             });
@@ -350,10 +358,11 @@ public final class HostStreamSettings extends AppCompatActivity {
         }
 
         private Integer readNumber(EditText field, int min, int max) {
+            showError(field, null);
             try {
                 return HostStreamProfile.requireRange(Integer.parseInt(field.getText().toString().trim()), min, max);
             } catch (IllegalArgumentException e) {
-                field.setError(getString(R.string.host_profile_invalid_number, min, max));
+                showError(field, getString(R.string.host_profile_invalid_number, min, max));
                 return null;
             }
         }

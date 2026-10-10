@@ -31,6 +31,18 @@ function Find-FFmpeg {
     throw 'FFmpeg is not accessible. Open a new shell with the installed FFmpeg bin directory on PATH.'
 }
 
+# Labels the capture looks up that differ per app language (Set-CaptureLocale switches them).
+$script:labels = @{ 'Presets' = 'Presets'; 'Client-side upscaling' = 'Client-side upscaling' }
+
+function Set-CaptureLocale([string]$Locale) {
+    # Per-app language (Android 13+), so the system UI and launcher stay as they are.
+    $null = Invoke-Adb @('shell', 'cmd', 'locale', 'set-app-locales', $package, '--user', '0', '--locales', $Locale)
+    $script:labels = switch ($Locale) {
+        'de' { @{ 'Presets' = 'Vorgaben'; 'Client-side upscaling' = 'Hochskalierung auf dem Gerät' } }
+        default { @{ 'Presets' = 'Presets'; 'Client-side upscaling' = 'Client-side upscaling' } }
+    }
+}
+
 function Get-Ui {
     $null = Invoke-Adb @('shell', 'uiautomator', 'dump', '--compressed', "$remote/ui.xml")
     # Pull the dump as bytes: piping it through the console would depend on the shell's output encoding.
@@ -72,7 +84,7 @@ function Find-Ui([string]$Label, [switch]$Scroll) {
         }
         Start-Sleep -Milliseconds 400
     }
-    throw "UI '$Label' missing; use English and inspect out/demo/capture/last-ui.xml."
+    throw "UI '$Label' missing; check the app language and inspect out/demo/capture/last-ui.xml."
 }
 
 function Tap-Node($Node) {
@@ -116,11 +128,11 @@ function Open-DemoState([string]$State) {
         'hosts' { $null = Find-Ui 'Living-room PC' }
         # In landscape the running game is in the second row of the grid: scroll it into view.
         'library' { $null = Find-Ui 'Racing Game' -Scroll }
-        'settings' { $null = Find-Ui 'Presets' }
+        'settings' { $null = Find-Ui $script:labels['Presets'] }
         'controller' { $null = Find-Ui 'Demo wireless controller' }
         'upscaling' {
             Tap-Ui 'Stream'
-            Tap-Ui 'Client-side upscaling' -Scroll
+            Tap-Ui $script:labels['Client-side upscaling'] -Scroll
             $null = Find-Ui 'FSR 1.0'
         }
         default {

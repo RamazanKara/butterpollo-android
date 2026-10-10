@@ -1,6 +1,7 @@
-param([string[]]$Only)
+# -Locale de captures the German stills into docs/screenshots/demo-de (per-app language, reset to English afterwards).
+param([string[]]$Only, [string]$Locale = 'en')
 . (Join-Path $PSScriptRoot 'capture-common.ps1')
-$output = Join-Path $root 'docs/screenshots/demo'
+$output = Join-Path $root $(if ($Locale -eq 'en') { 'docs/screenshots/demo' } else { "docs/screenshots/demo-$Locale" })
 New-Item -ItemType Directory -Force $output | Out-Null
 $states = [ordered]@{
     'pc-list' = 'hosts'; 'library' = 'library'; 'stream' = 'stream';
@@ -10,6 +11,7 @@ $states = [ordered]@{
 }
 try {
     Initialize-Capture
+    Set-CaptureLocale $Locale
     # A plain dark home screen for the picture-in-picture still (enabling it launches an activity, so do it before any stream).
     Enable-DemoHome
     foreach ($shot in $states.GetEnumerator()) {
@@ -43,4 +45,7 @@ try {
         Write-Host "Saved $path"
     }
     $null = Invoke-Adb @('shell', 'rm', "$remote/still.png")
-} finally { Restore-Capture }
+} finally {
+    if ($Locale -ne 'en') { Set-CaptureLocale 'en' }
+    Restore-Capture
+}

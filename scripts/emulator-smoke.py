@@ -90,8 +90,8 @@ def host_menu(item=None):
 
 
 def open_host_profile():
-    host_menu("Streaming settings for this PC")
-    find("Streaming settings for this PC")
+    host_menu("Stream settings")
+    find("Use global settings")
 
 
 def profile_number(label, value):
@@ -195,9 +195,19 @@ def capture_ui_set(width, font):
         find(setting)
         screenshot(prefix + "-" + name)
         tap("Navigate up")
-    tap(f"{PACKAGE}:id/search_src_text")
-    adb("shell", "input", "text", "compatibility")
-    adb("shell", "input", "keyevent", "4")
+    search = f"{PACKAGE}:id/search_src_text"
+    for _ in range(5):
+        # Typing can race the field getting focus right after the tap; retry until the query is in the field.
+        tap(search)
+        time.sleep(0.5)
+        adb("shell", "input", "keyevent", "123", *("67" for _ in range(20)))
+        adb("shell", "input", "text", "compatibility")
+        if find(search).get("text") == "compatibility":
+            break
+    else:
+        raise AssertionError("Settings search did not take the query")
+    # Enter submits, which keeps the query and hides the keyboard; Back would clear the search if the keyboard was already gone.
+    adb("shell", "input", "keyevent", "66")
     find("Compatibility video view")
     screenshot(prefix + "-settings-search")
     tap("Compatibility video view")
@@ -206,7 +216,7 @@ def capture_ui_set(width, font):
     tap("Navigate up")
     tap("Navigate up")
     tap(HOST_NAME)
-    find("Pair Rubylight Android")
+    find("Pair Rubylight")
     screenshot(prefix + "-pairing-pin")
     tap("android:id/button2")
     find(HOST_NAME)
@@ -413,7 +423,7 @@ def main():
                 n.get("name") == "seekbar_bitrate_kbps" and n.get("value") == "81000" for n in root),
                 "Bitrate was not stored in kbps")
             tap("Video codec", scroll=True)
-            tap("Prefer PyroWave (experimental, high bandwidth)")
+            tap("PyroWave (experimental)")
             tap("Video codec")
             tap("android:id/button3")
             help_text = " ".join(n.get("text", "") for n in tree().iter("node"))
@@ -442,7 +452,8 @@ def main():
             tap(f"{PACKAGE}:id/settingsButton")
             tap("Stream")
             find(vrr, scroll=True)
-            row = next(n for n in tree().iter("node") if n.get("clickable") == "true" and
+            # The row is exposed either as a clickable container or, since the accessibility pass, as a checkable switch.
+            row = next(n for n in tree().iter("node") if "true" in (n.get("clickable"), n.get("checkable")) and
                        any(child.get("text") == vrr for child in n.iter("node")))
             assert any(n.get("checked") == "true" for n in row.iter("node")), \
                 "VRR switch was not restored after restarting the app"
@@ -489,7 +500,9 @@ def main():
             tap("Navigate up")
             tap("Controls")
             tap("Controller buttons", scroll=True)
-            find("Waiting for a button press…")
+            find("No controller chosen yet. Tap Map a button.")
+            tap("Map a button")
+            find("Press the controller button to map. Back cancels.")
             adb("shell", "input", "gamepad", "keyevent", "KEYCODE_BUTTON_Y")
             find("Y sends…")
             screenshot("11-controller-choose")
@@ -515,7 +528,7 @@ def main():
             find(HOST_NAME)
             for name, contents, message, shot in (
                     ("malformed", "This is not a game entry.\n",
-                     "This game file can't be opened. Add the games again from Rubylight.", "17-frontend-malformed"),
+                     "Game file unavailable.", "17-frontend-malformed"),
                     ("unknown-host", "# Rubylight game entry\n"
                      "[host_uuid] 00000000-0000-4000-8000-000000000007\n"
                      "[host_name] Unknown smoke PC\n[app_uuid] 00000000-0000-4000-8000-000000000008\n"
@@ -523,7 +536,9 @@ def main():
                 uri = frontend_entry(name, contents)
                 adb("shell", "input", "keyevent", "3")
                 find(f"{launcher.split('/')[0]}:id/workspace")
-                adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/com.limelight.ShortcutTrampoline",
+                # A URI grant from root (release runs use adb root) is refused by MediaStore; grant as the shell user.
+                adb("shell", *(() if DEBUGGABLE else ("su", "2000")), "am", "start", "-W", "-n",
+                    f"{PACKAGE}/com.limelight.ShortcutTrampoline",
                     "-a", "android.intent.action.VIEW", "-d", uri, "--grant-read-uri-permission")
                 find(message)
                 if name == "malformed":

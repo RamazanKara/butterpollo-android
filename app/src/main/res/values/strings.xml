@@ -424,7 +424,7 @@
     <string name="launch_confirm_replace">Quit the running app and start this one?\nConfirm within 60 seconds.</string>
     <string name="launch_confirm_terminate">Quit the app?\nMonitor/input clients stay connected.\nConfirm within 60 seconds.</string>
     <string name="launch_confirm">Confirm</string>
-    <string name="summary_about">Version %1$s · Source and licenses</string>
+    <string name="summary_about">Version %1$s · Based on Moonlight (GPL-3.0)</string>
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_empty">No matching settings on this device</string>
     <string name="pip_disconnect_description">Disconnect and keep the PC app running</string>
