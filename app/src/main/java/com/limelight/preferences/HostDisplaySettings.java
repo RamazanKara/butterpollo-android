@@ -12,6 +12,10 @@ public final class HostDisplaySettings {
     }
 
     public static void show(Activity activity, String hostUuid, String hostName) {
+        show(activity, hostUuid, hostName, null);
+    }
+
+    public static void show(Activity activity, String hostUuid, String hostName, Runnable onChanged) {
         if (hostUuid == null) {
             return;
         }
@@ -26,6 +30,7 @@ public final class HostDisplaySettings {
                 .setSingleChoiceItems(labels, current.ordinal(), (dialog, which) -> {
                     HostDisplayChoice.save(activity, hostUuid, choices[which]);
                     Toast.makeText(activity, R.string.host_display_saved, Toast.LENGTH_SHORT).show();
+                    if (onChanged != null) onChanged.run();
                     dialog.dismiss();
                 })
                 .setNeutralButton(R.string.help, (dialog, which) ->

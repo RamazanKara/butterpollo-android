@@ -435,12 +435,14 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
             prefConfig.fps = com.limelight.binding.video.DisplayFrameRatePolicy.streamFrameRate(panelMaxRefreshRate);
             prefConfig.launchRefreshRateX100 = Math.max(100, Math.min(100000, Math.round(panelMaxRefreshRate * 100)));
         }
+        com.limelight.utils.RedactedLog.addSecret(getIntent().getStringExtra(EXTRA_PC_NAME));
+        com.limelight.utils.RedactedLog.addSecret(getIntent().getStringExtra(EXTRA_HOST));
         LimeLog.info("Stream request: " + prefConfig.width + "x" + prefConfig.height + " at " + prefConfig.fps +
-                " fps (resolution " + (prefConfig.fromPcProfile ? "from this PC's stream profile" :
-                prefConfig.resolutionFollowsScreen ? "follows this screen" : "fixed in settings") +
+                " fps (resolution " + prefConfig.resolutionSource() +
                 (prefConfig.vrr ? ", VRR at the panel's " + panelMaxRefreshRate + " Hz" : "") + ")");
         // Fixed presets keep their size; anything else is the phone's own resolution and follows it.
-        nativeResolutionStream = PreferenceConfiguration.isNativeResolution(prefConfig.width, prefConfig.height);
+        nativeResolutionStream = prefConfig.resolutionFollowsScreen ||
+                PreferenceConfiguration.isNativeResolution(prefConfig.width, prefConfig.height);
         fpsFollowsDisplay = prefConfig.vrr ||
                 prefConfig.fps == com.limelight.binding.video.DisplayFrameRatePolicy.streamFrameRate(panelMaxRefreshRate);
         nativeTouchEnabled = !prefConfig.touchscreenTrackpad &&
@@ -3623,6 +3625,18 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
         });
     }
 
+    static String terminationDescription(int errorCode) {
+        String code = Math.abs(errorCode) > 1000 ? "0x" + Integer.toHexString(errorCode) : Integer.toString(errorCode);
+        switch (errorCode) {
+            case MoonBridge.ML_ERROR_NO_VIDEO_TRAFFIC: return code + " (no video traffic)";
+            case MoonBridge.ML_ERROR_NO_VIDEO_FRAME: return code + " (no complete video frame)";
+            case MoonBridge.ML_ERROR_UNEXPECTED_EARLY_TERMINATION: return code + " (ended right after starting)";
+            case MoonBridge.ML_ERROR_PROTECTED_CONTENT: return code + " (protected content)";
+            case MoonBridge.ML_ERROR_FRAME_CONVERSION: return code + " (frame conversion failed on the PC)";
+            default: return code + " (reported by the PC)";
+        }
+    }
+
     @Override
     public void connectionTerminated(final int errorCode) {
         LimeLog.info("Stream disconnected");
@@ -3648,7 +3662,11 @@ public class Game extends Activity implements SurfaceHolder.Callback, TextureVie
 
                 if (!displayedFailureDialog) {
                     displayedFailureDialog = true;
-                    LimeLog.severe("Connection terminated: " + errorCode);
+                    if (errorCode == MoonBridge.ML_ERROR_GRACEFUL_TERMINATION) {
+                        LimeLog.info("Connection terminated: the PC ended the stream");
+                    } else {
+                        LimeLog.severe("Connection terminated: " + terminationDescription(errorCode));
+                    }
                     stopConnection();
 
                     // Display the error dialog if it was an unexpected termination.

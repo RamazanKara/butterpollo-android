@@ -37,6 +37,8 @@ public class PreferenceConfiguration {
     static final int NATIVE_DEFAULTS_VERSION = 2;
     // From version 3 "native" is the screen a stream starts on, not a size saved earlier.
     static final int FOLLOW_SCREEN_VERSION = 3;
+    // From version 4 a PC profile stuck at 1920x1080 follows the screen too.
+    static final int PROFILE_NATIVE_VERSION = 4;
     static final String RESOLUTION_FOLLOWS_SCREEN_PREF_STRING = "resolution_follows_screen";
     static final String BITRATE_PREF_OLD_STRING = "seekbar_bitrate";
     private static final String STRETCH_PREF_STRING = "checkbox_stretch_video";
@@ -506,7 +508,13 @@ public class PreferenceConfiguration {
         if (profile != null) {
             profile.applyTo(config);
             config.fromPcProfile = true;
-            config.resolutionFollowsScreen = false;
+            if (profile.nativeResolution) {
+                String nativeResolution = nativeResolution(context);
+                if (nativeResolution != null) {
+                    config.width = getWidthFromResolutionString(nativeResolution);
+                    config.height = getHeightFromResolutionString(nativeResolution);
+                }
+            }
             config.framePacing = config.vrr ? FRAME_PACING_MIN_LATENCY : getFramePacingValue(context);
             config.reduceRefreshRate = !config.vrr && PreferenceManager.getDefaultSharedPreferences(context)
                     .getBoolean(REDUCE_REFRESH_RATE_PREF_STRING, DEFAULT_REDUCE_REFRESH_RATE);
@@ -592,8 +600,21 @@ public class PreferenceConfiguration {
     }
 
     public static void migrateToNativeDefaults(Context context) {
-        migrateToNativeDefaults(PreferenceManager.getDefaultSharedPreferences(context),
-                nativeResolution(context), panelMaxRefreshRate(context));
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        migrateToNativeDefaults(prefs, nativeResolution(context), panelMaxRefreshRate(context));
+        if (prefs.getInt(PREFS_VERSION_PREF_STRING, 0) == FOLLOW_SCREEN_VERSION) {
+            int changed = HostStreamProfile.migrateAllToNative(context);
+            if (changed > 0) {
+                com.limelight.LimeLog.info("PC stream profiles switched from 1920x1080 to native: " + changed);
+            }
+            prefs.edit().putInt(PREFS_VERSION_PREF_STRING, PROFILE_NATIVE_VERSION).apply();
+        }
+    }
+
+    // For the overlay and the log: where this stream's resolution comes from.
+    public String resolutionSource() {
+        return resolutionFollowsScreen ? (fromPcProfile ? "native, PC profile" : "native") :
+                (fromPcProfile ? "fixed, PC profile" : "fixed in settings");
     }
 
     public static PreferenceConfiguration readPreferences(Context context) {

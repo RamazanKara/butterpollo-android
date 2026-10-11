@@ -122,6 +122,12 @@ def profile_number(label, value):
               and n.get("content-desc") == label]
     if not fields:
         tap(rows[label], scroll=True)
+        # A new profile follows the phone's screen; a fixed size needs that choice off first.
+        native = next((n for n in tree().iter("node")
+                       if n.get("text") == "Native (follows this phone’s screen)" and n.get("checked") == "true"), None)
+        if native is not None:
+            x1, y1, x2, y2 = bounds(native)
+            adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
         fields = [n for n in tree().iter("node") if n.get("class") == "android.widget.EditText"
                   and n.get("content-desc") == label]
     field = fields[0]
@@ -382,7 +388,7 @@ def main():
                                 "checkbox_phone_performance_hints", "checkbox_gpu_max_clocks",
                                 "checkbox_drop_late_frames", "checkbox_unbatched_input",
                                 "checkbox_network_priority")
-            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "3" and
+            prefs(f"{PACKAGE}_preferences", lambda root: pref_value(root, "prefs_version") == "4" and
                   pref_value(root, "list_resolution") == native and pref_value(root, "frame_pacing") == "latency" and
                   all(pref_value(root, key) == "true" for key in latency_switches),
                   f"Fresh install is not at native {native} with every latency setting on")

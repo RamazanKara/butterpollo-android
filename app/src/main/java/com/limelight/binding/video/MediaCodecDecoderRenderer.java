@@ -2248,6 +2248,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
                 StringBuilder video = new StringBuilder();
                 video.append(context.getString(R.string.perf_overlay_streamdetails, streamWidth + "x" + streamHeight, fps.totalFps)).append('\n');
+                video.append(context.getString(R.string.perf_overlay_resolution_source, context.getString(
+                        prefs.resolutionFollowsScreen ?
+                                (prefs.fromPcProfile ? R.string.resolution_source_native_profile : R.string.resolution_source_native) :
+                                (prefs.fromPcProfile ? R.string.resolution_source_fixed_profile : R.string.resolution_source_fixed))))
+                        .append('\n');
                 video.append(context.getString(R.string.perf_overlay_incomingfps,
                         mediaCodec ? frameRates[0] : fps.receivedFps)).append('\n');
                 video.append(context.getString(R.string.perf_overlay_releasedfps, frameRates[1])).append('\n');

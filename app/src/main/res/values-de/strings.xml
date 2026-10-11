@@ -75,6 +75,11 @@
     <string name="slow_connection_msg">Langsame Verbindung\nSenke die Bitrate</string>
     <string name="poor_connection_msg">Schlechte Verbindung zum PC</string>
     <string name="perf_overlay_streamdetails">Video: %1$s %2$.2f FPS</string>
+    <string name="perf_overlay_resolution_source">Auflösung: %1$s</string>
+    <string name="resolution_source_native">nativ</string>
+    <string name="resolution_source_native_profile">nativ, PC-Profil</string>
+    <string name="resolution_source_fixed">fest in den Einstellungen</string>
+    <string name="resolution_source_fixed_profile">fest, PC-Profil</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
     <string name="perf_overlay_incomingfps">Empfangen: %1$.2f FPS</string>
     <string name="perf_overlay_renderingfps">Gerendert: %1$.2f FPS</string>

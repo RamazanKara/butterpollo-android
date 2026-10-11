@@ -50,6 +50,10 @@ public final class HostStreamSettings extends AppCompatActivity {
         }
         draft = PreferenceConfiguration.readPreferences(this, hostUuid);
         useGlobal = HostStreamProfile.load(this, hostUuid) == null;
+        if (useGlobal) {
+            // A new profile streams at the phone's own screen size until a fixed size is chosen.
+            draft.resolutionFollowsScreen = true;
+        }
         if (state != null) {
             HostStreamProfile.deserialize(state.getString("draft")).applyTo(draft);
             useGlobal = state.getBoolean("global");
@@ -85,7 +89,7 @@ public final class HostStreamSettings extends AppCompatActivity {
                 draft.launchRefreshRateX100 == 0 ? draft.fps * 100 : draft.launchRefreshRateX100,
                 draft.bitrate, draft.virtualDisplayScale, draft.videoFormat, draft.virtualDisplay,
                 draft.enableHdr, draft.fullRange, draft.enableYuv444, draft.vrr,
-                draft.upscalingMode, draft.upscalingSharpness);
+                draft.upscalingMode, draft.upscalingSharpness, draft.resolutionFollowsScreen);
     }
 
     @Override
@@ -181,6 +185,22 @@ public final class HostStreamSettings extends AppCompatActivity {
                 return true;
             });
             stream.setEnabled(!activity.useGlobal);
+            // Saved at once and sent on its own, so it applies with global settings too.
+            PreferenceCategory displayCategory = new PreferenceCategory(activity);
+            displayCategory.setTitle(R.string.host_display_menu);
+            displayCategory.setLayoutResource(R.layout.settings_category);
+            screen.addPreference(displayCategory);
+            Preference display = new Preference(activity);
+            display.setKey("host_display");
+            display.setTitle(R.string.host_display_menu);
+            display.setLayoutResource(R.layout.settings_preference);
+            display.setPersistent(false);
+            displayCategory.addPreference(display);
+            display.setOnPreferenceClickListener(pref -> {
+                HostDisplaySettings.show(activity, activity.hostUuid,
+                        activity.getIntent().getStringExtra("host_name"), this::updateSummaries);
+                return true;
+            });
             Preference footer = new Preference(activity);
             footer.setLayoutResource(R.layout.settings_preference);
             footer.setSummary(R.string.host_profile_footer);
@@ -213,7 +233,12 @@ public final class HostStreamSettings extends AppCompatActivity {
 
         private void updateSummaries() {
             PreferenceConfiguration draft = activity.useGlobal ? PreferenceConfiguration.readPreferences(activity) : activity.draft;
-            findPreference("resolution").setSummary(draft.width + " × " + draft.height);
+            findPreference("resolution").setSummary(draft.resolutionFollowsScreen ?
+                    getString(R.string.host_profile_native) : draft.width + " × " + draft.height);
+            Preference display = findPreference("host_display");
+            if (display != null) {
+                display.setSummary(HostDisplayChoice.load(activity, activity.hostUuid).label);
+            }
             findPreference("refresh").setSummary(HostStreamProfile.formatRefreshRate(
                     draft.launchRefreshRateX100 == 0 ? draft.fps * 100 : draft.launchRefreshRateX100) + " Hz");
             findPreference("bitrate").setSummary(HostStreamProfile.formatBitrateMbps(draft.bitrate) + " Mbps");
@@ -293,25 +318,44 @@ public final class HostStreamSettings extends AppCompatActivity {
 
         private void showResolution() {
             LinearLayout form = form();
+            com.google.android.material.checkbox.MaterialCheckBox nativeChoice =
+                    new com.google.android.material.checkbox.MaterialCheckBox(activity);
+            nativeChoice.setText(R.string.host_profile_native);
+            nativeChoice.setChecked(activity.draft.resolutionFollowsScreen);
+            form.addView(nativeChoice);
             EditText width = field(form, R.string.host_profile_width, Integer.toString(activity.draft.width), false);
             EditText height = field(form, R.string.host_profile_height, Integer.toString(activity.draft.height), false);
+            width.setEnabled(!nativeChoice.isChecked());
+            height.setEnabled(!nativeChoice.isChecked());
+            nativeChoice.setOnCheckedChangeListener((button, checked) -> {
+                width.setEnabled(!checked);
+                height.setEnabled(!checked);
+            });
             AlertDialog dialog = new MaterialAlertDialogBuilder(activity).setTitle(R.string.title_resolution_list)
                     .setView(form).setPositiveButton(android.R.string.ok, null)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setNeutralButton(R.string.host_profile_match_screen, null).create();
             dialog.setOnShowListener(ignored -> {
                 dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                    nativeChoice.setChecked(false);
                     DisplayMetrics metrics = new DisplayMetrics();
                     activity.getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
                     width.setText(Integer.toString(Math.max(metrics.widthPixels, metrics.heightPixels)));
                     height.setText(Integer.toString(Math.min(metrics.widthPixels, metrics.heightPixels)));
                 });
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                    if (nativeChoice.isChecked()) {
+                        activity.draft.resolutionFollowsScreen = true;
+                        updateSummaries();
+                        dialog.dismiss();
+                        return;
+                    }
                     Integer w = readNumber(width, 64, 16384);
                     Integer h = readNumber(height, 64, 16384);
                     if (w != null && h != null) {
                         activity.draft.width = w;
                         activity.draft.height = h;
+                        activity.draft.resolutionFollowsScreen = false;
                         updateSummaries();
                         dialog.dismiss();
                     }

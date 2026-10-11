@@ -155,4 +155,32 @@ public class HostStreamProfileTest {
             assertThrows(IllegalArgumentException.class, () -> HostStreamProfile.deserialize(value));
         }
     }
+
+    @Test
+    public void nativeProfilesRoundTripAndOldProfilesStayFixed() {
+        String old = "1920,1080,12000,150000,100,FORCE_PYROWAVE,true,false,false,true,true,OFF,50";
+        HostStreamProfile fixed = HostStreamProfile.deserialize(old);
+        assertFalse(fixed.nativeResolution);
+        assertEquals(old, fixed.serialize());
+        HostStreamProfile nativeProfile = fixed.withNativeResolution(true);
+        assertEquals(old + ",native", nativeProfile.serialize());
+        HostStreamProfile read = HostStreamProfile.deserialize(nativeProfile.serialize());
+        assertTrue(read.nativeResolution);
+        assertEquals(PreferenceConfiguration.FormatOption.FORCE_PYROWAVE, read.codec);
+        PreferenceConfiguration config = new PreferenceConfiguration();
+        read.applyTo(config);
+        assertTrue(config.resolutionFollowsScreen);
+        // A ten-field profile without upscaling keeps working with the flag too.
+        String short10 = "2184,1968,12000,80000,100,AUTO,false,false,false,false";
+        assertTrue(HostStreamProfile.deserialize(short10 + ",native").nativeResolution);
+    }
+
+    @Test
+    public void profilesStuckAt1080pBecomeNativeOnce() {
+        String stuck = "1920,1080,12000,150000,100,FORCE_PYROWAVE,true,false,false,true,true,OFF,50";
+        String migrated = HostStreamProfile.migrateToNative(stuck);
+        assertEquals(stuck + ",native", migrated);
+        assertNull(HostStreamProfile.migrateToNative(migrated));
+        assertNull(HostStreamProfile.migrateToNative("2560,1440,12000,150000,100,AUTO,false,false,false,false"));
+    }
 }

@@ -17,6 +17,10 @@ public final class HostStreamProfile {
     public final Boolean vrr;
     public final UpscalingPolicy.Mode upscalingMode;
     public final Integer upscalingSharpness;
+    // Native: stream at the size of the screen the stream starts on; width and height are then
+    // only the size it had when saved, used if the screen can't be read.
+    public final boolean nativeResolution;
+    private static final String NATIVE_FIELD = "native";
 
     public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
                              PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
@@ -35,6 +39,16 @@ public final class HostStreamProfile {
                              PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
                              boolean hdr, boolean fullRange, boolean yuv444, Boolean vrr,
                              UpscalingPolicy.Mode upscalingMode, Integer upscalingSharpness) {
+        this(width, height, refreshRateX100, bitrate, renderScale, codec, virtualDisplay, hdr, fullRange, yuv444,
+                vrr, upscalingMode, upscalingSharpness, false);
+    }
+
+    public HostStreamProfile(int width, int height, int refreshRateX100, int bitrate, int renderScale,
+                             PreferenceConfiguration.FormatOption codec, boolean virtualDisplay,
+                             boolean hdr, boolean fullRange, boolean yuv444, Boolean vrr,
+                             UpscalingPolicy.Mode upscalingMode, Integer upscalingSharpness,
+                             boolean nativeResolution) {
+        this.nativeResolution = nativeResolution;
         requireRange(width, 64, 16384);
         requireRange(height, 64, 16384);
         requireRange(refreshRateX100, 100, 100000);
@@ -96,6 +110,7 @@ public final class HostStreamProfile {
     void applyTo(PreferenceConfiguration config) {
         config.width = width;
         config.height = height;
+        config.resolutionFollowsScreen = nativeResolution;
         config.launchRefreshRateX100 = refreshRateX100;
         config.fps = Math.round(refreshRateX100 / 100f);
         config.bitrate = bitrate;
@@ -121,10 +136,30 @@ public final class HostStreamProfile {
         return width + "," + height + "," + refreshRateX100 + "," + bitrate + "," + renderScale +
                 "," + codec.name() + "," + virtualDisplay + "," + hdr + "," + fullRange + "," + yuv444 +
                 (upscalingMode == null ? (vrr == null ? "" : "," + vrr) :
-                        "," + (vrr == null ? "" : vrr) + "," + upscalingMode.name() + "," + upscalingSharpness);
+                        "," + (vrr == null ? "" : vrr) + "," + upscalingMode.name() + "," + upscalingSharpness) +
+                (nativeResolution ? "," + NATIVE_FIELD : "");
+    }
+
+    HostStreamProfile withNativeResolution(boolean nativeResolution) {
+        return new HostStreamProfile(width, height, refreshRateX100, bitrate, renderScale, codec, virtualDisplay,
+                hdr, fullRange, yuv444, vrr, upscalingMode, upscalingSharpness, nativeResolution);
+    }
+
+    // Test builds 0.4.0 test.6 to test.9 left PC profiles at 1920x1080 on phones whose screen is
+    // not 1080p; such a profile becomes native once. Returns the new value, or null to keep it.
+    static String migrateToNative(String value) {
+        HostStreamProfile profile = deserialize(value);
+        if (profile.nativeResolution || profile.width != 1920 || profile.height != 1080) {
+            return null;
+        }
+        return profile.withNativeResolution(true).serialize();
     }
 
     static HostStreamProfile deserialize(String value) {
+        boolean nativeResolution = value.endsWith("," + NATIVE_FIELD);
+        if (nativeResolution) {
+            value = value.substring(0, value.length() - NATIVE_FIELD.length() - 1);
+        }
         String[] fields = value.split(",", -1);
         if (fields.length != 10 && fields.length != 11 && fields.length != 13) {
             throw new IllegalArgumentException("Invalid host profile");
@@ -136,7 +171,7 @@ public final class HostStreamProfile {
                 Boolean.parseBoolean(fields[8]), Boolean.parseBoolean(fields[9]),
                 fields.length >= 11 && !fields[10].isEmpty() ? Boolean.parseBoolean(fields[10]) : null,
                 fields.length == 13 ? UpscalingPolicy.Mode.valueOf(fields[11]) : null,
-                fields.length == 13 ? Integer.parseInt(fields[12]) : null);
+                fields.length == 13 ? Integer.parseInt(fields[12]) : null, nativeResolution);
     }
 
     static HostStreamProfile load(Context context, String hostUuid) {
@@ -163,5 +198,26 @@ public final class HostStreamProfile {
     static void reset(Context context, String hostUuid) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .edit().remove(hostUuid).apply();
+    }
+
+    // Applies migrateToNative to every saved profile; returns how many changed.
+    static int migrateAllToNative(Context context) {
+        android.content.SharedPreferences prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        android.content.SharedPreferences.Editor editor = prefs.edit();
+        int changed = 0;
+        for (java.util.Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            if (!(entry.getValue() instanceof String)) continue;
+            try {
+                String migrated = migrateToNative((String) entry.getValue());
+                if (migrated != null) {
+                    editor.putString(entry.getKey(), migrated);
+                    changed++;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // An unreadable profile is left as it is; load() ignores it too.
+            }
+        }
+        if (changed > 0) editor.apply();
+        return changed;
     }
 }

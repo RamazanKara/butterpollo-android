@@ -8,7 +8,7 @@ import java.util.ArrayDeque;
 import java.util.Set;
 
 public final class RedactedLog {
-    private static final int MAX_ENTRIES = 200;
+    private static final int MAX_ENTRIES = 400;
     static final int MAX_TRACE_BYTES = 64 * 1024;
     static final int MAX_TRACE_CHARS = 4096;
     private static final Set<String> NATIVE_LIBRARIES = Set.of("libc.so", "libart.so", "libandroid_runtime.so",
@@ -21,14 +21,43 @@ public final class RedactedLog {
             "USB controller attached", "USB controller detached", "USB permission denied",
             "Bluetooth or Android controller detached", "Connection test started", "Connection test finished");
     private final ArrayDeque<String> entries = new ArrayDeque<>();
+    // Names and addresses known to belong to the user's PCs; replaced wherever they appear.
+    private static final Set<String> SECRETS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    static final int MAX_MESSAGE_CHARS = 300;
+    private static final java.util.regex.Pattern[] SENSITIVE = {
+            // URLs, e-mail addresses, IPv4/IPv6 and MAC addresses, UUIDs, keys and paths.
+            java.util.regex.Pattern.compile("[a-zA-Z][a-zA-Z0-9+.-]*://\\S+"),
+            java.util.regex.Pattern.compile("[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+"),
+            java.util.regex.Pattern.compile("\\b\\d{1,3}(?:\\.\\d{1,3}){3}(?::\\d+)?\\b"),
+            java.util.regex.Pattern.compile("[0-9a-fA-F]{0,4}(?::[0-9a-fA-F]{0,4}){2,7}(?:%\\w+)?"),
+            java.util.regex.Pattern.compile("\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"),
+            java.util.regex.Pattern.compile("\\b[0-9a-fA-F]{16,}\\b"),
+            java.util.regex.Pattern.compile("[A-Za-z0-9+/=_-]{32,}"),
+            java.util.regex.Pattern.compile("(?:/storage|/sdcard|/data/user|/data/data|content:)\\S*"),
+    };
+    private static final java.util.regex.Pattern PIN = java.util.regex.Pattern.compile("(?i)\\b(pin|password|passphrase|passcode|secret|token|key)\\b(\\W{0,3})\\S+");
+    private static final java.util.regex.Pattern SHORT_NUMBER = java.util.regex.Pattern.compile("\\b\\d{4,8}\\b");
+    // Informational lines worth keeping; the rest is too frequent and would push out a session.
+    private static final String[] INFO_PREFIXES = {
+            "Stream request", "Connection terminated", "Selected ", "Decoder", "Reconfigure", "Stream now",
+            "Display luminance", "Display modes changed", "Microphone", "PC stream profiles", "Present mode",
+            "PyroWave", "Phase lock", "Low latency", "Automatic codec"};
+
+    /** A PC name or address to keep out of problem reports. */
+    public static void addSecret(String secret) {
+        if (secret != null && secret.trim().length() >= 2) {
+            SECRETS.add(secret.trim());
+        }
+    }
 
     public synchronized void add(String level, String message) {
         // Only fixed event text crosses the export boundary. Host replies can contain arbitrary secrets.
+        boolean important = "WARNING".equals(level) || "SEVERE".equals(level);
+        if (!important && (message == null || (!EVENTS.contains(message) && !keptInfo(message)))) {
+            return;
+        }
         String safeMessage = redact(message);
         if (safeMessage == null) {
-            if (!"WARNING".equals(level) && !"SEVERE".equals(level)) {
-                return;
-            }
             safeMessage = "Diagnostic details omitted";
         }
         if (entries.size() == MAX_ENTRIES) {
@@ -39,7 +68,36 @@ public final class RedactedLog {
     }
 
     static String redact(String message) {
-        return message != null && EVENTS.contains(message) ? message : null;
+        if (message == null) {
+            return null;
+        }
+        if (EVENTS.contains(message)) {
+            return message;
+        }
+        // Our own log text crosses the boundary with names, addresses, IDs, PINs and keys taken out.
+        String text = message.replace('\n', ' ').replace('\r', ' ');
+        for (String secret : SECRETS) {
+            text = text.replace(secret, "[PC]");
+        }
+        text = PIN.matcher(text).replaceAll("$1$2[omitted]");
+        if (text.toLowerCase(java.util.Locale.ROOT).contains("pair")) {
+            // Pairing messages may carry the PIN as a bare number.
+            text = SHORT_NUMBER.matcher(text).replaceAll("[omitted]");
+        }
+        String[] marks = {"[url]", "[email]", "[address]", "[address]", "[id]", "[hex]", "[data]", "[path]"};
+        for (int i = 0; i < SENSITIVE.length; i++) {
+            text = SENSITIVE[i].matcher(text).replaceAll(java.util.regex.Matcher.quoteReplacement(marks[i]));
+        }
+        return text.length() > MAX_MESSAGE_CHARS ? text.substring(0, MAX_MESSAGE_CHARS) + "…" : text;
+    }
+
+    static boolean keptInfo(String message) {
+        for (String prefix : INFO_PREFIXES) {
+            if (message.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public synchronized String snapshot() {
